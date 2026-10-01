@@ -276,6 +276,8 @@ export const stubLlm: Llm = {
         firstQuestion: level === "EASY" ? `선배, ${points[0]}부터 알려줄래?` : `${points[0]}부터 말해 줘. 받아쓸게.`,
       };
     }
+    if (persona === "MALE_EASY") base.firstQuestion = `선배님, ${objectiveTopic(base.objectives[0])}부터 알려주실 수 있나요?`;
+    if (persona === "FEMALE_NORMAL") base.firstQuestion = `선배님, ${objectiveTopic(base.objectives[0])}부터 알려주실래요?`;
     // 문항 수에 맞춰 늘린다: 같은 목표의 다른 측면(이유 → 적용 → 비교)을 묻고 채점 요소는 그 목표의 기준을 따른다.
     // 졸업시험은 chapter.points(= 각 챕터 제목)를 돌아가며 자료 전체에 고르게 출제한다.
     const stems = [
@@ -313,6 +315,7 @@ export const stubLlm: Llm = {
       yield { type: "doubt", content: input.persona === "KU_HARD" && wrong === "economics"
         ? personaFor("KU_HARD")!.examples.doubt
         : input.persona === "FEMALE_NORMAL" ? personaFor("FEMALE_NORMAL")!.examples.doubt
+        : input.persona === "MALE_EASY" ? personaFor("MALE_EASY")!.examples.doubt
         : doubt?.content ?? "어? 방금 설명을 한 번만 더 확인해줄래?" };
       return;
     }
@@ -329,7 +332,13 @@ export const stubLlm: Llm = {
     await pause();
     yield {
       type: "question",
-      content: next < 0 ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : input.persona === "FEMALE_NORMAL" ? `${objectiveTopic(objectives[next])}${josa(objectiveTopic(objectives[next]), "은", "는")} 왜 그런가요, 선배?` : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`,
+      content: next < 0
+        ? input.persona === "MALE_EASY" ? "선배님, 더 말씀해 주세요. 궁금한 게 생기면 여쭤보겠습니다."
+          : input.persona === "FEMALE_NORMAL" ? "선배님, 더 말씀해 주세요! 궁금한 게 생기면 물어볼게요."
+          : "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게."
+        : input.persona === "FEMALE_NORMAL" ? `${objectiveTopic(objectives[next])}${josa(objectiveTopic(objectives[next]), "은", "는")} 왜 그런가요, 선배님?`
+          : input.persona === "MALE_EASY" ? `선배님, ${objectiveTopic(objectives[next])}도 설명해주실 수 있나요?`
+          : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`,
       coveredObjectives,
     };
   },

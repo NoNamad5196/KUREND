@@ -136,7 +136,8 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         yield { type: "concepts", heardConcepts: previousConcepts, added: [] };
         yield { type: "doubt", content: input.persona === "KU_HARD"
           ? `잠깐만 선배. “${claim}”라는 건 내가 이해한 게 맞아?`
-          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요, 선배?`
+          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요, 선배님?`
+          : input.persona === "MALE_EASY" ? `선배님, “${claim}”라는 설명이 조금 헷갈립니다. 한 번만 더 설명해주실 수 있나요?`
           : `어? “${claim}”라는 설명이 조금 헷갈려. 한 번만 더 설명해줄래?` };
         return;
       }
@@ -150,7 +151,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       // Provider failures propagate to the saved-turn retry flow; never turn
       // an unavailable or invalid model response into a successful template.
       const fallbackQuestion = input.persona === "FEMALE_NORMAL" && coveredObjectives.length < input.objectives.length
-        ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배?`
+        ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배님?`
         : nextObjectiveQuestion(input, coveredObjectives);
       const persona = personaFor(input.persona);
       const responded = await calls.completeJSON(`${RESPOND_TURN_PROMPT}${persona ? `\n현재 후배: ${persona.name}. 말투: ${persona.voice}` : ""}`, JSON.stringify({
