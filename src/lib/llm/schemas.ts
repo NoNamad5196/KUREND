@@ -45,6 +45,7 @@ export const prepareSessionSchema = z.object({
       const items = value.split(";").filter((item) => item.trim());
       return items.length >= 2 && items.length <= 3;
     }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
+    choices: z.array(nonempty.max(200)).length(4).refine((items) => new Set(items).size === 4, "보기는 서로 다른 4개여야 합니다.").optional(),
   })).length(3),
   firstQuestion: nonempty.max(200),
 }).superRefine((result, ctx) => {
@@ -56,6 +57,13 @@ export const prepareSessionSchema = z.object({
       ctx.addIssue({ code: "custom", path: ["questions", index], message: "문항은 q1~q3, 순서 1~3, 목표 o1~o3, 배점 34/33/33이어야 합니다." });
     }
   });
+});
+
+export const teacherNoteSchema = z.object({
+  mustTeach: z.array(nonempty.max(200)).min(2).max(8),
+  keyTakeaways: z.array(nonempty.max(300)).min(2).max(8),
+  confusing: z.array(nonempty.max(300)).min(1).max(6),
+  likelyQuestions: z.array(nonempty.max(200)).min(1).max(6),
 });
 
 export function analyzeTurnSchema(explanation: string, objectiveIds: string[], taught: TaughtMsg[]) {
@@ -87,15 +95,19 @@ export function doubtSchema(allowedDoubt: string) {
   return z.object({ doubt: z.literal(allowedDoubt) });
 }
 
-export function examAnswerSchema(taught: TaughtMsg[]) {
+export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
   return z.object({
     thought: nonempty.max(30),
+    choice: z.enum(["①", "②", "③", "④"]).optional(),
     sentences: z.array(z.object({
       quote: nonempty.max(1_000).nullable(), ref: z.number().int().positive().nullable(),
       level: z.enum(["STRONG", "FAINT", "NONE"]),
     })).min(1).max(4),
     unlearned: z.boolean(),
   }).superRefine((result, ctx) => {
+    if (choices?.length === 4 && !choices.some((choice) => choice.startsWith(result.choice ?? "\u0000"))) {
+      ctx.addIssue({ code: "custom", path: ["choice"], message: "제공된 보기 중 하나를 선택하세요." });
+    }
     if (result.unlearned) {
       if (result.sentences.length !== 1 || result.sentences[0].quote !== null || result.sentences[0].ref !== null || result.sentences[0].level !== "NONE") {
         ctx.addIssue({ code: "custom", path: ["sentences"], message: "못 배웠으면 quote:null, ref:null, level:NONE인 항목 하나만 쓰세요." });
@@ -115,6 +127,14 @@ const gapSchema = z.object({
   title: nonempty.max(25), diagnosis: nonempty.max(1_000), evidenceQuote: z.string().max(2_000),
   concepts: z.array(nonempty.max(80)).min(1).max(10), sourceExcerpt: nonempty.max(2_000),
 });
+
+export function objectiveGapSchema(chapterText: string, taught: TaughtMsg[]) {
+  return z.object({ gap: gapSchema }).superRefine(({ gap }, ctx) => {
+    if (!chapterText.includes(gap.sourceExcerpt)) ctx.addIssue({ code: "custom", path: ["gap", "sourceExcerpt"], message: "자료 원문 인용이 필요합니다." });
+    if (gap.evidenceQuote && !taught.some((message) => message.content.includes(gap.evidenceQuote)))
+      ctx.addIssue({ code: "custom", path: ["gap", "evidenceQuote"], message: "사용자 설명 원문 인용이 필요합니다." });
+  });
+}
 
 export function gradeExamSchema(input: {
   qid: string; rubricCount: number; chapterText: string; taught: { content: string }[]; answer: string;

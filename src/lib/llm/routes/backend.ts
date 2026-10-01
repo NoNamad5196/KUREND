@@ -3,6 +3,7 @@ import type {
   GradeDto, JuniorLevel, MaterialStatus, MessageDto, ObjectiveDto,
   SessionDto, SessionPhase, SessionStatus, SourceKind,
 } from "@/contracts/types";
+import type { SessionGameSnapshot } from "@/contracts/game";
 
 export class RouteError extends Error {
   constructor(
@@ -66,6 +67,7 @@ export interface ExamRecord {
 }
 
 export interface SessionRecord {
+  game?: SessionGameSnapshot;
   sessionId: string;
   userId: string;
   revision: number;
