@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: kurend-demo
+    runtime: node
+    plan: free
+    buildCommand: bash scripts/render-build.sh
+    startCommand: bash scripts/render-start.sh
+    healthCheckPath: /api/auth/demo-accounts
+    envVars:
+      - key: NODE_VERSION
+        value: "24.19.0"
+      - key: COREPACK_ENABLE_AUTO_PIN
+        value: "0"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        value: file:./prisma/dev.db
+      - key: LLM_PROVIDER
+        value: stub
+      - key: D_STUB_BACKEND
+        value: "0"
+      - key: NEXT_PUBLIC_API_BASE
+        value: /api
+      - key: SESSION_COOKIE
+        value: tb_uid
