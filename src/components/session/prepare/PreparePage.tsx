@@ -16,6 +16,7 @@ import { CharacterBadge } from "@/components/game/CharacterBadge";
 import { CHARACTER_META } from "@/components/game/characters";
 import { LifeHearts } from "@/components/game/LifeHearts";
 import { useSessionGame } from "@/components/game/useSessionGame";
+import { TeacherNotePreview } from "@/components/game/TeacherNotePreview";
 import { JuniorOrMascot, juniorLabel, withJosa } from "@/components/game/JuniorOrMascot";
 
 const STEPS = [
@@ -154,7 +155,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
                 ))}
               </ul>
               <Button size="lg" onClick={() => router.push(`/session/${sessionId}/teach`)} className="kurend-pop shadow-card">
-                이 새내기로 시작 →
+                {run ? `${withJosa(juniorLabel(run.character), "과/와")} 수업 시작` : "이 새내기로 시작"} →
               </Button>
             </div>
           ) : streamError ? (
@@ -195,6 +196,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
           )}
         </Card>
 
+        <div className="min-w-0 space-y-6">
         {run ? (
           <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
             <div className="flex items-center justify-between gap-2">
@@ -215,6 +217,8 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
             <Link href={`/materials/${session.material.materialId}/junior`} className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">후배 선택하고 게임으로 시작 →</Link>
           </Card>
         )}
+        {!isFinal && <TeacherNotePreview materialId={session.material.materialId} chapterId={session.chapter.chapterId} />}
+        </div>
       </div>
     </div>
   );

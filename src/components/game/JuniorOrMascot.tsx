@@ -28,7 +28,7 @@ export function juniorLabel(character?: JuniorCharacter | null): string {
 }
 
 /** 한국어 조사: 받침 유무로 이/가, 은/는, 을/를, 의(그대로) 를 고른다. KU 처럼 영문은 발음(케이유)으로 받침 없음 처리. */
-export function withJosa(word: string, pair: "이/가" | "은/는" | "을/를"): string {
+export function withJosa(word: string, pair: "이/가" | "은/는" | "을/를" | "과/와"): string {
   const last = word.trim().slice(-1);
   const code = last.charCodeAt(0);
   const hasBatchim = code >= 0xac00 && code <= 0xd7a3 ? (code - 0xac00) % 28 !== 0 : false;

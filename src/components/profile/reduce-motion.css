@@ -1,0 +1,11 @@
+/* 설정 > 움직임 줄이기: applyReduceMotion(true) 가 <html data-reduce-motion="1"> 을 붙이면 앱 전체 애니메이션을 끈다.
+   (OS 의 prefers-reduced-motion 규칙은 globals.css 에 있다.) Onboarding · 프로필이 import 한다. */
+html[data-reduce-motion="1"] *,
+html[data-reduce-motion="1"] *::before,
+html[data-reduce-motion="1"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

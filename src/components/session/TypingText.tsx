@@ -5,6 +5,7 @@
  */
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
+import { usePreferences } from "@/lib/client/preferences";
 
 export function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -42,7 +43,9 @@ export function TypingText({
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
   const reduced = usePrefersReducedMotion();
-  const immediate = instant || reduced;
+  const prefs = usePreferences();
+  // 프로필 설정의 "타이핑 연출 건너뛰기"·"움직임 줄이기"도 즉시 표시로 본다.
+  const immediate = instant || reduced || prefs.instantTyping || prefs.reduceMotion;
 
   useEffect(() => {
     const prev = prevTextRef.current;

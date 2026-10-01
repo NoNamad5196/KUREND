@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Button } from "@/components/session/ui";
 
 export type ExamViewSettings = { showThought: boolean; instant: boolean; autoAdvance: boolean };
-const DEFAULTS: ExamViewSettings = { showThought: true, instant: false, autoAdvance: false };
+const DEFAULTS: ExamViewSettings = { showThought: true, instant: false, autoAdvance: true };
 const KEY = "kurend.examView";
 
 function readSettings(): ExamViewSettings {
@@ -16,7 +16,7 @@ function readSettings(): ExamViewSettings {
     return {
       showThought: typeof value.showThought === "boolean" ? value.showThought : true,
       instant: typeof value.instant === "boolean" ? value.instant : false,
-      autoAdvance: typeof value.autoAdvance === "boolean" ? value.autoAdvance : false,
+      autoAdvance: typeof value.autoAdvance === "boolean" ? value.autoAdvance : true,
     };
   } catch { return DEFAULTS; }
 }

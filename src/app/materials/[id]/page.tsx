@@ -11,6 +11,7 @@ import { gameApi } from "@/lib/client/game-api";
 import { MaterialPreparation, type MaterialStep } from "@/components/material/MaterialPreparation";
 import { TeacherNoteSection } from "@/components/game/TeacherNoteSection";
 import { ChapterRow } from "@/components/material/ChapterRow";
+import { FlowSteps } from "@/components/material/FlowSteps";
 import { ChooseJuniorCard, MaterialRunCard } from "@/components/material/MaterialRunCard";
 
 export default function MaterialPage() {
@@ -98,6 +99,7 @@ export default function MaterialPage() {
   async function remove() { setDeleting(true); try { await api.del(`/materials/${id}`); router.push("/"); } catch (e) { setError(e instanceof Error ? e.message : "자료를 삭제하지 못했습니다."); setDeleting(false); setDeleteOpen(false); } }
   return <>
     <Link href="/" className="mb-5 inline-block text-sm font-semibold text-muted hover:text-primary">← 홈</Link>
+    <FlowSteps current={material?.status === "READY" ? 2 : 1} />
     <PageHeader title={material?.title || "자료"} description={material ? `${material.courseName}${material.examDate ? ` · 시험일 ${material.examDate}` : ""}` : "자료를 불러오는 중…"} />
     {error && <Card role="alert" className="mb-5 border-danger text-danger">{error}</Card>}
     {!material && !error && <p className="py-20 text-center text-muted" role="status">자료를 불러오는 중…</p>}
@@ -108,7 +110,7 @@ export default function MaterialPage() {
         {run === undefined && !runError && <p role="status" className="mb-4 text-sm text-muted">후배 정보를 불러오는 중…</p>}
         {run && <MaterialRunCard run={run} materialId={id} />}
         {run === null && <ChooseJuniorCard materialId={id} />}
-        <p className="mb-4 text-sm text-muted">한 번에 목차 하나를 가르칩니다. 순서는 자유입니다.</p><Card><h2 className="text-lg font-bold">목차 <span className="text-primary">{material.chapters.length}</span></h2>{material.chapters.length ? <ol className="mt-2">{material.chapters.map((chapter) => <ChapterRow key={chapter.chapterId} chapter={chapter} onStart={start} busy={busyChapter === chapter.chapterId} disabled={!!busyChapter || generating || run === undefined || !!runError} progress={run?.progress.chapters.find((p) => p.chapterId === chapter.chapterId)} />)}</ol> : <p className="mt-5 text-sm text-muted">목차가 비어 있습니다. 다시 생성해 주세요.</p>}</Card>{material.chapters.length > 0 && <TeacherNoteSection materialId={material.materialId} chapters={material.chapters} />}</>}
+        <p className="mb-4 text-sm text-muted">한 번에 목차 하나를 가르칩니다. 순서는 자유입니다.</p><Card><h2 className="text-lg font-bold">목차 <span className="text-primary">{material.chapters.length}</span></h2>{material.chapters.length ? <ol className="mt-2">{material.chapters.map((chapter) => <ChapterRow key={chapter.chapterId} materialId={id} chapter={chapter} onStart={start} busy={busyChapter === chapter.chapterId} disabled={!!busyChapter || generating || run === undefined || !!runError} progress={run?.progress.chapters.find((p) => p.chapterId === chapter.chapterId)} />)}</ol> : <p className="mt-5 text-sm text-muted">목차가 비어 있습니다. 다시 생성해 주세요.</p>}</Card>{material.chapters.length > 0 && <TeacherNoteSection materialId={material.materialId} chapters={material.chapters} />}</>}
       <div className="mt-8 border-t border-line pt-5"><button className="text-sm font-semibold text-danger underline" disabled={generating || !!busyChapter} onClick={() => setDeleteOpen(true)}>자료 삭제</button></div>
     </>}
     <ConfirmDialog open={deleteOpen} title="자료를 삭제할까요?" description="자료와 연결된 목차가 삭제됩니다. 이 작업은 되돌릴 수 없습니다." busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={remove} />

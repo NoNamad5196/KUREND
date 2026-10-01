@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
 import type { MaterialCreateResponse } from "@/contracts/types";
 import { Button, Card, Chip, PageHeader } from "@/components/shell/ui";
+import { FlowSteps } from "@/components/material/FlowSteps";
 
 const MAX_SIZE = 10 * 1024 * 1024;
 const SAMPLES = [
@@ -52,6 +53,7 @@ export default function NewMaterialPage() {
     catch (e) { setError(e instanceof Error ? e.message : "자료를 올릴 수 없습니다."); setBusy(false); uploading.current = false; }
   }
   return <>
+    <FlowSteps current={1} />
     <PageHeader title="새 자료" description="강의 자료를 올리면 새내기가 가르칠 목차를 정리합니다." />
     <form onSubmit={submit} className="max-w-3xl"><fieldset disabled={busy} className="space-y-5"><Card><label htmlFor="course" className="block text-sm font-bold">과목명 <span className="text-danger">*</span></label><input id="course" className="mt-2 w-full rounded-xl border border-line bg-surface px-4 py-3 outline-none focus:border-primary" placeholder="예: 운영체제" value={courseName} maxLength={80} onChange={(e) => setCourseName(e.target.value)} required /><label htmlFor="exam-date" className="mt-5 block text-sm font-bold">시험일 <span className="font-normal text-muted">선택</span></label><input id="exam-date" type="date" className="mt-2 rounded-xl border border-line bg-surface px-4 py-3 outline-none focus:border-primary" value={examDate} onChange={(e) => setExamDate(e.target.value)} /></Card>
       <Card><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-bold">강의 자료</h2><span className="text-xs text-muted">md · txt · pdf / 각 10MB / 최대 5개</span></div><input ref={inputRef} type="file" accept=".md,.txt,.pdf,text/plain,text/markdown,application/pdf" multiple className="sr-only" aria-label="자료 파일 선택" onChange={onSelect} /><div className={`mt-4 rounded-xl border-2 border-dashed p-8 text-center ${dragging ? "border-primary bg-primary-soft" : "border-line bg-bg"}`} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}><p className="font-semibold">파일을 이곳에 끌어다 놓으세요</p><p className="mt-1 text-sm text-muted">또는 컴퓨터에서 파일을 선택하세요.</p><Button type="button" variant="secondary" className="mt-4" onClick={() => inputRef.current?.click()}>파일 선택</Button></div>{files.length > 0 && <ul className="mt-4 space-y-2" aria-label="선택한 파일">{files.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-bg px-3 py-2 text-sm"><span className="truncate">{file.name} <span className="text-muted">({(file.size / 1024).toFixed(0)} KB)</span></span><button type="button" className="font-bold text-danger" aria-label={`${file.name} 삭제`} onClick={() => setFiles(files.filter((_, i) => i !== index))}>삭제</button></li>)}</ul>}</Card>
