@@ -219,6 +219,28 @@ export type SessionGameSnapshot = {
   mastery: ConceptMasteryDto[];
 };
 
+export const WrongNoteListResponseSchema = z.object({ notes: z.array(WrongNoteSchema) });
+export type WrongNoteListResponse = z.infer<typeof WrongNoteListResponseSchema>;
+
+export const ReteachResponseSchema = z.object({ sessionId: z.string(), focusConcepts: z.array(z.string()) });
+export type ReteachResponse = z.infer<typeof ReteachResponseSchema>;
+
+/** P2 졸업앨범: 졸업생 + 떠나간 후배 */
+export const AlbumEntrySchema = z.object({
+  runId: z.string(),
+  character: JuniorCharacterSchema,
+  status: z.enum(["GAME_OVER", "GRADUATED"]),
+  materialId: z.string(),
+  materialTitle: z.string(),
+  courseName: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string(),
+  summary: GraduationSummarySchema.nullable(),
+});
+export type AlbumEntryDto = z.infer<typeof AlbumEntrySchema>;
+export const AlbumResponseSchema = z.object({ graduated: z.array(AlbumEntrySchema), departed: z.array(AlbumEntrySchema) });
+export type AlbumResponse = z.infer<typeof AlbumResponseSchema>;
+
 /* ───────── 요청 ───────── */
 export const CreateRunRequestSchema = z.object({
   materialId: z.string(),

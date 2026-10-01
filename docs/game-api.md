@@ -110,7 +110,39 @@
 있으면 캐시를 돌려주고, 없으면 ② `llm.generateTeacherNote` 로 1회 생성·저장한다. ② 연결 전에는 502 `LLM_FAILED`("강의노트 생성 기능이 아직 연결되지 않았습니다.").
 다른 자료의 챕터 404 `NOT_FOUND`.
 
-### P1 (예정): 오답노트 `/wrong-notes/**`, KU 숙련도 영속화, 졸업시험(`Session.kind = FINAL`).
+### 오답노트 (P1)
+
+#### `POST /wrong-notes` `{ sessionId, qid, userReason }` → `WrongNoteDto` (201)
+- 사용자가 **먼저** 이유를 쓰고, 저장되면 AI 분석이 함께 돌아온다(화면은 저장 후에 분석을 공개).
+- 같은 (세션, 문항) 재요청은 처음 노트를 **200** 으로 돌려준다(덮어쓰지 않음).
+- 오류: 채점 전 세션·맞힌 문항 409 `INVALID_STATE`, 없는 문항 404 `NOT_FOUND`, 이유 공백 400 `VALIDATION`.
+```json
+{ "wrongNoteId": "wn_x", "sessionId": "sess_x", "runId": "run_x", "qid": "q1",
+  "courseName": "경제학원론", "materialTitle": "수요와 공급", "chapterId": "chp_x", "chapterTitle": "수요의 이해",
+  "question": "수요 법칙은?", "choices": ["…", "…", "…", "…"], "answer": "① 가격이 오르면 수요량도 늘어납니다.",
+  "score": 0, "maxScore": 34, "verdict": "WRONG",
+  "userReason": "수요 법칙을 반대로 설명했다",
+  "aiDiagnosis": "수요 법칙 방향이 반대. 새내기 답안은 …",
+  "aiComparison": "맞아요. 선배가 짚은 대로 수요 법칙을(를) 새내기에게 가르치지 않은 것이 원인이에요. …",
+  "evidenceQuote": "가격이 오르면 수요량도 늘어.", "sourceExcerpt": "가격이 오르면 수요량이 줄어든다.",
+  "missedConcepts": ["수요 법칙"], "createdAt": "…" }
+```
+- `aiDiagnosis` 는 그 문항의 놓친 곳(Gap)에서 바로 만든다(대기 없음). `choices` 는 객관식일 때만.
+- `aiComparison` 은 ② `llm.diagnoseWrongNote` 가 있으면 그 결과, 없거나 실패하면 템플릿 문구.
+
+#### `GET /wrong-notes?materialId=` → `{ notes: WrongNoteDto[] }` (최신순, `materialId` 생략 시 전체)
+#### `GET /wrong-notes/{id}` → `WrongNoteDto`
+#### `POST /wrong-notes/{id}/reteach` → `{ sessionId, focusConcepts }` (201)
+같은 챕터에 PREPARING 세션을 만든다(ACTIVE Run 이 있으면 연결). `focusConcepts` 는 `Session.focusConceptsJson` 에 저장되어 ② 의 prepare 가 "오늘의 재교육" 목표로 쓴다. 클라이언트는 `/session/{sessionId}/prepare` 로 이동.
+
+### `GET /runs/album` → `{ graduated: AlbumEntry[], departed: AlbumEntry[] }` (P2)
+`AlbumEntry` = `{ runId, character, status: "GRADUATED"|"GAME_OVER", materialId, materialTitle, courseName, startedAt, endedAt, summary: GraduationSummaryDto|null }` (최근 종료순).
+
+### 객관식 보기 · 숙련도
+- `SessionDto.exam.questions[].choices`, `ResultDto.items[].choices` — 객관식(`Exam.format = OBJECTIVE`)일 때만 4개.
+- ② 가 `SessionRecord.game.mastery` 를 채워 커밋하면 `ConceptMastery` 에 저장되고 `GET /sessions/{id}/game` 의 `mastery` 로 나온다(KU, P1).
+
+### 남은 것: 졸업시험(`Session.kind = FINAL`, P1 #13) — ② 의 FINAL 출제와 함께 진행.
 
 ## 3. 시드 계정 (`pnpm db:reset`)
 
@@ -126,5 +158,5 @@
 
 ```bash
 pnpm db:reset && pnpm dev            # 다른 터미널 (db:reset 뒤에는 dev 서버를 재시작)
-pnpm tsx scripts/smoke-api.ts        # 225 체크 (기존 + 게임 76개)
+pnpm tsx scripts/smoke-api.ts        # 245 체크 (기존 + 게임 96개)
 ```

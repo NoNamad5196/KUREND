@@ -83,3 +83,63 @@ test("Prisma adapter round trip preserves turn order when appended messages shar
   for (let index = 2; index < times.length; index += 1) assert.ok(times[index] > times[index - 1], "new messages have unambiguous database ordering");
   assert.deepEqual(reloaded.messages.filter((message) => message.role === "USER").map((message) => message.content), ["이전 설명", "이번 설명"]);
 });
+
+/* ───────── [① 게임 확장] 실제 SQLite(C 의 db)로 game 스냅샷·choices·Exam.format·mastery 왕복 ───────── */
+test("game snapshot, objective choices, exam format and mastery round trip on C's real schema", async (t) => {
+  const { existsSync } = await import("node:fs");
+  if (!existsSync("prisma/dev.db") && !process.env.DATABASE_URL) {
+    t.skip("pnpm db:reset 로 만든 DB 가 없음");
+    return;
+  }
+  const { db } = await import("@/lib/server/db");
+  const material = await db.material.findFirst({ where: { userId: "usr_demo1", courseName: "경제학원론" }, include: { chapters: { orderBy: { order: "asc" } } } });
+  if (!material) {
+    t.skip("시드 데이터 없음 (pnpm db:reset)");
+    return;
+  }
+  const chapterId = material.chapters[0].id;
+  const runId = `run_test_${Date.now().toString(36)}`;
+  const sessionId = `sess_test_${Date.now().toString(36)}`;
+  const practiceId = `${sessionId}_p`;
+  await db.juniorRun.create({ data: { id: runId, userId: "usr_demo1", materialId: material.id, character: "MALE_EASY", lives: 2, maxLives: 3 } });
+  await db.session.create({ data: { id: sessionId, userId: "usr_demo1", chapterId, runId, status: "PREPARING", juniorLevel: "EASY" } });
+  await db.session.create({ data: { id: practiceId, userId: "usr_demo1", chapterId, status: "PREPARING" } });
+  try {
+    const backend = createPrismaBackend({ db, async requireUser() { return { id: "usr_demo1" }; } });
+    const before = await backend.getSession(sessionId, "usr_demo1");
+    assert.ok(before);
+    const game = (before as typeof before & { game?: { runId: string; character: string; lives: number; passScore: number; examFormat: string; mastery: unknown[] } }).game;
+    assert.deepEqual(
+      { runId: game?.runId, character: game?.character, lives: game?.lives, passScore: game?.passScore, examFormat: game?.examFormat, mastery: game?.mastery },
+      { runId, character: "MALE_EASY", lives: 2, passScore: 60, examFormat: "OBJECTIVE", mastery: [] },
+    );
+    const practice = await backend.getSession(practiceId, "usr_demo1");
+    assert.equal((practice as Record<string, unknown> | null)?.game, undefined, "연습 세션에는 game 이 없다");
+
+    const examId = `exam_test_${Date.now().toString(36)}`;
+    const choices = ["가격과 수요량은 같은 방향", "가격과 수요량은 반대 방향", "가격과 공급은 무관", "수요는 항상 일정"];
+    const committed = await backend.commitSession(before, {
+      ...before,
+      status: "EXPLAINING",
+      objectives: [{ id: "o1", text: "수요 법칙" }],
+      exam: {
+        examId, status: "READY", answers: [], grades: [],
+        questions: [{ qid: "q1", order: 1, points: 34, question: "수요 법칙은?", objectiveRef: "o1", rubric: "2", choices } as never],
+      },
+      game: { ...game!, mastery: [{ concept: "수요 법칙", exposureCount: 2, mastery: 140 }] },
+    } as never);
+    const row = await db.examQuestion.findUnique({ where: { id: `${examId}:q1` } });
+    assert.deepEqual(JSON.parse(row?.choicesJson ?? "null"), choices);
+    assert.equal((await db.exam.findUnique({ where: { id: examId } }))?.format, "OBJECTIVE");
+    assert.deepEqual(committed.exam?.questions[0] && (committed.exam.questions[0] as { choices?: string[] }).choices, choices);
+    assert.equal(backend.toSessionDto(committed).exam?.questions[0].choices?.length, 4);
+    assert.ok(!JSON.stringify(backend.toSessionDto(committed)).includes("rubric"));
+    const mastery = await db.conceptMastery.findMany({ where: { runId } });
+    assert.deepEqual(mastery.map((m) => [m.concept, m.exposureCount, m.mastery]), [["수요 법칙", 2, 100]], "숙련도는 0~100 으로 저장");
+    const after = await backend.getSession(sessionId, "usr_demo1");
+    assert.deepEqual((after as typeof after & { game?: { mastery: unknown[] } })?.game?.mastery, [{ concept: "수요 법칙", exposureCount: 2, mastery: 100 }]);
+  } finally {
+    await db.session.deleteMany({ where: { id: { in: [sessionId, practiceId] } } });
+    await db.juniorRun.deleteMany({ where: { id: runId } });
+  }
+});
