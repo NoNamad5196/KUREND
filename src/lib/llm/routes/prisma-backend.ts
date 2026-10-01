@@ -73,6 +73,23 @@ export interface PrismaSessionAggregate {
   gaps: DbGap[];
   /** [① 게임 확장] 연결된 Run (없으면 연습 모드). 스냅샷 비교 대상인 스칼라라 값이 바뀌지 않는다. */
   runId?: string | null;
+  /** [① 게임 확장 P1] 오답노트 "다시 가르치기" 집중 개념 string[] JSON */
+  focusConceptsJson?: string | null;
+}
+
+/** 다시 가르치기 세션이면 집중 개념을 챕터 포인트 앞에 둔다(준비 단계가 points 로 학습 목표·문항을 만든다). 최대 3개 유지 */
+function focusedPoints(points: string[], focusJson: string | null | undefined): string[] {
+  if (!focusJson) return points;
+  let focus: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(focusJson);
+    if (Array.isArray(parsed)) focus = parsed.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim());
+  } catch {
+    return points;
+  }
+  if (!focus.length) return points;
+  const rest = points.filter((p) => !focus.includes(p));
+  return [...focus, ...rest].slice(0, Math.max(3, Math.min(focus.length, 4)));
 }
 /** [① 게임 확장] Run·숙련도 조회용. 세션 aggregate 비교(CAS)에 넣지 않아 같은 Run 의 다른 세션 LIFE 변화로 409 가 나지 않는다. */
 interface DbRun { id: string; character: string; lives: number; maxLives: number }
@@ -197,7 +214,11 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
     const result: SessionRecord = {
       sessionId: raw.id, userId: raw.userId, revision: ++revision,
       status: raw.status, phase: raw.phase, juniorLevel: raw.juniorLevel,
-      chapter: { ...chapter(raw.chapter), text: raw.chapter.source.text.slice(raw.chapter.startOffset, raw.chapter.endOffset) },
+      chapter: {
+        ...chapter(raw.chapter),
+        points: focusedPoints(chapter(raw.chapter).points, raw.focusConceptsJson),
+        text: raw.chapter.source.text.slice(raw.chapter.startOffset, raw.chapter.endOffset),
+      },
       material: { materialId: raw.chapter.material.id, title: raw.chapter.material.title, courseName: raw.chapter.material.courseName },
       objectives: json(raw.objectivesJson), heardConcepts: json(raw.heardJson),
       messages: raw.messages.map((message) => ({
