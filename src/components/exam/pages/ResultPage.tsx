@@ -13,6 +13,11 @@ import { AnswerSheet } from "../AnswerSheet";
 import { ReportCard } from "../ReportCard";
 import { GradeBox, GradeVerdictChip } from "../verdict";
 import { PageError, PageLoading, stream, useResultData, useTask } from "./shared";
+import type { ApplyLifeResponse, RunDto } from "@/contracts/game";
+import { gameApi } from "@/lib/client/game-api";
+import { ResultOverlay } from "@/components/game/ResultOverlay";
+import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
+import { useSessionGame } from "@/components/game/useSessionGame";
 
 export function ResultPage({ sessionId }: { sessionId: string }) {
   const state = useSession(sessionId, (session) => ["EVALUATING", "RESULT_READY", "REVIEWING"].includes(session.status) || (session.status === "EXAM_IN_PROGRESS" && !!session.exam?.questions.length && session.exam.questions.every((question) => session.exam?.answers.some((answer) => answer.qid === question.qid))));
@@ -29,6 +34,8 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const [grades, setGrades] = useState<Record<string, GradeDto>>({});
   const [grading, setGrading] = useState<string | null>(null);
   const [gaps, setGaps] = useState<GapDto[]>([]);
+  const { run: juniorRun, reload: reloadGame } = useSessionGame(session.sessionId);
+  const [overlay, setOverlay] = useState<{ result: ApplyLifeResponse; run: RunDto } | null>(null);
   const initiated = useRef(false);
   const answerSheet = useRef<HTMLDivElement>(null);
   const result = data.result;
@@ -51,10 +58,17 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
         if (signal.aborted) return;
         if (!receivedResult) throw new Error("채점 결과를 확인하지 못했어요. 다시 확인해 주세요.");
         setEvaluated(true);
+        // 게임: 결과가 저장된 뒤 LIFE 판정(서버가 session.score 로 계산). Run 이 없으면 연습 모드.
+        const game = await gameApi.getSessionGame(session.sessionId).catch(() => null);
+        if (game?.run && !signal.aborted) {
+          const applied = await gameApi.applyLife(game.run.runId, session.sessionId).catch(() => null);
+          if (applied?.applied && !signal.aborted) setOverlay({ result: applied, run: game.run });
+          void reloadGame();
+        }
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, [session.status, session.sessionId, run]);
+  }, [session.status, session.sessionId, run, reloadGame]);
 
   function complete() {
     void run(async (signal) => {
@@ -64,7 +78,8 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   }
 
   return <div className="min-w-0 space-y-6">
-    <StepperHeader session={session} step={3} chipLabel={result ? "시험 결과" : "채점 중"} subtitle="새내기의 답안에서 내 설명을 돌아보세요" />
+    {overlay && <ResultOverlay result={overlay.result} character={overlay.run.character} onClose={() => setOverlay(null)} onGameOver={() => router.push(`/runs/${encodeURIComponent(overlay.run.runId)}/game-over?c=${overlay.run.character}&m=${encodeURIComponent(overlay.run.materialId)}`)} />}
+    <StepperHeader session={session} step={3} chipLabel={result ? "시험 결과" : "채점 중"} subtitle="새내기의 답안에서 내 설명을 돌아보세요" right={<RunHeaderBadge run={juniorRun} />} />
     {result ? <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <ReportCard courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
       <div className="min-w-0 space-y-5">

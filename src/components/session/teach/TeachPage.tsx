@@ -14,6 +14,8 @@ import { ObjectivesPanel } from "@/components/session/ObjectivesPanel";
 import { SourcePeekButton } from "@/components/session/SourcePeekButton";
 import { SpeechBubble } from "@/components/session/SpeechBubble";
 import { StepperHeader } from "@/components/session/StepperHeader";
+import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
+import { useSessionGame } from "@/components/game/useSessionGame";
 import { TypingText } from "@/components/session/TypingText";
 import { Button, Card, Chip, EmptyState, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
@@ -41,6 +43,7 @@ function writeCovered(id: string, covered: string[]) {
 type Pending = { content: string; failed: boolean };
 
 export function TeachPage({ sessionId }: { sessionId: string }) {
+  const { run } = useSessionGame(sessionId);
   const router = useRouter();
   const { session, setSession, loading, error, redirecting, reload } = useSession(
     sessionId,
@@ -215,9 +218,13 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         subtitle="새내기는 가르친 내용만 기억합니다"
         right={
           <>
-            <Chip tone={session.juniorLevel === "EASY" ? "primary" : "accent"}>
-              {session.juniorLevel === "EASY" ? "쉽게" : "어렵게"}
-            </Chip>
+            {run ? (
+              <RunHeaderBadge run={run} />
+            ) : (
+              <Chip tone={session.juniorLevel === "EASY" ? "primary" : "accent"}>
+                {session.juniorLevel === "EASY" ? "쉽게" : "어렵게"}
+              </Chip>
+            )}
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}

@@ -2,10 +2,11 @@ import clsx from "clsx";
 import type { ReactNode } from "react";
 import { TypingText } from "@/components/session/TypingText";
 import { Chip } from "@/components/session/ui";
+import { Choices } from "./Choices";
 
 export type AnswerSheetItem = {
   qid: string; order: number; points: number; question: string; text: string;
-  unlearned?: boolean; status?: "pending" | "writing" | "done";
+  choices?: string[]; unlearned?: boolean; status?: "pending" | "writing" | "done";
   badge?: ReactNode; extra?: ReactNode;
 };
 
@@ -33,7 +34,8 @@ export function AnswerSheet({ courseName, title = "2026학년도 KUREND 학력�
               </h3>
               {item.badge}
             </div>
-            <div className={clsx("min-h-36 break-words whitespace-pre-wrap px-2 font-hand text-xl leading-9 sm:text-2xl", item.unlearned && "underline decoration-danger decoration-2 underline-offset-4")}
+            {item.choices && item.choices.length > 0 && <Choices choices={item.choices} answer={item.status === "done" || item.qid !== activeQid ? item.text : undefined} className="mb-4" />}
+            <div className={clsx(item.choices?.length ? "min-h-20" : "min-h-36 break-words whitespace-pre-wrap px-2 font-hand text-xl leading-9 sm:text-2xl", item.unlearned && "underline decoration-danger decoration-2 underline-offset-4")}
               style={{ backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 35px, var(--paper-rule) 35px, var(--paper-rule) 36px)" }}>
               {item.qid === activeQid && item.status === "writing" ? (
                 <TypingText key={item.qid} text={item.text} speedMs={typingSpeedMs} instant={instant} cursor onDone={() => onTypingDone?.(item.qid)} />

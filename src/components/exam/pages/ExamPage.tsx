@@ -8,6 +8,8 @@ import { useSession } from "@/components/session/useSession";
 import { Mascot } from "@/components/mascot/Mascot";
 import { SpeechBubble } from "@/components/session/SpeechBubble";
 import { StepperHeader } from "@/components/session/StepperHeader";
+import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
+import { useSessionGame } from "@/components/game/useSessionGame";
 import { Button, Card, Chip, ProgressBar } from "@/components/session/ui";
 import { AnswerSheet } from "../AnswerSheet";
 import { RecallPanel } from "../RecallPanel";
@@ -25,6 +27,7 @@ export function ExamPage({ sessionId }: { sessionId: string }) {
 function ExamContent({ session: initial, reload }: { session: SessionDto; reload: () => Promise<unknown> }) {
   const router = useRouter();
   const [session, setSession] = useState(initial);
+  const { run: juniorRun } = useSessionGame(initial.sessionId);
   const [settings, updateSettings] = useExamViewSettings();
   const { busy, error, run } = useTask(reload);
   const [answers, setAnswers] = useState<Record<string, AnswerPlayback>>(() => Object.fromEntries((initial.exam?.answers ?? []).map((answer) => [answer.qid, { ...emptyPlayback(), text: answer.answer, saved: true, cached: true }])));
@@ -84,11 +87,11 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
   }
 
   return <div className="min-w-0 space-y-6">
-    <StepperHeader session={session} step={2} chipLabel="시험" subtitle="새내기가 선배에게 배운 내용만으로 시험을 봅니다" />
+    <StepperHeader session={session} step={2} chipLabel="시험" subtitle="새내기가 선배에게 배운 내용만으로 시험을 봅니다" right={<RunHeaderBadge run={juniorRun} />} />
     {session.status === "EXPLAINING" ? <Card className="mx-auto flex max-w-xl flex-col items-center gap-6 p-6 text-center sm:p-10">
       <Mascot state="writing" size={144} />
       <SpeechBubble speaker="새내기" tail="top">나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘.</SpeechBubble>
-      <p className="text-sm text-muted">서술형 {questions.length || 3}문항 · 총 100점</p>
+      <p className="text-sm text-muted">{questions.some((q) => q.choices?.length) ? "객관식" : "서술형"} {questions.length || 3}문항 · 총 100점</p>
       <Button size="lg" loading={busy} onClick={startExam}>시험 시작 →</Button>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </Card> : <>

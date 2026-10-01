@@ -13,6 +13,10 @@ import { api, ApiError, sse } from "@/components/session/_api";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { Button, Card, Chip, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
+import { CharacterBadge } from "@/components/game/CharacterBadge";
+import { CHARACTER_META } from "@/components/game/characters";
+import { LifeHearts } from "@/components/game/LifeHearts";
+import { useSessionGame } from "@/components/game/useSessionGame";
 
 const LEVELS: Array<{ value: JuniorLevel; title: string; quote: string; hint: string }> = [
   { value: "EASY", title: "쉽게", quote: "선배, 나 궁금한 거 많아. 이상하면 바로 되물을게.", hint: "자료와 어긋난 설명이면 새내기가 바로 되묻습니다." },
@@ -37,6 +41,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState<JuniorLevel>("EASY");
   const [patching, setPatching] = useState(false);
+  const { run } = useSessionGame(sessionId);
   const abortRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
 
@@ -213,6 +218,20 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
           )}
         </Card>
 
+        {run ? (
+          <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-bold">이번 수업의 후배</h2>
+              <LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <CharacterBadge character={run.character} />
+              <p className="text-sm text-muted">합격 {run.passScore}점 · {run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}</p>
+            </div>
+            <p className="mt-3 text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 후배는 졸업하거나 떠날 때까지 바뀌지 않습니다.</p>
+            <p className="mt-2 text-xs text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
+          </Card>
+        ) : (
         <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold">새내기 난이도</h2>
@@ -252,6 +271,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
             })}
           </fieldset>
         </Card>
+        )}
       </div>
     </div>
   );
