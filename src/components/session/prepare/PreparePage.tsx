@@ -1,27 +1,22 @@
 "use client";
 /**
  * §8-6 세션 준비 화면. 진입 즉시 GET /sessions/{id}/prepare SSE.
- * 준비 중에는 난이도(쉽게/어렵게) 선택 가능 — ready 전이면 로컬에 들고 있다가 ready 후 PATCH.
+ * 난이도는 후배 선택(Run)으로 정해진다 — 여기서는 현재 후배 카드만 보여주고 토글은 없다.
  */
 import clsx from "clsx";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { JuniorLevel, SessionDto } from "@/contracts/types";
 import type { SseEventData } from "@/contracts/events";
 import { Mascot } from "@/components/mascot/Mascot";
-import { api, ApiError, sse } from "@/components/session/_api";
+import { ApiError, sse } from "@/components/session/_api";
 import { StepperHeader } from "@/components/session/StepperHeader";
-import { Button, Card, Chip, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
+import { Button, Card, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
 import { CharacterBadge } from "@/components/game/CharacterBadge";
 import { CHARACTER_META } from "@/components/game/characters";
 import { LifeHearts } from "@/components/game/LifeHearts";
 import { useSessionGame } from "@/components/game/useSessionGame";
-
-const LEVELS: Array<{ value: JuniorLevel; title: string; quote: string; hint: string }> = [
-  { value: "EASY", title: "쉽게", quote: "선배, 나 궁금한 거 많아. 이상하면 바로 되물을게.", hint: "자료와 어긋난 설명이면 새내기가 바로 되묻습니다." },
-  { value: "HARD", title: "어렵게", quote: "말하는 대로 받아쓸게. 틀려도 안 물어. 시험에서 봐.", hint: "되묻기 없음. 틀린 설명은 시험에서 드러납니다." },
-];
 
 const STEPS = [
   { step: "OBJECTIVES", label: "학습 목표 정하기" },
@@ -39,8 +34,6 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   const [ready, setReady] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [level, setLevel] = useState<JuniorLevel>("EASY");
-  const [patching, setPatching] = useState(false);
   const { run } = useSessionGame(sessionId);
   const abortRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
@@ -88,30 +81,10 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     if (!session || startedRef.current) return;
     startedRef.current = true;
-    setLevel(session.juniorLevel);
     void startPrepare();
   }, [session, startPrepare]);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // ready 후 로컬 선택이 서버와 다르면 PATCH
-  useEffect(() => {
-    if (!ready || !session || session.juniorLevel === level) return;
-    let cancelled = false;
-    setPatching(true);
-    api
-      .patch<SessionDto>(`/sessions/${sessionId}`, { juniorLevel: level })
-      .then((s) => !cancelled && setSession(s))
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        toast(e instanceof ApiError ? e.message : "난이도 변경에 실패했습니다.", "error");
-        setLevel(session.juniorLevel);
-      })
-      .finally(() => !cancelled && setPatching(false));
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, level, sessionId]);
 
   if (redirecting) return null;
   if (loading && !session) {
@@ -176,7 +149,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
                   </li>
                 ))}
               </ul>
-              <Button size="lg" loading={patching} onClick={() => router.push(`/session/${sessionId}/teach`)} className="kurend-pop shadow-card">
+              <Button size="lg" onClick={() => router.push(`/session/${sessionId}/teach`)} className="kurend-pop shadow-card">
                 이 새내기로 시작 →
               </Button>
             </div>
@@ -232,45 +205,11 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
             <p className="mt-2 text-xs text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
           </Card>
         ) : (
-        <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold">새내기 난이도</h2>
-            <Chip tone={level === "EASY" ? "primary" : "accent"}>{level === "EASY" ? "쉽게" : "어렵게"}</Chip>
-          </div>
-          <p className="mt-1 text-sm text-muted">가르치기 시작하면 바꿀 수 없습니다.</p>
-          <fieldset className="mt-4 space-y-3" aria-label="난이도 선택" disabled={patching}>
-            {LEVELS.map((opt) => {
-              const selected = opt.value === level;
-              return (
-                <label
-                  key={opt.value}
-                  className={clsx(
-                    "block cursor-pointer rounded-card border px-4 py-3 transition duration-200 focus-within:ring-2 focus-within:ring-primary",
-                    selected ? "scale-[1.01] border-primary bg-primary-soft shadow-card" : "border-line bg-surface hover:-translate-y-0.5 hover:bg-bg",
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      id={`level-${opt.value}`}
-                      type="radio"
-                      name="juniorLevel"
-                      value={opt.value}
-                      checked={selected}
-                      onChange={() => setLevel(opt.value)}
-                      className="mt-1 accent-[var(--primary)]"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{opt.title}</p>
-                      <p className="mt-0.5 text-sm">“{opt.quote}”</p>
-                      <p className="mt-1 text-xs text-muted">{opt.hint}</p>
-                    </div>
-                    <Mascot state={opt.value === "EASY" ? "doubt" : "writing"} size={56} className={clsx("shrink-0 transition-opacity", selected ? "opacity-100" : "opacity-40")} />
-                  </div>
-                </label>
-              );
-            })}
-          </fieldset>
-        </Card>
+          <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
+            <h2 className="text-base font-bold">연습 모드</h2>
+            <p className="mt-1 text-sm text-muted">이 자료에는 아직 가르칠 후배가 없어요. LIFE·졸업 없이 자유롭게 연습합니다.</p>
+            <Link href={`/materials/${session.material.materialId}/junior`} className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">후배 선택하고 게임으로 시작 →</Link>
+          </Card>
         )}
       </div>
     </div>

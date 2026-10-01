@@ -45,7 +45,7 @@ test("semantic concept labels need teaching evidence, not a literal label substr
       reactionQuote: "사람들이 사려는 양은 줄어",
     });
   })).juniorTurn(base));
-  assert.equal(calls, 1, "a normal turn also has one model round trip");
+  assert.equal(calls, 2, "a normal turn analyses once, then asks the model to phrase the reaction and next question");
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["수요 법칙"], added: ["수요 법칙"] });
   assert.deepEqual(events.at(-1), { type: "question", coveredObjectives: ["o1"], content: "선배, 수요량의 변화도 알려줄래?" });
   assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("사람들이 사려는 양은 줄어")));

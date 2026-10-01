@@ -46,10 +46,12 @@ export default function MaterialPage() {
         if (name === "progress") setProgress(data.message);
         if (name === "chapters") setProgress(`${data.chapters.length}개의 목차를 만들었습니다.`);
       });
-      await load();
+      const ready = await load();
+      // 목차가 생기면 가르치기 전에 후배(=난이도)를 고른다. Run 이 이미 있으면 그대로 자료 페이지.
+      if (ready.status === "READY") { const current = await gameApi.getCurrentRun(id).catch(() => undefined); if (current === null) router.push(`/materials/${id}/junior`); }
     } catch (e) { setError(e instanceof Error ? e.message : "목차를 만들지 못했습니다."); }
     finally { setGenerating(false); generationStarted.current = false; }
-  }, [id, load]);
+  }, [id, load, router]);
 
   useEffect(() => { let active = true; load().then((result) => { if (active && result.status === "PENDING") void generate(); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : "자료를 불러오지 못했습니다."); }); return () => { active = false; }; }, [load, generate]);
   useEffect(() => { if (!generating) return; const timer = setInterval(() => setElapsed((n) => n + 1), 1000); return () => clearInterval(timer); }, [generating]);

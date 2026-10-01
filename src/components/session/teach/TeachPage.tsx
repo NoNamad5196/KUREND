@@ -14,7 +14,7 @@ import { SourcePeekButton } from "@/components/session/SourcePeekButton";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
 import { useSessionGame } from "@/components/game/useSessionGame";
-import { Button, Card, Chip, EmptyState, Spinner, toast } from "@/components/session/ui";
+import { Button, Card, EmptyState, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
 import { CHARACTER_META } from "@/components/game/characters";
 import { ChatThread } from "./ChatThread";
@@ -206,13 +206,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         subtitle="새내기는 가르친 내용만 기억합니다"
         right={
           <>
-            {run ? (
-              <RunHeaderBadge run={run} />
-            ) : (
-              <Chip tone={session.juniorLevel === "EASY" ? "primary" : "accent"}>
-                {session.juniorLevel === "EASY" ? "쉽게" : "어렵게"}
-              </Chip>
-            )}
+            <RunHeaderBadge run={run} />
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}
