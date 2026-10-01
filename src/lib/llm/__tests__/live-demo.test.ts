@@ -122,7 +122,11 @@ test("all-covered turns never generate another objective question", async () => 
 test("exam citations cannot invent facts under an otherwise valid ref", async () => {
   const input = { question: "수요 법칙을 설명하세요.", taught: [{ ref: 7, content: correct }], heardConcepts: ["수요 법칙"] };
   const reply = { thought: "들은 내용을 찾아볼게.", sentences: [{ quote: "소득이 늘면 수요가 늘어.", ref: 7, level: "STRONG" }], unlearned: false };
-  await assert.rejects(collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input)));
+  // 지어낸 인용은 검증에서 거절되고, 시험이 멈추지 않도록 가르친 원문만으로 만든 안전 답안으로 대체된다.
+  const fallback = await collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input));
+  assert.ok(!JSON.stringify(fallback).includes("소득이 늘면"));
+  const fallbackFinal = fallback.at(-1);
+  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes("라고 배웠습니다")));
   const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", text: "모델이 덧붙인 외부 사실" }] }))).writeExamAnswer(input));
   assert.deepEqual(events.at(-1), { type: "final", answer: `“${correct}”라고 배웠습니다.` });
   assert.ok(!JSON.stringify(events).includes("외부 사실"));

@@ -13,10 +13,12 @@ import { ObjectivesPanel } from "@/components/session/ObjectivesPanel";
 import { SourcePeekButton } from "@/components/session/SourcePeekButton";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
+import { TeacherNotePeekButton } from "@/components/game/TeacherNotePeekButton";
 import { useSessionGame } from "@/components/game/useSessionGame";
 import { Button, Card, EmptyState, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
 import { CHARACTER_META } from "@/components/game/characters";
+import { withJosa } from "@/components/game/JuniorOrMascot";
 import { ChatThread } from "./ChatThread";
 import { Composer } from "./Composer";
 
@@ -203,10 +205,11 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         session={session}
         step={1}
         chipLabel="가르치기"
-        subtitle="새내기는 가르친 내용만 기억합니다"
+        subtitle={`${withJosa(run ? CHARACTER_META[run.character].name : "새내기", "은/는")} 가르친 내용만 기억합니다`}
         right={
           <>
             <RunHeaderBadge run={run} />
+            <TeacherNotePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} chapterTitle={session.chapter.title} />
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}

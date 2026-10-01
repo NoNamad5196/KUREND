@@ -8,7 +8,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SseEventData } from "@/contracts/events";
-import { Mascot } from "@/components/mascot/Mascot";
 import { ApiError, sse } from "@/components/session/_api";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { Button, Card, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
@@ -17,6 +16,7 @@ import { CharacterBadge } from "@/components/game/CharacterBadge";
 import { CHARACTER_META } from "@/components/game/characters";
 import { LifeHearts } from "@/components/game/LifeHearts";
 import { useSessionGame } from "@/components/game/useSessionGame";
+import { JuniorOrMascot, juniorLabel, withJosa } from "@/components/game/JuniorOrMascot";
 
 const STEPS = [
   { step: "OBJECTIVES", label: "학습 목표 정하기" },
@@ -103,7 +103,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-6">
-      <StepperHeader session={session} step={1} chipLabel="세션 준비" subtitle="새내기는 가르친 내용만 기억합니다" />
+      <StepperHeader session={session} step={1} chipLabel="세션 준비" subtitle={`${withJosa(juniorLabel(run?.character), "은/는")} 가르친 내용만 기억합니다`} />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <Card className="kurend-rise relative flex flex-col items-center gap-5 overflow-hidden px-6 py-8 text-center">
@@ -129,7 +129,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
               </div>
             )}
             <div className={clsx("relative", ready && "kurend-pop")}>
-              <Mascot state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={150} />
+              <JuniorOrMascot character={run?.character} state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={150} />
             </div>
           </div>
 

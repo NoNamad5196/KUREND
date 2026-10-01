@@ -10,6 +10,7 @@ import { TypingText, usePrefersReducedMotion } from "@/components/session/Typing
 import { CHARACTER_META } from "../characters";
 import { GraduationSummary } from "../GraduationSummary";
 import { JuniorAvatar } from "../JuniorAvatar";
+import { withJosa } from "../JuniorOrMascot";
 import { Confetti } from "../ResultOverlay";
 import type { GraduationSummary as Summary, JuniorCharacter } from "../types";
 import { CampusScene } from "./Campus";
@@ -70,7 +71,7 @@ export function GraduationScene({
             <GraduationSummary summary={summary} nextHref={nextHref} albumHref={albumHref} />
           ) : (
             <div className="flex w-full max-w-md flex-col gap-2 rounded-card border border-line bg-surface p-5 text-center shadow-card">
-              <p className="text-lg font-black">{meta.name}가 졸업했습니다!</p>
+              <p className="text-lg font-black">{withJosa(meta.name, "이/가")} 졸업했습니다!</p>
               <p className="text-sm text-muted">졸업 기록을 불러오지 못했지만, 새로운 후배를 만날 수 있어요.</p>
               <Link href={nextHref}><Button className="w-full">새로운 후배 만나기</Button></Link>
             </div>

@@ -10,17 +10,17 @@ export type AnswerSheetItem = {
   badge?: ReactNode; extra?: ReactNode;
 };
 
-export function AnswerSheet({ courseName, title = "2026학년도 KUREND 학력평가 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
-  courseName: string; title?: string; items: AnswerSheetItem[]; activeQid?: string | null;
+export function AnswerSheet({ studentName = "새내기", courseName, title = "2026학년도 KUREND 학력평가 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
+  studentName?: string; courseName: string; title?: string; items: AnswerSheetItem[]; activeQid?: string | null;
   instant?: boolean; typingSpeedMs?: number; onTypingDone?: (qid: string) => void; className?: string;
 }) {
   return (
-    <section aria-label="새내기 답안지" className={clsx("min-w-0 rounded-card border border-paper-rule bg-paper p-5 text-paper-ink shadow-card sm:p-8", className)}>
+    <section aria-label={`${studentName} 답안지`} className={clsx("min-w-0 rounded-card border border-paper-rule bg-paper p-5 text-paper-ink shadow-card sm:p-8", className)}>
       <header className="border-b-2 border-paper-rule pb-5">
         <p className="mb-2 text-center text-xs tracking-widest text-muted">가르친 만큼, 기억한 만큼</p>
         <h2 className="text-balance text-center text-xl font-bold sm:text-2xl">{title}</h2>
         <dl className="mt-5 grid grid-cols-2 divide-x divide-paper-rule border border-paper-rule text-sm sm:grid-cols-3">
-          <div className="p-3"><dt className="text-xs text-muted">성명</dt><dd className="mt-1 font-semibold">새내기</dd></div>
+          <div className="p-3"><dt className="text-xs text-muted">성명</dt><dd className="mt-1 font-semibold">{studentName}</dd></div>
           <div className="min-w-0 p-3"><dt className="text-xs text-muted">과목</dt><dd className="mt-1 break-words font-semibold">{courseName}</dd></div>
           <div className="col-span-2 border-t border-paper-rule p-3 sm:col-span-1 sm:border-t-0"><dt className="text-xs text-muted">배점</dt><dd className="mt-1 font-semibold tabular-nums">100점</dd></div>
         </dl>
