@@ -8,19 +8,17 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FinishExplanationResponse, MessageDto, SessionDto } from "@/contracts/types";
 import type { SseEventData } from "@/contracts/events";
-import { Mascot } from "@/components/mascot/Mascot";
 import { api, ApiError, sse } from "@/components/session/_api";
 import { ObjectivesPanel } from "@/components/session/ObjectivesPanel";
 import { SourcePeekButton } from "@/components/session/SourcePeekButton";
-import { SpeechBubble } from "@/components/session/SpeechBubble";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
 import { useSessionGame } from "@/components/game/useSessionGame";
-import { TypingText } from "@/components/session/TypingText";
 import { Button, Card, Chip, EmptyState, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
+import { CHARACTER_META } from "@/components/game/characters";
+import { ChatThread } from "./ChatThread";
 import { Composer } from "./Composer";
-import { groupTurns, TurnCard } from "./ConversationLog";
 
 const coveredKey = (id: string) => `kurend.covered.${id}`;
 function readCovered(id: string): string[] {
@@ -59,7 +57,6 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const [finishing, setFinishing] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCovered(readCovered(sessionId));
@@ -67,14 +64,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const messages = useMemo(() => session?.messages ?? [], [session]);
-  const { history, current } = useMemo(() => groupTurns(messages), [messages]);
   const userCount = useMemo(() => messages.filter((m) => m.role === "USER").length, [messages]);
-  const isDoubt = current?.stage === "DOUBT";
-
-  // 새 메시지/반응이 생기면 아래로 스크롤
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, reactionText, pending]);
 
   const pushMessage = useCallback(
     (m: MessageDto) => {
@@ -207,8 +197,6 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const mascotState = sending ? "thinking" : isDoubt ? "doubt" : "idle";
-
   return (
     <div className="space-y-5">
       <StepperHeader
@@ -234,74 +222,28 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {/* 대화 영역 */}
-        <section className="min-w-0 space-y-4" aria-label="대화">
-          {history.length > 0 && (
-            <div className="kurend-stagger space-y-3">
-              {history.map((t, i) => (
-                <TurnCard key={t.key} turn={t} index={i} />
-              ))}
-            </div>
-          )}
-
-          {/* 현재 새내기 말풍선 */}
-          <Card className="px-4 py-5 sm:px-6">
-            <div className="flex flex-col items-start gap-4 sm:flex-row">
-              <div className="shrink-0 self-center sm:self-start">
-                <Mascot state={mascotState} size={104} typing={sending && !reactionText && !current} />
-              </div>
-              <div className="min-w-0 flex-1 space-y-3" aria-live="polite">
-                {pending && (
-                  <div className="flex justify-end">
-                    <SpeechBubble speaker={pending.failed ? "내 설명 · 전송 실패" : "내 설명 · 보내는 중"} tone="user" tail="none" className="kurend-pop max-w-[92%] opacity-90">
-                      {pending.content}
-                      {pending.failed && (
-                        <div className="mt-2">
-                          <Button size="sm" variant="secondary" onClick={() => void send(pending.content)}>
-                            다시 보내기
-                          </Button>
-                        </div>
-                      )}
-                    </SpeechBubble>
-                  </div>
-                )}
-                {reactionText && (
-                  <SpeechBubble speaker="새내기 · 반응" tone="muted" tail="left" className="kurend-pop">
-                    <TypingText text={reactionText} speedMs={20} cursor />
-                  </SpeechBubble>
-                )}
-                {current && !sending && (
-                  <SpeechBubble
-                    key={current.messageId}
-                    speaker={isDoubt ? "새내기 · 되물음" : "새내기 · 질문"}
-                    tone={isDoubt ? "doubt" : "default"}
-                    size="lg"
-                    tail="left"
-                    className={animateId === current.messageId ? (isDoubt ? "kurend-doubt" : "kurend-pop") : undefined}
-                  >
-                    <TypingText text={current.content} speedMs={20} instant={animateId !== current.messageId} />
-                  </SpeechBubble>
-                )}
-                {!current && !sending && !pending && (
-                  <SpeechBubble speaker="새내기" tone="muted" tail="left">
-                    응응, 더 말해 줘! 궁금한 거 생기면 물어볼게.
-                  </SpeechBubble>
-                )}
-              </div>
-            </div>
+        {/* 대화 영역 — 하나의 채팅 스레드 + 입력창 */}
+        <section className="min-w-0 space-y-3" aria-label="대화">
+          <Card className="overflow-hidden p-0">
+            <ChatThread
+              messages={messages}
+              character={run?.character ?? "KU_HARD"}
+              juniorName={run ? CHARACTER_META[run.character].name : "새내기"}
+              pending={pending}
+              reactionText={reactionText}
+              sending={sending}
+              animateId={animateId}
+              onResend={(content) => void send(content)}
+            />
+            <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} />
           </Card>
-
-          <div className="space-y-3">
-            <Composer value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} />
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-surface/90 px-4 py-3 backdrop-blur">
-              <p className="text-xs text-muted">
-                {userCount === 0 ? "설명을 한 번 이상 해야 시험을 볼 수 있어요." : `지금까지 ${userCount}번 설명했어요.`}
-              </p>
-              <Button variant="secondary" onClick={() => void finish()} disabled={userCount === 0 || sending} loading={finishing}>
-                그만 가르치고 시험 보기 →
-              </Button>
-            </div>
-            <div ref={endRef} />
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-surface/90 px-4 py-3 backdrop-blur">
+            <p className="text-xs text-muted">
+              {userCount === 0 ? "설명을 한 번 이상 해야 시험을 볼 수 있어요." : `지금까지 ${userCount}번 설명했어요.`}
+            </p>
+            <Button variant="secondary" onClick={() => void finish()} disabled={userCount === 0 || sending} loading={finishing}>
+              그만 가르치고 시험 보기 →
+            </Button>
           </div>
         </section>
 
