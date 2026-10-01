@@ -1,0 +1,135 @@
+[
+  {
+    "slug": "os-scheduling",
+    "file": "os-scheduling.md",
+    "courseName": "운영체제",
+    "title": "4장 프로세스 스케줄링",
+    "fileName": "os-ch4-scheduling.md",
+    "examDateOffsetDays": 7,
+    "chapters": [
+      {
+        "title": "프로세스와 스레드",
+        "points": [
+          "프로세스 상태 전이",
+          "PCB",
+          "컨텍스트 스위칭",
+          "스레드"
+        ],
+        "startPara": 0,
+        "endPara": 16
+      },
+      {
+        "title": "스케줄링의 개념과 기준",
+        "points": [
+          "CPU·I/O 버스트",
+          "선점 vs 비선점",
+          "평가 기준",
+          "디스패처"
+        ],
+        "startPara": 17,
+        "endPara": 30
+      },
+      {
+        "title": "CPU 스케줄링 알고리즘",
+        "points": [
+          "FCFS와 호위 효과",
+          "SJF·SRTF",
+          "우선순위 스케줄링",
+          "기아와 에이징"
+        ],
+        "startPara": 31,
+        "endPara": 50
+      },
+      {
+        "title": "라운드 로빈과 시간 할당량",
+        "points": [
+          "라운드 로빈",
+          "시간 할당량 크기",
+          "문맥 교환 오버헤드"
+        ],
+        "startPara": 51,
+        "endPara": 57
+      },
+      {
+        "title": "다단계 큐와 피드백 큐",
+        "points": [
+          "다단계 큐(MLQ)",
+          "다단계 피드백 큐",
+          "큐 간 이동 규칙"
+        ],
+        "startPara": 58,
+        "endPara": 62
+      },
+      {
+        "title": "멀티프로세서 스케줄링과 평가",
+        "points": [
+          "처리기 친화성",
+          "부하 균형",
+          "알고리즘 평가"
+        ],
+        "startPara": 63,
+        "endPara": 73
+      }
+    ]
+  },
+  {
+    "slug": "econ-supply-demand",
+    "file": "econ-supply-demand.md",
+    "courseName": "경제학원론",
+    "title": "수요와 공급",
+    "fileName": "econ-ch4-supply-demand.md",
+    "examDateOffsetDays": 12,
+    "chapters": [
+      {
+        "title": "수요의 이해",
+        "points": [
+          "수요량과 수요",
+          "수요 법칙",
+          "곡선 위 이동 vs 이동"
+        ],
+        "startPara": 0,
+        "endPara": 11
+      },
+      {
+        "title": "수요의 변동 요인",
+        "points": [
+          "정상재·열등재",
+          "대체재·보완재",
+          "기호·기대·구매자 수"
+        ],
+        "startPara": 12,
+        "endPara": 19
+      },
+      {
+        "title": "공급의 이해",
+        "points": [
+          "공급 법칙",
+          "공급곡선 이동 요인"
+        ],
+        "startPara": 20,
+        "endPara": 25
+      },
+      {
+        "title": "시장 균형",
+        "points": [
+          "균형가격·거래량",
+          "초과수요·초과공급",
+          "균형 변화 3단계"
+        ],
+        "startPara": 26,
+        "endPara": 36
+      },
+      {
+        "title": "탄력성",
+        "points": [
+          "가격탄력성 계산",
+          "탄력적·비탄력적",
+          "탄력성 결정 요인",
+          "탄력성과 총수입"
+        ],
+        "startPara": 37,
+        "endPara": 49
+      }
+    ]
+  }
+]

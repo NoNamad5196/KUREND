@@ -11,10 +11,13 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "rm -f prisma/dev.db && prisma db push && tsx prisma/seed.ts",
-    "eval:llm": "tsx scripts/eval-llm.ts"
+    "eval:llm": "tsx scripts/eval-llm.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
+    "@libsql/client": "^0.17.4",
+    "@prisma/adapter-libsql": "7.10.0",
     "@prisma/client": "7.10.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
