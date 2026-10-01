@@ -3,24 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { api, routeForSession, sse } from "@/lib/client/api";
-import type { ChapterDto, CreateSessionResponse, MaterialDto } from "@/contracts/types";
+import { api, sse } from "@/lib/client/api";
+import type { CreateSessionResponse, MaterialDto } from "@/contracts/types";
 import { Button, Card, Chip, ConfirmDialog, PageHeader } from "@/components/shell/ui";
-import type { RunChapterProgressDto, RunDto } from "@/contracts/game";
+import type { RunDto } from "@/contracts/game";
 import { gameApi } from "@/lib/client/game-api";
-import { CharacterBadge } from "@/components/game/CharacterBadge";
-import { JuniorAvatar } from "@/components/game/JuniorAvatar";
-import { LifeHearts } from "@/components/game/LifeHearts";
 import { MaterialPreparation, type MaterialStep } from "@/components/material/MaterialPreparation";
 import { TeacherNoteSection } from "@/components/game/TeacherNoteSection";
-import { FinalExamAction, finalStageText, inFinalStage } from "@/components/game/FinalExamAction";
-import { CHARACTERS } from "@/contracts/game";
-
-function ChapterRow({ chapter, onStart, busy, progress, disabled }: { chapter: ChapterDto; onStart: (chapterId: string) => void; busy: boolean; progress?: RunChapterProgressDto; disabled?: boolean }) {
-  const action = chapter.action;
-  const symbol = progress ? (progress.cleared ? "✓" : progress.attempts > 0 ? "…" : "○") : chapter.stableAt ? "★" : chapter.taughtAt ? "●" : "○";
-  return <li className="flex flex-col gap-4 border-b border-line py-5 last:border-0 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 gap-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-bold text-primary">{chapter.order}</span><div><h3 className="font-bold">{chapter.title} <span className={progress?.cleared ? "ml-1 text-ok" : "ml-1 text-primary"} aria-label={progress ? (progress.cleared ? "통과" : progress.attempts > 0 ? "도전 중" : "미도전") : chapter.stableAt ? "안정" : chapter.taughtAt ? "가르침" : "미가르침"}>{symbol}</span></h3><div className="mt-2 flex flex-wrap gap-1.5">{chapter.points.map((point) => <Chip key={point}>{point}</Chip>)}</div>{progress && progress.attempts > 0 && <p className="mt-2 text-xs text-muted">{progress.cleared ? <span className="font-semibold text-ok">통과</span> : <span className="font-semibold text-warn">아직 미통과</span>} · 시도 {progress.attempts}회{progress.bestScore !== null && ` · 최고 ${progress.bestScore}점`}</p>}{!progress && (chapter.bestScore !== null || chapter.openGapCount > 0) && <p className="mt-2 text-xs text-muted">{chapter.bestScore !== null && `최고 ${chapter.bestScore}점`}{chapter.bestScore !== null && chapter.openGapCount > 0 && " · "}{chapter.openGapCount > 0 && `놓친 곳 ${chapter.openGapCount}개`}</p>}</div></div>{action.kind === "CONTINUE" ? <Link aria-disabled={disabled} tabIndex={disabled ? -1 : undefined} onClick={(event) => { if (disabled) event.preventDefault(); }} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold hover:bg-bg" href={routeForSession({ sessionId: action.sessionId, status: action.status })}>이어하기 →</Link> : <Button variant={action.kind === "RETRY" || progress?.cleared ? "secondary" : "primary"} loading={busy} disabled={disabled} className="shrink-0" onClick={() => onStart(chapter.chapterId)}>{action.kind === "RETRY" || progress?.cleared ? "다시 가르치기" : "가르치기"} →</Button>}</li>;
-}
+import { ChapterRow } from "@/components/material/ChapterRow";
+import { ChooseJuniorCard, MaterialRunCard } from "@/components/material/MaterialRunCard";
 
 export default function MaterialPage() {
   const { id } = useParams<{ id: string }>();
@@ -115,8 +106,8 @@ export default function MaterialPage() {
       {material.status !== "READY" ? <MaterialPreparation step={step} busy={generating} error={generating ? null : generationError || material.error || (material.status === "FAILED" ? "목차를 만들지 못했습니다. 다시 시도해 주세요." : null)} onRetry={() => void generate()} /> : <>
         {runError && <Card role="alert" className="mb-5 border-danger text-danger">{runError} <Button variant="secondary" onClick={() => void load().catch(() => undefined)}>다시 불러오기</Button></Card>}
         {run === undefined && !runError && <p role="status" className="mb-4 text-sm text-muted">후배 정보를 불러오는 중…</p>}
-        {run && <Card className="mb-5 grid gap-4 sm:grid-cols-[96px_1fr_auto] sm:items-center"><div className="mx-auto h-24"><JuniorAvatar character={run.character} size={96} mood={run.lives === 1 ? "confused" : "idle"} /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><CharacterBadge character={run.character} avatar={false} /><LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} /><Link className="ml-2 text-sm font-semibold text-primary underline" href={`/materials/${id}/junior`}>후배 변경</Link></div><p className="mt-2 text-sm text-muted">졸업까지 <span className="font-bold text-ink tabular-nums">{run.progress.cleared} / {run.progress.total}</span> 챕터 · 합격 {run.passScore}점 · {run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"} {CHARACTERS[run.character].questionCount}문항</p>{inFinalStage(run) && <p className="mt-1 text-sm font-semibold text-primary">{finalStageText(run)}</p>}{run.status !== "ACTIVE" && <p className="mt-1 text-xs text-danger">이 후배는 {run.status === "GRADUATED" ? "졸업했어요" : "떠났어요"}. 새 후배를 만나세요.</p>}</div>{inFinalStage(run) ? <FinalExamAction run={run} className="sm:w-48" /> : run.status !== "ACTIVE" ? <Link href={`/materials/${id}/junior`}><Button>새 후배 만나기</Button></Link> : null}</Card>}
-        {run === null && <Card className="mb-5 flex flex-col items-center gap-3 border-primary bg-primary-soft p-5 text-center sm:flex-row sm:text-left"><JuniorAvatar character="KU_HARD" size={88} mood="talk" /><div className="min-w-0 flex-1"><p className="text-lg font-black">먼저 가르칠 후배를 골라 주세요</p><p className="mt-1 text-sm text-muted">후배마다 이해 방식·시험 형식·합격선이 다릅니다. 자료와 진도를 유지하면서 다른 후배를 선택할 수 있어요.</p></div><Link href={`/materials/${id}/junior`}><Button>후배 선택 →</Button></Link></Card>}
+        {run && <MaterialRunCard run={run} materialId={id} />}
+        {run === null && <ChooseJuniorCard materialId={id} />}
         <p className="mb-4 text-sm text-muted">한 번에 목차 하나를 가르칩니다. 순서는 자유입니다.</p><Card><h2 className="text-lg font-bold">목차 <span className="text-primary">{material.chapters.length}</span></h2>{material.chapters.length ? <ol className="mt-2">{material.chapters.map((chapter) => <ChapterRow key={chapter.chapterId} chapter={chapter} onStart={start} busy={busyChapter === chapter.chapterId} disabled={!!busyChapter || generating || run === undefined || !!runError} progress={run?.progress.chapters.find((p) => p.chapterId === chapter.chapterId)} />)}</ol> : <p className="mt-5 text-sm text-muted">목차가 비어 있습니다. 다시 생성해 주세요.</p>}</Card>{material.chapters.length > 0 && <TeacherNoteSection materialId={material.materialId} chapters={material.chapters} />}</>}
       <div className="mt-8 border-t border-line pt-5"><button className="text-sm font-semibold text-danger underline" disabled={generating || !!busyChapter} onClick={() => setDeleteOpen(true)}>자료 삭제</button></div>
     </>}

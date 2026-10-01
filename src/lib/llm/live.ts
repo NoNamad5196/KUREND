@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Llm, TaughtMsg } from "./types";
-import { completeJSON, streamText } from "./provider";
+import { completeJSON, streamText } from "./transport";
 import {
   analyzeTurnSchema, chaptersSchema, examAnswerSchema,
   gradeExamSchema, prepareSessionSchemaFor, respondTurnSchema, teacherNoteSchema, objectiveGapSchema,
