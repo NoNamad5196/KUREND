@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./provider";
 import {
@@ -27,6 +28,39 @@ function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
     refs.add(ref);
     return { ref, content };
   }).filter(({ content }) => content.trim().length > 0);
+}
+
+/* ── 시험 답안 안전망: 모델 JSON 이 두 번 검증에 실패해도 시험이 멈추지 않도록, 가르친 문장만으로 결정적 답안을 만든다 ── */
+const CHOICE_MARKS = ["①", "②", "③", "④"] as const;
+function bigrams(text: string): Set<string> {
+  const plain = text.replace(/[\s.,!?“”"'()·~\-:;]/gu, "");
+  const out = new Set<string>();
+  for (let i = 0; i < plain.length - 1; i += 1) out.add(plain.slice(i, i + 2));
+  return out;
+}
+function overlap(a: string, b: string): number {
+  const x = bigrams(a); const y = bigrams(b);
+  if (!x.size || !y.size) return 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit += 1;
+  return hit / Math.min(x.size, y.size);
+}
+function taughtSentences(messages: TaughtMsg[]): { ref: number; quote: string }[] {
+  return messages.flatMap(({ ref, content }) => content.split(/(?<=[.!?。])\s+|\n+/u).map((quote) => quote.trim()).filter((quote) => quote.length >= 6).map((quote) => ({ ref, quote })));
+}
+function fallbackExamAnswer(question: string, messages: TaughtMsg[], choices?: string[]) {
+  const ranked = taughtSentences(messages)
+    .map((item) => ({ ...item, score: overlap(item.quote, question) + (choices ? Math.max(...choices.map((choice) => overlap(item.quote, choice))) : 0) }))
+    .sort((a, b) => b.score - a.score);
+  const best = ranked.filter((item) => item.score >= 0.18).slice(0, 2);
+  const basis = best.map((item) => item.quote).join(" ") || messages.map((m) => m.content).join(" ");
+  const choice = choices?.length === 4
+    ? CHOICE_MARKS[choices.map((c) => overlap(basis, c.replace(/^[①②③④]\s*/u, ""))).reduce((bi, v, i, arr) => (v > arr[bi] ? i : bi), 0)]
+    : undefined;
+  if (!best.length) {
+    return { thought: "들은 것 같긴 한데 잘 모르겠어.", choice, unlearned: true, sentences: [{ quote: null, ref: null, level: "NONE" as const }] };
+  }
+  return { thought: "선배가 해 준 말을 떠올려 볼게.", choice, unlearned: false, sentences: best.map(({ ref, quote }) => ({ quote, ref, level: "FAINT" as const })) };
 }
 
 export type LiveProviderCalls = {
@@ -137,7 +171,18 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
         // This explicit allowlist is a knowledge boundary: never spread a session/chapter/rubric here.
         question, taught: messages, heardConcepts: uniqueStrings(heardConcepts), choices,
-      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 900 }) : {
+      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 900 })
+        .catch(async () => {
+          const fallback = fallbackExamAnswer(question, messages, choices);
+          if (!choices?.length) return fallback;
+          // 근거 문장은 결정적으로 고르고, 보기 번호만 모델에게 한 번 더 묻는다(가르친 내용만 근거).
+          const picked = await calls.completeJSON(
+            "당신은 선배에게 들은 설명(taught)만 아는 새내기입니다. 보기의 사실이 아니라 taught 의 내용과 가장 맞는 보기 번호 하나를 고르세요. JSON {\"choice\":\"①\"|\"②\"|\"③\"|\"④\"} 만 출력하세요.",
+            JSON.stringify({ question, taught: messages, choices }),
+            z.object({ choice: z.enum(CHOICE_MARKS) }), { temperature: 0, maxOutputTokens: 60, timeoutMs: 8_000 },
+          ).catch(() => null);
+          return picked ? { ...fallback, choice: picked.choice } : fallback;
+        }) : {
         thought: "아직 선배에게 들은 설명이 없어.",
         sentences: [{ quote: null, ref: null, level: "NONE" as const }],
         unlearned: true, choice: choices ? "①" : undefined,

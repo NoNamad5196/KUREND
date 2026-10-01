@@ -2,15 +2,15 @@ import clsx from "clsx";
 import type { FinalVerdict } from "@/contracts/types";
 import { VerdictChip } from "./verdict";
 
-export function ReportCard({ courseName, totalScore, questionCount, correctCount, partialCount, wrongCount, gapCount, finalVerdict, className }: {
-  courseName: string; totalScore: number; questionCount: number; correctCount: number; partialCount: number;
+export function ReportCard({ studentName = "새내기", courseName, totalScore, questionCount, correctCount, partialCount, wrongCount, gapCount, finalVerdict, className }: {
+  studentName?: string; courseName: string; totalScore: number; questionCount: number; correctCount: number; partialCount: number;
   wrongCount: number; gapCount: number; finalVerdict: FinalVerdict; className?: string;
 }) {
   return <section className={clsx("min-w-0 rounded-card border border-paper-rule bg-paper p-6 text-paper-ink shadow-card sm:p-8", className)} aria-label="성적통지표">
     <p className="text-center text-xs tracking-widest text-muted">KUREND · 이번 학습 기록</p>
     <h2 className="mt-2 text-center text-2xl font-bold tracking-widest">성적통지표</h2>
     <dl className="mt-6 grid grid-cols-2 border-y border-paper-rule text-sm">
-      <div className="p-3"><dt className="text-muted">성명</dt><dd className="mt-1 font-semibold">새내기</dd></div>
+      <div className="p-3"><dt className="text-muted">성명</dt><dd className="mt-1 font-semibold">{studentName}</dd></div>
       <div className="min-w-0 border-l border-paper-rule p-3"><dt className="text-muted">과목</dt><dd className="mt-1 break-words font-semibold">{courseName}</dd></div>
     </dl>
     <div className="py-7 text-center"><p className="text-sm text-muted">총점</p><p className="mt-2 tabular-nums"><strong className="text-6xl font-bold tracking-tight">{totalScore}</strong><span className="ml-2 text-lg text-muted">/ 100</span></p><VerdictChip verdict={finalVerdict} className="mt-4" /></div>

@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import type { CreateSessionResponse, ResultDto, SessionDto } from "@/contracts/types";
 import { api } from "@/components/session/_api";
 import { useSession } from "@/components/session/useSession";
-import { Mascot } from "@/components/mascot/Mascot";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { Button, Card, Chip } from "@/components/session/ui";
 import { ReportCard } from "../ReportCard";
 import { PageError, PageLoading, useResultData, useTask } from "./shared";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
 import { useSessionGame } from "@/components/game/useSessionGame";
+import { JuniorOrMascot, juniorLabel } from "@/components/game/JuniorOrMascot";
 import { FinalExamAction, finalStageText, inFinalStage } from "@/components/game/FinalExamAction";
 
 export function CompletePage({ sessionId }: { sessionId: string }) {
@@ -37,8 +37,8 @@ function CompleteContent({ session, result, reload }: { session: SessionDto; res
   return <div className="min-w-0 space-y-6">
     <StepperHeader session={session} step={4} chipLabel="완료" subtitle="오늘 가르친 내용을 학습 기록에 남겼어요" right={<RunHeaderBadge run={juniorRun} />} />
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="flex flex-col items-center gap-3 text-center"><Mascot state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={144} /><h2 className="text-3xl font-bold tracking-tight">학습 완료</h2><p className="text-balance break-words text-lg">{session.chapter.title}</p></header>
-      <ReportCard courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
+      <header className="flex flex-col items-center gap-3 text-center"><JuniorOrMascot character={juniorRun?.character} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={144} /><h2 className="text-3xl font-bold tracking-tight">학습 완료</h2><p className="text-balance break-words text-lg">{session.chapter.title}</p></header>
+      <ReportCard studentName={juniorLabel(juniorRun?.character)} courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
       <p className="text-pretty px-2 text-center text-sm leading-7 text-muted">이 판정은 이번에 선배가 가르친 내용으로 새내기가 받은 결과입니다. 선배의 이해도 자체를 뜻하지 않습니다.</p>
       <Card className="p-5 sm:p-6"><h3 className="font-bold">이번 목차의 학습 기록</h3><div className="mt-4 flex flex-wrap items-center gap-3">
         <Chip tone={result.chapter.taughtAt ? "primary" : "muted"} className={firstTaught ? "motion-safe:animate-[pulse_600ms_ease-out_1]" : undefined}>{result.chapter.taughtAt ? "가르침 ●" : "가르침 ○"}</Chip>
