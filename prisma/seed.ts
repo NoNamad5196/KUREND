@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { db } from "@/lib/server/db";
 import { normalizeText } from "@/lib/server/ingest";
 import { newId, examItemId } from "@/lib/server/ids";
+import { CHARACTERS, lifeOutcomeFor, type JuniorCharacter } from "@/contracts/game";
 
 /* ───────── 입력 형식 ───────── */
 type SeedChapter = { title: string; points: string[]; startPara: number; endPara: number };
@@ -340,6 +341,122 @@ async function seedInProgressSession(userId: string, mats: Map<string, SeededMat
   return sessionId;
 }
 
+/* ───────── [① 게임 코어] Run · LIFE · 강의노트 시드 ───────── */
+type SeedRunHistory = { chapterIndex: number; score: number; daysAgo: number; sessionId?: string };
+type SeedRun = {
+  key: string;
+  userId: string;
+  materialSlug: string;
+  character: JuniorCharacter;
+  maxLives: number;
+  startedDaysAgo: number;
+  linkSeedSessions?: boolean;
+  history: SeedRunHistory[];
+};
+type SeedRuns = { runs: SeedRun[]; extraMaterials?: { userId: string; materialSlug: string }[] };
+
+async function seedGame(
+  materials: SeedMaterial[],
+  demoMaterials: Map<string, SeededMaterial>,
+  seedSessions: { completedId: string | null; inProgressId: string | null },
+) {
+  if (!existsSync(resolve(DATA_DIR, "runs.json"))) return;
+  const cfg = readJson<SeedRuns>("runs.json");
+  const bySlug = new Map(materials.map((m) => [m.slug, m]));
+  // 사용자별 자료: 체험1 은 위에서 만든 자료, 체험2·3 은 같은 원본으로 별도 자료를 만든다.
+  const owned = new Map<string, SeededMaterial>();
+  for (const [slug, sm] of demoMaterials) owned.set(`${DEMO_USERS[0].id}:${slug}`, sm);
+  for (const [i, x] of (cfg.extraMaterials ?? []).entries()) {
+    const m = bySlug.get(x.materialSlug);
+    if (!m) throw new Error(`runs.json extraMaterials: 자료 slug 없음 ${x.materialSlug}`);
+    const sm = await seedMaterial(x.userId, m, daysFromNow(-10, 9 + i));
+    owned.set(`${x.userId}:${x.materialSlug}`, sm);
+    console.log(`  material ${sm.id} "${m.title}" → ${x.userId}`);
+  }
+
+  for (const r of cfg.runs) {
+    const mat = owned.get(`${r.userId}:${r.materialSlug}`);
+    if (!mat) throw new Error(`runs.json ${r.key}: ${r.userId} 의 ${r.materialSlug} 자료가 없음`);
+    const spec = CHARACTERS[r.character];
+    const runId = newId("run");
+    const startedAt = daysFromNow(-r.startedDaysAgo, 10);
+    let lives = r.maxLives;
+    const best = new Map<number, number>();
+    const attempts = new Map<number, number>();
+    const clearedAt = new Map<number, Date>();
+    const events: Array<Record<string, unknown>> = [];
+
+    for (const [i, h] of r.history.entries()) {
+      const createdAt = daysFromNow(-h.daysAgo, 20 + (i % 3));
+      const { outcome } = lifeOutcomeFor({ score: h.score, passScore: spec.passScore, lives, maxLives: r.maxLives });
+      const before = lives;
+      lives = Math.max(0, Math.min(r.maxLives, lives + lifeOutcomeFor({ score: h.score, passScore: spec.passScore, lives, maxLives: r.maxLives }).delta));
+      const sessionId = h.sessionId === "completed" ? seedSessions.completedId : `sess_seed_${r.key}_${i + 1}`;
+      if (!sessionId) throw new Error(`runs.json ${r.key}: 완료 세션이 시드되지 않음`);
+      events.push({
+        id: newId("lev"), runId, sessionId, chapterId: mat.chapterIds[h.chapterIndex], outcome, delta: lives - before,
+        livesBefore: before, livesAfter: lives, score: h.score, passScore: spec.passScore, createdAt,
+      });
+      attempts.set(h.chapterIndex, (attempts.get(h.chapterIndex) ?? 0) + 1);
+      best.set(h.chapterIndex, Math.max(best.get(h.chapterIndex) ?? -1, h.score));
+      if (h.score >= spec.passScore && !clearedAt.has(h.chapterIndex)) clearedAt.set(h.chapterIndex, createdAt);
+    }
+
+    await db.juniorRun.create({
+      data: {
+        id: runId, userId: r.userId, materialId: mat.id, character: r.character, lives, maxLives: r.maxLives, status: "ACTIVE", startedAt,
+        progress: {
+          create: mat.chapterIds.map((chapterId, idx) => ({
+            chapterId,
+            attempts: attempts.get(idx) ?? 0,
+            bestScore: best.has(idx) ? best.get(idx)! : null,
+            cleared: clearedAt.has(idx),
+            clearedAt: clearedAt.get(idx) ?? null,
+          })),
+        },
+      },
+    });
+    for (const e of events) await db.lifeEvent.create({ data: e as Parameters<typeof db.lifeEvent.create>[0]["data"] });
+
+    if (r.linkSeedSessions) {
+      // 기존 시드 세션을 이 Run 에 연결: 완료 세션은 후배 난이도(HARD)로, 진행 중 세션은 runId 만.
+      if (seedSessions.completedId) {
+        await db.session.update({ where: { id: seedSessions.completedId }, data: { runId, juniorLevel: spec.level } });
+      }
+      if (seedSessions.inProgressId) await db.session.update({ where: { id: seedSessions.inProgressId }, data: { runId } });
+    }
+    const hearts = "♥".repeat(lives) + "♡".repeat(r.maxLives - lives);
+    console.log(`  run ${runId} ${r.userId} ${r.character} ${r.materialSlug} ${hearts} cleared ${clearedAt.size}/${mat.chapterIds.length}`);
+  }
+
+  await seedTeacherNotes(materials, owned);
+}
+
+/** ② 의 강의노트 fixture(챕터 제목 → 노트)를 모든 사용자 자료에 적재. fixture 가 아직 없으면 건너뛴다. */
+async function seedTeacherNotes(materials: SeedMaterial[], owned: Map<string, SeededMaterial>) {
+  const files: Record<string, string> = { "os-scheduling": "teacher-notes.os.json", "econ-supply-demand": "teacher-notes.econ.json" };
+  const dir = resolve(ROOT, "src/lib/llm/fixtures");
+  let count = 0;
+  for (const [key, sm] of owned) {
+    const slug = key.slice(key.indexOf(":") + 1);
+    const file = resolve(dir, files[slug] ?? "");
+    if (!files[slug] || !existsSync(file)) continue;
+    const notes = JSON.parse(readFileSync(file, "utf8")) as Record<string, { mustTeach: string[]; keyTakeaways: string[]; confusing: string[]; likelyQuestions: string[] }>;
+    const m = materials.find((x) => x.slug === slug)!;
+    for (const [i, c] of m.chapters.entries()) {
+      const n = notes[c.title];
+      if (!n) {
+        console.warn(`  ! 강의노트 fixture 에 "${c.title}" 없음`);
+        continue;
+      }
+      const note = { mustTeach: n.mustTeach, keyTakeaways: n.keyTakeaways, confusing: n.confusing, likelyQuestions: n.likelyQuestions };
+      await db.teacherNote.create({ data: { id: newId("tn"), materialId: sm.id, chapterId: sm.chapterIds[i], noteJson: JSON.stringify(note) } });
+      count++;
+    }
+  }
+  console.log(count ? `  teacher notes: ${count}` : "  teacher notes: ② fixture 없음 → 건너뜀");
+}
+
 async function main() {
   console.log(`seed: data dir = ${DATA_DIR}`);
   const materials = readJson<SeedMaterial[]>("materials.json");
@@ -360,14 +477,18 @@ async function main() {
     console.log(`  material ${sm.id} "${m.title}" (${m.courseName}) chapters=${m.chapters.length} chars=${sm.text.length}`);
   }
 
+  let completedId: string | null = null;
+  let inProgressId: string | null = null;
   if (sessions.completed) {
-    const id = await seedCompletedSession(demo, seeded, sessions.completed);
-    console.log(`  completed session ${id} score=${sessions.completed.score} gaps=${sessions.completed.gaps.length}`);
+    completedId = await seedCompletedSession(demo, seeded, sessions.completed);
+    console.log(`  completed session ${completedId} score=${sessions.completed.score} gaps=${sessions.completed.gaps.length}`);
   }
   if (sessions.inProgress) {
-    const id = await seedInProgressSession(demo, seeded, sessions.inProgress);
-    console.log(`  in-progress session ${id} (EXPLAINING)`);
+    inProgressId = await seedInProgressSession(demo, seeded, sessions.inProgress);
+    console.log(`  in-progress session ${inProgressId} (EXPLAINING)`);
   }
+
+  await seedGame(materials, seeded, { completedId, inProgressId });
   console.log("seed: done");
 }
 
