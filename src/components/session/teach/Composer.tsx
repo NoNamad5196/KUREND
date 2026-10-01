@@ -13,12 +13,15 @@ export function Composer({
   onSend,
   disabled,
   sending,
+  embedded = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   disabled?: boolean;
   sending?: boolean;
+  /** 채팅 카드 안에 붙일 때(테두리·그림자 없이 위쪽 구분선만) */
+  embedded?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const canSend = !disabled && !sending && value.trim().length > 0 && value.length <= MAX_LEN;
@@ -29,7 +32,7 @@ export function Composer({
     }
   };
   return (
-    <div className="rounded-card border border-line bg-surface p-3 shadow-card">
+    <div className={embedded ? "border-t border-line bg-surface p-3" : "rounded-card border border-line bg-surface p-3 shadow-card"}>
       <label htmlFor="explain-input" className="sr-only">
         설명 입력
       </label>
