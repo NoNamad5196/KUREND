@@ -52,6 +52,11 @@ export type SessionForList = Prisma.SessionGetPayload<{ include: typeof sessionL
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
+/** [게임 확장] 졸업시험(FINAL) 세션은 챕터 대신 "<자료> 졸업시험" 으로 보인다 */
+export const FINAL_SUFFIX = " 졸업시험";
+const titleOf = (s: { kind?: string | null; chapter: { title: string; material: { title: string } } }) =>
+  s.kind === "FINAL" ? `${s.chapter.material.title}${FINAL_SUFFIX}` : s.chapter.title;
+
 export function toMessageDto(m: SessionWithRelations["messages"][number]): MessageDto {
   return {
     messageId: m.id,
@@ -109,7 +114,7 @@ export function toSessionDto(s: SessionWithRelations): SessionDto {
     chapter: {
       chapterId: s.chapter.id,
       order: s.chapter.order,
-      title: s.chapter.title,
+      title: titleOf(s),
       points: parseStringArray(s.chapter.pointsJson),
     },
     material: {
@@ -134,7 +139,7 @@ export function toSessionListItem(s: SessionForList): SessionListItemDto {
   const status = s.status as SessionStatus;
   return {
     sessionId: s.id,
-    chapterTitle: s.chapter.title,
+    chapterTitle: titleOf(s),
     materialTitle: s.chapter.material.title,
     courseName: s.chapter.material.courseName,
     status,
@@ -188,7 +193,7 @@ export function toResultDto(s: SessionWithRelations): ResultDto {
     gaps,
     chapter: {
       chapterId: s.chapter.id,
-      title: s.chapter.title,
+      title: titleOf(s),
       taughtAt: iso(s.chapter.taughtAt),
       stableAt: iso(s.chapter.stableAt),
     },

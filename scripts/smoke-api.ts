@@ -37,6 +37,7 @@ import {
   TeacherNoteListResponseSchema,
   RunSchema,
   SessionGameSchema,
+  StartFinalResponseSchema,
   type RunDto,
 } from "@/contracts/game";
 import { db } from "@/lib/server/db";
@@ -625,12 +626,48 @@ async function gameSmoke() {
     created.sessions.push(sid);
     last = ApplyLifeResponseSchema.parse((await call("POST", `/runs/${run.runId}/life`, { sessionId: sid })).data);
   }
-  ok("마지막 챕터 통과 → canGraduate true", last?.canGraduate === true, last);
+  ok("마지막 챕터 통과 → 아직 canGraduate false (졸업시험 남음)", last?.canGraduate === false && last.chapter.cleared, last);
+
+  console.log("\n[game: 졸업시험]");
+  const runReady = validate("GET /runs/{id} (챕터 전부 통과)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
+  ok("finalExam READY · 10문항 · 응시 0", runReady?.finalExam.status === "READY" && runReady.finalExam.questionCount === 10 && runReady.finalExam.attempts === 0 && !runReady.canGraduate, runReady?.finalExam);
+  expectError("graduate: 졸업시험 전", await call("POST", `/runs/${run.runId}/graduate`), 409, "NOT_READY");
+  const taughtCount = await db.message.count({ where: { role: "USER", excluded: false, session: { runId: run.runId, kind: "CHAPTER" } } });
+  const fin = await call("POST", `/runs/${run.runId}/final`);
+  const finDto = validate("POST /runs/{id}/final", StartFinalResponseSchema, fin.data);
+  created.sessions.push(finDto!.sessionId);
+  const finRow = await db.session.findUnique({ where: { id: finDto!.sessionId }, include: { messages: true } });
+  ok("졸업시험 세션 생성: FINAL·Run 연결·PREPARING·가르친 설명 옮겨 담기", fin.status === 201 && finDto?.created === true && finRow?.kind === "FINAL" && finRow.runId === run.runId && finRow.status === "PREPARING" && finRow.messages.length === taughtCount && taughtCount > 0, { taughtCount, n: finRow?.messages.length });
+  const fin2 = validate("final 재호출", StartFinalResponseSchema, (await call("POST", `/runs/${run.runId}/final`)).data);
+  ok("진행 중 졸업시험 재사용 (created false)", fin2?.sessionId === finDto?.sessionId && fin2?.created === false, fin2);
+  const gFin = validate("game (졸업시험)", SessionGameSchema, (await call("GET", `/sessions/${finDto!.sessionId}/game`)).data);
+  ok("졸업시험 game: kind FINAL · 10문항 · MIXED", gFin?.kind === "FINAL" && gFin.questionCount === 10 && gFin.examFormat === "MIXED", gFin);
+  const finSess = (await call("GET", `/sessions/${finDto!.sessionId}`)).data as { chapter: { title: string } };
+  ok("졸업시험 세션 제목 = '<자료> 졸업시험'", finSess.chapter.title.endsWith("졸업시험"), finSess.chapter);
+  const runIn = validate("GET /runs/{id} (졸업시험 중)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
+  ok("finalExam IN_PROGRESS + sessionId", runIn?.finalExam.status === "IN_PROGRESS" && runIn.finalExam.sessionId === finDto?.sessionId, runIn?.finalExam);
+  const matDto = (await call("GET", `/materials/${econId}`)).data as { chapters: Array<{ chapterId: string; action: { kind: string; sessionId?: string } }> };
+  ok("자료 화면 챕터 행동에 졸업시험 세션이 끼지 않음", matDto.chapters.every((c) => c.action.sessionId !== finDto?.sessionId), matDto.chapters.map((c) => c.action));
+  const progressBefore = JSON.stringify(runIn?.progress);
+  await db.session.update({ where: { id: finDto!.sessionId }, data: { status: "RESULT_READY", phase: "EXAM_READY", score: 55, finalVerdict: "NEEDS_WORK" } });
+  const lfFin = validate("life (졸업시험 불합격)", ApplyLifeResponseSchema, (await call("POST", `/runs/${run.runId}/life`, { sessionId: finDto!.sessionId })).data);
+  ok("졸업시험 55점 → FAILED ♥5→4, 졸업 불가", lfFin?.outcome === "FAILED" && lfFin.livesAfter === 4 && !lfFin.chapter.cleared && !lfFin.canGraduate, lfFin);
+  const runFail = validate("GET /runs/{id} (졸업시험 불합격 후)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
+  ok("finalExam READY · 응시 1 · 최고 55, 챕터 진행 그대로", runFail?.finalExam.status === "READY" && runFail.finalExam.attempts === 1 && runFail.finalExam.bestScore === 55 && JSON.stringify(runFail.progress) === progressBefore, runFail?.finalExam);
+  const fin3 = validate("final 재응시", StartFinalResponseSchema, (await call("POST", `/runs/${run.runId}/final`)).data);
+  created.sessions.push(fin3!.sessionId);
+  ok("재응시는 새 세션", fin3?.created === true && fin3.sessionId !== finDto?.sessionId, fin3);
+  await db.session.update({ where: { id: fin3!.sessionId }, data: { status: "RESULT_READY", phase: "EXAM_READY", score: 80, finalVerdict: "MOSTLY" } });
+  last = ApplyLifeResponseSchema.parse((await call("POST", `/runs/${run.runId}/life`, { sessionId: fin3!.sessionId })).data);
+  ok("졸업시험 80점 → CLEAR, canGraduate true", last.outcome === "CLEAR" && last.chapter.cleared && last.canGraduate === true, last);
+  const runPass = validate("GET /runs/{id} (졸업시험 통과)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
+  ok("finalExam PASSED · 최고 80 · 응시 2", runPass?.finalExam.status === "PASSED" && runPass.finalExam.bestScore === 80 && runPass.finalExam.attempts === 2 && runPass.canGraduate, runPass?.finalExam);
+  expectError("final: 이미 통과", await call("POST", `/runs/${run.runId}/final`), 409, "NOT_READY");
   const gradRes = validate("POST /runs/{id}/graduate", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data);
   const grad = gradRes?.summary;
   ok("graduate 응답 run = GRADUATED", gradRes?.run.status === "GRADUATED" && gradRes.run.runId === run.runId, gradRes?.run);
-  ok("졸업 요약: 챕터 5, 시험 7, PERFECT 2, 오답노트 1, 최종 ♥5/5", grad?.chapters === 5 && grad.exams === 7 && grad.perfectCount === 2 && grad.wrongNoteCount === 1 && grad.finalLives === 5 && grad.maxLives === 5 && grad.character === "MALE_EASY" && grad.days >= 1, grad);
-  ok("졸업 요약 평균 = 시험 점수 평균", grad?.averageScore === Math.round((55 + 100 + 100 + 60 + 75 * 3) / 7), grad?.averageScore);
+  ok("졸업 요약: 챕터 5, 시험 9(졸업시험 2 포함), PERFECT 2, 오답노트 1, 최종 ♥4/5", grad?.chapters === 5 && grad.exams === 9 && grad.perfectCount === 2 && grad.wrongNoteCount === 1 && grad.finalLives === 4 && grad.maxLives === 5 && grad.character === "MALE_EASY" && grad.days >= 1, grad);
+  ok("졸업 요약 평균 = 시험 점수 평균", grad?.averageScore === Math.round((55 + 100 + 100 + 60 + 75 * 3 + 55 + 80) / 9), grad?.averageScore);
   const grad2 = validate("graduate 재호출", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data)?.summary;
   ok("재호출 = 같은 요약", grad2?.graduatedAt === grad?.graduatedAt);
   const runGrad = validate("GET /runs/{id} (졸업)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);

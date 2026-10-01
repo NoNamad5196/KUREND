@@ -11,6 +11,7 @@ import { PageError, PageLoading, useResultData, useTask } from "./shared";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
 import { useSessionGame } from "@/components/game/useSessionGame";
 import { JuniorOrMascot, juniorLabel } from "@/components/game/JuniorOrMascot";
+import { FinalExamAction, finalStageText, inFinalStage } from "@/components/game/FinalExamAction";
 
 export function CompletePage({ sessionId }: { sessionId: string }) {
   const state = useSession(sessionId, ["COMPLETED"]);
@@ -23,7 +24,8 @@ export function CompletePage({ sessionId }: { sessionId: string }) {
 function CompleteContent({ session, result, reload }: { session: SessionDto; result: ResultDto; reload: () => Promise<unknown> }) {
   const router = useRouter();
   const { busy, error, run } = useTask(reload);
-  const { run: juniorRun } = useSessionGame(session.sessionId);
+  const { run: juniorRun, game } = useSessionGame(session.sessionId);
+  const isFinal = game?.kind === "FINAL";
   const remaining = result.gaps.filter((gap) => gap.status !== "REVIEWED").length;
   const firstTaught = !!result.chapter.taughtAt && Date.parse(result.chapter.taughtAt) >= Date.parse(session.createdAt) && Date.parse(result.chapter.taughtAt) <= Date.parse(session.updatedAt);
   function retryChapter() {
@@ -44,8 +46,8 @@ function CompleteContent({ session, result, reload }: { session: SessionDto; res
         {firstTaught && <span className="text-sm text-primary">처음으로 가르쳤습니다!</span>}
       </div><p className="mt-4 text-sm leading-6 text-muted">{remaining > 0 ? `아직 되짚지 않은 곳이 ${remaining}개 남아 있어요. 같은 목차를 다시 가르치며 설명을 채워 보세요.` : result.gaps.length > 0 ? `놓친 곳 ${result.gaps.length}개를 모두 되짚었어요.` : "이번 시험에서 놓친 곳이 없어요."}</p></Card>
       {error && <p role="alert" className="rounded-sm bg-danger-soft p-4 text-sm text-danger">{error} 다시 가르치기 버튼으로 재시도해 주세요.</p>}
-      {juniorRun?.canGraduate && <Card className="flex flex-col items-center gap-3 border-primary bg-primary-soft p-5 text-center sm:flex-row sm:text-left"><div className="min-w-0 flex-1"><p className="text-lg font-black">모든 챕터를 통과했어요!</p><p className="mt-1 text-sm text-muted">이제 후배를 졸업시킬 수 있습니다.</p></div><Button size="lg" onClick={() => router.push(`/runs/${encodeURIComponent(juniorRun.runId)}/graduation`)}>졸업하기 🎓</Button></Card>}
-      <div className="flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap"><Button size="lg" loading={busy} onClick={retryChapter}>같은 목차 다시 가르치기</Button><Button size="lg" variant="secondary" onClick={() => router.push(`/materials/${encodeURIComponent(session.material.materialId)}`)}>자료로 돌아가기</Button><Button size="lg" variant="ghost" onClick={() => router.push("/")}>홈</Button></div>
+      {juniorRun && inFinalStage(juniorRun) && <Card className="flex flex-col items-center gap-3 border-primary bg-primary-soft p-5 text-center sm:flex-row sm:text-left"><div className="min-w-0 flex-1"><p className="text-lg font-black">{juniorRun.canGraduate ? "졸업시험 통과!" : isFinal ? "졸업시험에 다시 도전해요" : "모든 챕터를 통과했어요!"}</p><p className="mt-1 text-sm text-muted">{finalStageText(juniorRun)}</p></div><FinalExamAction run={juniorRun} size="lg" className="sm:w-56" /></Card>}
+      <div className="flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">{!isFinal && <Button size="lg" loading={busy} onClick={retryChapter}>같은 목차 다시 가르치기</Button>}<Button size="lg" variant="secondary" onClick={() => router.push(`/materials/${encodeURIComponent(session.material.materialId)}`)}>자료로 돌아가기</Button><Button size="lg" variant="ghost" onClick={() => router.push("/")}>홈</Button></div>
     </div>
   </div>;
 }

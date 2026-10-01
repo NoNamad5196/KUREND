@@ -20,6 +20,7 @@ export const materialInclude = {
     orderBy: { order: "asc" },
     include: {
       sessions: {
+        where: { kind: "CHAPTER" }, // 졸업시험(FINAL) 세션은 챕터 행동에서 제외
         orderBy: { updatedAt: "desc" },
         select: { id: true, status: true, score: true, updatedAt: true, completedAt: true, gaps: { select: { status: true } } },
       },
@@ -104,7 +105,7 @@ export const homeMaterialInclude = {
       id: true,
       title: true,
       taughtAt: true,
-      sessions: { orderBy: { updatedAt: "desc" }, select: { id: true, status: true, updatedAt: true } },
+      sessions: { where: { kind: "CHAPTER" }, orderBy: { updatedAt: "desc" }, select: { id: true, status: true, updatedAt: true } },
     },
   },
 } satisfies Prisma.MaterialInclude;

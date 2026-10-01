@@ -5,9 +5,9 @@ import chapters from "../../../../fixtures/chapters.economics.json";
 import osNotes from "../fixtures/teacher-notes.os.json";
 import econNotes from "../fixtures/teacher-notes.econ.json";
 import materials from "../../../../prisma/seed-data/materials.json";
-import { CHARACTERS, type JuniorCharacter } from "@/contracts/game";
+import { CHARACTERS, FINAL_QUESTION_COUNT, isObjectiveQuestion, pointsPlan, type JuniorCharacter } from "@/contracts/game";
 import { PERSONAS } from "../personas";
-import { teacherNoteSchema, prepareSessionSchema } from "../schemas";
+import { teacherNoteSchema, prepareSessionSchema, prepareSessionSchemaFor } from "../schemas";
 import { stubLlm } from "../stub";
 import { createLiveLlm } from "../live";
 import { createRouteHandlers } from "../routes/handlers";
@@ -156,4 +156,24 @@ test("live objective grading skips the model for a correct choice and diagnoses 
   assert.equal(calls, 1);
   assert.deepEqual(wrong.map((event) => event.type), ["grade", "gap"]);
   assert.ok(wrong[0].type === "grade" && wrong[0].score === 0 && wrong[0].verdict === "WRONG");
+});
+
+test("question counts follow the junior (3 objective / 5 / 7 descriptive) and the final exam mixes 10", async () => {
+  for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
+    const spec = CHARACTERS[persona];
+    const count = spec.questionCount;
+    const indexes = Array.from({ length: count }, (_, i) => i).filter((i) => isObjectiveQuestion(spec.examFormat, i, count));
+    const prepared = prepareSessionSchemaFor(count, indexes).parse(await stubLlm.prepareSession({
+      chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: count, kind: "CHAPTER" }));
+    assert.equal(prepared.questions.length, count);
+    assert.equal(prepared.questions.reduce((sum, q) => sum + q.points, 0), 100);
+  }
+  assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [3, 5, 7]);
+  const indexes = Array.from({ length: FINAL_QUESTION_COUNT }, (_, i) => i).filter((i) => isObjectiveQuestion("MIXED", i, FINAL_QUESTION_COUNT));
+  const final = prepareSessionSchemaFor(FINAL_QUESTION_COUNT, indexes).parse(await stubLlm.prepareSession({
+    chapter, level: "HARD", persona: "KU_HARD", examFormat: "MIXED", questionCount: FINAL_QUESTION_COUNT, kind: "FINAL" }));
+  assert.equal(final.questions.length, 10);
+  assert.deepEqual(final.questions.map((q) => q.points), pointsPlan(10));
+  assert.equal(final.questions.filter((q) => q.choices).length, 5);
+  assert.equal(final.questions.filter((q) => !q.choices).length, 5);
 });
