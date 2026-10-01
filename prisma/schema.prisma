@@ -84,6 +84,8 @@ model Session {
   updatedAt         DateTime       @updatedAt
   completedAt       DateTime?
   runId             String? // [게임 확장 additive] 연결된 후배 Run (null = 연습 모드)
+  character         String? // 대화 시작 시 선택한 후배. Run 변경 후에도 과거 대화의 persona는 유지.
+  replacementSessionId String? // 캐릭터 변경으로 새 대화가 생긴 경우 복구할 세션 ID.
   run               JuniorRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
   kind              String         @default("CHAPTER") // [게임 확장 additive] CHAPTER | FINAL(P1 졸업시험)
   focusConceptsJson String? // [게임 확장 additive P1] 오답노트 "다시 가르치기" 집중 개념 string[] JSON (② prepare 가 읽음)
@@ -197,6 +199,7 @@ model JuniorRun {
   updatedAt   DateTime          @updatedAt
   endedAt     DateTime?
   summaryJson String? // 졸업/게임오버 시점 통계 스냅샷 (GraduationSummaryDto)
+  finalPassedAt DateTime? // 졸업시험 통과 시각 (통과해야 졸업 가능)
   progress    ChapterProgress[]
   lifeEvents  LifeEvent[]
   mastery     ConceptMastery[]

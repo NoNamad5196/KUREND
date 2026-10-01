@@ -4,7 +4,7 @@ import { parseTeachingChoices } from "../teaching-choices";
  * generated Prisma client: C passes its existing singleton and auth helper.
  */
 import { SessionSchema, type SessionDto } from "@/contracts/types";
-import { CHARACTERS, type ExamFormat, type JuniorCharacter, type SessionGameSnapshot } from "@/contracts/game";
+import { CHARACTERS, FINAL_QUESTION_COUNT, type ExamFormat, type JuniorCharacter, type SessionGameSnapshot } from "@/contracts/game";
 import {
   RouteError, type ChapterRecord, type MaterialRecord, type RouteBackend,
   type SessionRecord, type SourceRecord,
@@ -75,8 +75,12 @@ export interface PrismaSessionAggregate {
   gaps: DbGap[];
   /** [① 게임 확장] 연결된 Run (없으면 연습 모드). 스냅샷 비교 대상인 스칼라라 값이 바뀌지 않는다. */
   runId?: string | null;
+  character?: string | null;
+  replacementSessionId?: string | null;
   /** [① 게임 확장 P1] 오답노트 "다시 가르치기" 집중 개념 string[] JSON */
   focusConceptsJson?: string | null;
+  /** [① 게임 확장] CHAPTER | FINAL(졸업시험: 자료 전체 범위 · 10문항 혼합) */
+  kind?: string | null;
 }
 
 /** 다시 가르치기 세션이면 집중 개념을 챕터 포인트 앞에 둔다(준비 단계가 points 로 학습 목표·문항을 만든다). 최대 3개 유지 */
@@ -103,17 +107,49 @@ interface GameDelegates {
 /** ② 가 SessionRecord.game? 을 선언하기 전에도 같은 모양으로 붙여 둔다. */
 type SessionRecordWithGame = SessionRecord & { game?: SessionGameSnapshot };
 
-async function loadGameSnapshot(db: GameDelegates, runId: string | null | undefined, chapterId: string): Promise<SessionGameSnapshot | undefined> {
+/** 졸업시험 본문 상한(LLM 프롬프트 크기 보호) */
+const FINAL_TEXT_LIMIT = 16_000;
+
+/**
+ * [① 게임 확장] 졸업시험(FINAL) 세션은 자료 전체를 한 범위로 본다.
+ * 제목 "<자료> 졸업시험", 포인트 = 챕터 제목들, 본문 = 모든 원문(상한 FINAL_TEXT_LIMIT). DB 행은 바꾸지 않는다(레코드만).
+ */
+async function applyFinalScope(db: { material: Delegate<DbMaterial> }, raw: PrismaSessionAggregate, record: SessionRecord): Promise<void> {
+  if (raw.kind !== "FINAL") return;
+  const material = await db.material.findFirst({ where: { id: raw.chapter.material.id }, include: materialInclude });
+  if (!material) return;
+  const first = material.sources[0];
+  const text = material.sources.map((source) => source.text).join("\n\n").slice(0, FINAL_TEXT_LIMIT);
+  if (!first || !text.trim()) return;
+  const titles = material.chapters.map((item) => item.title).filter((title) => title.trim());
+  record.chapter = {
+    ...record.chapter,
+    title: `${material.title} 졸업시험`.slice(0, 40),
+    points: titles.length ? titles : record.chapter.points,
+    sourceId: first.id,
+    startOffset: 0,
+    endOffset: Math.min(first.text.length, text.length),
+    text,
+  };
+}
+
+async function loadGameSnapshot(db: GameDelegates, runId: string | null | undefined, chapterId: string, kind?: string | null, selectedCharacter?: string | null): Promise<SessionGameSnapshot | undefined> {
   if (!runId || !db.juniorRun) return undefined;
   const run = await db.juniorRun.findUnique({ where: { id: runId }, select: { id: true, character: true, lives: true, maxLives: true } });
-  if (!run || !(run.character in CHARACTERS)) return undefined;
-  const character = run.character as JuniorCharacter;
+  if (!run || !((selectedCharacter ?? run.character) in CHARACTERS)) {
+    throw new RouteError(409, "INVALID_STATE", "후배 설정을 불러오지 못했습니다. 자료 화면에서 후배를 다시 선택해 주세요.", { reason: "CHARACTER_CONFIG_NOT_FOUND" });
+  }
+  const character = (selectedCharacter ?? run.character) as JuniorCharacter;
   const mastery = db.conceptMastery
     ? await db.conceptMastery.findMany({ where: { runId, chapterId }, orderBy: { concept: "asc" }, select: { concept: true, exposureCount: true, mastery: true } })
     : [];
   return {
     runId: run.id, character, lives: run.lives, maxLives: run.maxLives,
-    passScore: CHARACTERS[character].passScore, examFormat: CHARACTERS[character].examFormat, mastery,
+    passScore: CHARACTERS[character].passScore,
+    examFormat: kind === "FINAL" ? "MIXED" : CHARACTERS[character].examFormat,
+    questionCount: kind === "FINAL" ? FINAL_QUESTION_COUNT : CHARACTERS[character].questionCount,
+    kind: kind === "FINAL" ? "FINAL" : "CHAPTER",
+    mastery,
   };
 }
 interface PrismaTransaction extends GameDelegates {
@@ -173,6 +209,7 @@ function chapter(row: DbChapter): ChapterRecord {
 export function normalizedSessionDto(session: SessionRecord): SessionDto {
   return SessionSchema.parse({
     sessionId: session.sessionId, status: session.status, phase: session.phase,
+    character: session.game?.character ?? null,
     juniorLevel: session.juniorLevel, chapter: session.chapter, material: session.material,
     objectives: session.objectives,
     messages: session.messages.filter((message) => !message.excluded),
@@ -186,6 +223,12 @@ function conflict(): never {
   throw new RouteError(409, "INVALID_STATE", "다른 요청이 먼저 데이터를 변경했습니다. 새로고침 후 다시 시도해 주세요.");
 }
 function missing(): never { throw new RouteError(404, "NOT_FOUND", "자료 또는 세션을 찾을 수 없습니다."); }
+
+function assertCurrentConversation(session: PrismaSessionAggregate): void {
+  if (session.replacementSessionId) throw new RouteError(409, "INVALID_STATE", "선택한 후배의 학습 세션을 다시 불러오고 있어요.", {
+    reason: "CHAT_SESSION_INVALID", replacementSessionId: session.replacementSessionId, materialId: session.chapter.material.id,
+  });
+}
 
 /** No transaction is held while an LLM call is in progress. */
 export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
@@ -274,8 +317,10 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
     async getSession(sessionId, userId) {
       const raw = await db.session.findFirst({ where: { id: sessionId, userId }, include: sessionInclude });
       if (!raw) return null;
+      assertCurrentConversation(raw);
       const record: SessionRecordWithGame = sessionRecord(raw);
-      const game = await loadGameSnapshot(db, raw.runId, raw.chapter.id);
+      await applyFinalScope(db, raw, record);
+      const game = await loadGameSnapshot(db, raw.runId, raw.chapter.id, raw.kind, raw.character);
       if (game) record.game = game;
       return record;
     },
@@ -313,6 +358,7 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
       return transact(async (tx) => {
         const current = await tx.session.findFirst({ where: { id: previous.sessionId, userId: previous.userId }, include: sessionInclude });
         if (!current) missing();
+        assertCurrentConversation(current);
         if (JSON.stringify(current) !== JSON.stringify(snapshot)) conflict();
         const updatedAt = new Date(Math.max(Date.now(), new Date(current.updatedAt).getTime() + 1));
         const changed = await tx.session.updateMany({
@@ -327,7 +373,8 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
         const fresh = await tx.session.findFirst({ where: { id: next.sessionId, userId: next.userId }, include: sessionInclude });
         if (!fresh) missing();
         const record: SessionRecordWithGame = sessionRecord(fresh);
-        const game = await loadGameSnapshot(tx, fresh.runId, fresh.chapter.id);
+        await applyFinalScope(tx, fresh, record);
+        const game = await loadGameSnapshot(tx, fresh.runId, fresh.chapter.id, fresh.kind, fresh.character);
         if (game) record.game = game;
         return record;
       });

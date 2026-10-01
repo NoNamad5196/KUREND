@@ -40,11 +40,16 @@ export function ResultOverlay({
   character,
   onClose,
   onGameOver,
+  final = false,
+  onGraduate,
 }: {
   result: LifeResult;
   character: JuniorCharacter;
   onClose: () => void;
   onGameOver?: () => void;
+  /** 졸업시험 결과면 문구가 바뀌고, 합격 시 [졸업식으로] 버튼이 붙는다 */
+  final?: boolean;
+  onGraduate?: () => void;
 }) {
   const [lives, setLives] = useState(result.livesBefore);
   useEffect(() => {
@@ -56,8 +61,9 @@ export function ResultOverlay({
   const kind = result.outcome === "PERFECT" ? "perfect" : result.outcome === "FAILED" ? "failed" : "clear";
   const title = kind === "perfect" ? "PERFECT!" : kind === "failed" ? "FAILED" : "CLEAR!";
   const delta = result.livesAfter - result.livesBefore;
-  const message =
-    kind === "failed"
+  const message = final
+    ? kind === "failed" ? "졸업시험 불합격. 더 가르친 뒤 다시 도전하세요." : "졸업시험 합격! 이제 졸업식을 열 수 있어요."
+    : kind === "failed"
       ? "후배가 아직 내용을 충분히 이해하지 못했어요."
       : kind === "perfect"
         ? delta > 0
@@ -75,6 +81,7 @@ export function ResultOverlay({
           <div className="mx-auto h-[150px]">
             <JuniorAvatar character={character} size={150} mood={kind === "failed" ? "sad" : "happy"} pose={kind === "perfect" ? "jump" : undefined} enter />
           </div>
+          {final && <p className="editorial-label mt-3 text-primary">졸업시험</p>}
           <h2 id="ro-title" className="ro-title mt-2 text-5xl sm:text-6xl">{title}</h2>
           <p className="ro-score mt-4 text-4xl font-black tabular-nums">
             {result.score} <span className="text-xl text-muted">/ 100</span>
@@ -89,15 +96,18 @@ export function ResultOverlay({
             </p>
             <p className="text-sm">{message}</p>
           </div>
-          <div className="ro-actions mt-6 flex justify-center gap-2">
+          <div className="ro-actions mt-6 flex flex-col justify-center gap-2 sm:flex-row">
             {gameOver ? (
               <Button variant="danger" size="lg" onClick={onGameOver ?? onClose}>
                 …어?
               </Button>
             ) : (
-              <Button size="lg" onClick={onClose}>
-                성적표 보기
-              </Button>
+              <>
+                {final && result.canGraduate && onGraduate && <Button size="lg" onClick={onGraduate}>졸업식으로 →</Button>}
+                <Button size="lg" variant={final && result.canGraduate && onGraduate ? "secondary" : "primary"} onClick={onClose}>
+                  성적표 보기
+                </Button>
+              </>
             )}
           </div>
         </div>

@@ -9,7 +9,7 @@ import { createClient } from "@libsql/client";
 test("Google callback opens onboarding only when creating an account", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "kurend-google-onboarding-"));
   const url = `file:${join(directory, "oauth.db")}`;
-  const envKeys = ["DATABASE_URL", "NODE_ENV", "APP_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "NEXT_PUBLIC_GOOGLE_CLIENT_ID"] as const;
+  const envKeys = ["DATABASE_URL", "NODE_ENV", "APP_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "NEXT_PUBLIC_GOOGLE_CLIENT_ID"] as const;
   const previousEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
   const client = createClient({ url });
   await client.execute("PRAGMA user_version");
@@ -17,7 +17,7 @@ test("Google callback opens onboarding only when creating an account", async (t)
   for (const key of envKeys) Reflect.deleteProperty(process.env, key);
   Object.assign(process.env, {
     DATABASE_URL: url,
-    NODE_ENV: "test",
+    NODE_ENV: "production",
     APP_URL: "https://kurend.test",
     GOOGLE_CLIENT_ID: "test-client",
     GOOGLE_CLIENT_SECRET: "test-secret",
@@ -31,7 +31,7 @@ test("Google callback opens onboarding only when creating an account", async (t)
     const { db } = await import("@/lib/server/db");
     disconnect = () => db.$disconnect();
     const { GET: callback } = await import("@/app/api/auth/google/callback/route");
-    const { SESSION_COOKIE } = await import("@/lib/server/auth");
+    const { getUserIdFromRequest, SESSION_COOKIE } = await import("@/lib/server/auth");
     const { OAUTH_STATE_COOKIE, googleUserId } = await import("@/lib/server/google-oauth");
     const state = "valid-oauth-state";
     let profile = { sub: "first-account", name: "첫 선배", email: "first@example.test" };
@@ -60,7 +60,11 @@ test("Google callback opens onboarding only when creating an account", async (t)
       assert.equal(response.status, 302);
       assert.equal(response.headers.get("location"), `https://kurend.test${path}`);
       const cookies = response.headers.get("set-cookie") ?? "";
-      assert.ok(cookies.includes(`${SESSION_COOKIE}=${id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=`));
+      const session = response.headers.getSetCookie().find((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`));
+      assert.ok(session);
+      assert.ok(session.startsWith(`${SESSION_COOKIE}=v1.${id}.`));
+      assert.match(session, /; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure$/);
+      assert.equal(getUserIdFromRequest(new Request("https://kurend.test/api/auth/me", { headers: { cookie: session.split(";")[0] } })), id);
       assert.ok(cookies.includes(`${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`));
     }
     function assertFailure(response: Response, reason: string) {

@@ -1,0 +1,11 @@
+.material-book { position: relative; width: 110px; height: 88px; margin: 0 auto; }
+.material-book-page { position: absolute; inset: 12px 12px 0; border: 1px solid var(--primary); border-radius: 3px; background: var(--surface); transform: rotate(-5deg); }
+.material-book-page::after { content: ""; position: absolute; inset: 17px 13px; background: repeating-linear-gradient(transparent 0 8px, var(--line) 8px 10px); }
+.material-book-page:nth-child(2) { transform: rotate(3deg); }
+.material-book-page:nth-child(3) { transform: rotate(10deg); }
+.material-book-star { position: absolute; right: -8px; top: 0; color: var(--primary); font-size: 30px; }
+.material-book-reading .material-book-page:nth-child(3) { animation: material-page-turn 1.6s ease-in-out infinite; transform-origin: left center; }
+.material-book-reading .material-book-star { animation: material-note-spark 1.6s ease-in-out infinite; }
+@keyframes material-page-turn { 0%,100% { transform: rotate(10deg) translateY(0); } 50% { transform: rotate(-12deg) translateY(-7px); } }
+@keyframes material-note-spark { 0%,100% { transform: scale(.8); opacity: .55; } 50% { transform: scale(1.1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .material-book-reading .material-book-page, .material-book-reading .material-book-star { animation: none; } }

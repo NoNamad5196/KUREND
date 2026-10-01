@@ -4,6 +4,7 @@
  * user.saved → junior.concepts → junior.doubt(턴 종료) | junior.token/message → junior.question → done
  */
 import clsx from "clsx";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FinishExplanationResponse, MessageDto, SessionDto } from "@/contracts/types";
@@ -14,6 +15,8 @@ import { SourcePeekButton } from "@/components/session/SourcePeekButton";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { JuniorAvatar } from "@/components/game/JuniorAvatar";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
+import { TeacherNotePeekButton } from "@/components/game/TeacherNotePeekButton";
+import { withJosa } from "@/components/game/JuniorOrMascot";
 import { useSessionGame } from "@/components/game/useSessionGame";
 import { Button, Card, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
@@ -46,7 +49,7 @@ type Pending = ExplanationAttempt & { failed: boolean; saved?: boolean };
 export function TeachPage({ sessionId }: { sessionId: string }) {
   const { game, run, loading: gameLoading, error: gameError, reload: reloadGame } = useSessionGame(sessionId);
   const router = useRouter();
-  const { session, setSession, loading, error, redirecting, reload } = useSession(
+  const { session, setSession, loading, error, redirecting, reload, recover } = useSession(
     sessionId,
     (s) => s.status === "EXPLAINING" && s.phase === "QUESTION",
   );
@@ -63,6 +66,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const [choicesLoading, setChoicesLoading] = useState(false);
   const [choicesError, setChoicesError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
+  const [turnError, setTurnError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const choicesAbortRef = useRef<AbortController | null>(null);
   const enrichmentRef = useRef<string | null>(null);
@@ -71,16 +75,18 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     setCovered(readCovered(sessionId));
+    setDraft(""); setPending(null); setReactionText(""); setTurnError(null); setSending(false);
+    setDirectExplanation(false); setChoicesLoading(false); setChoicesError(null); setRecovering(false);
+    setAnimateId(null); setFinishing(false); setPanelOpen(false);
+    sendingRef.current = false; recoveryRef.current = false; enrichmentRef.current = null;
+    return () => { abortRef.current?.abort(); choicesAbortRef.current?.abort(); };
   }, [sessionId]);
-  useEffect(() => () => {
-    abortRef.current?.abort();
-    choicesAbortRef.current?.abort();
-  }, []);
 
   const messages = useMemo(() => session?.messages ?? [], [session]);
   const userCount = useMemo(() => messages.filter((m) => m.role === "USER").length, [messages]);
   const lastMessage = messages.at(-1);
-  const male = run?.character === "MALE_EASY";
+  const character = session?.character ?? run?.character ?? (session?.juniorLevel === "HARD" ? "KU_HARD" : "MALE_EASY");
+  const male = character === "MALE_EASY";
   const restoredCovered = coveredTeachingObjectives(session?.objectives ?? [], covered, game?.mastery);
   const allObjectivesCovered = !!session?.objectives.length && restoredCovered.length === session.objectives.length;
   const waitingQuestion = male && lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
@@ -97,19 +103,20 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
     let received = false;
     try {
       await sse(`/sessions/${sessionId}/prepare`, { method: "GET" }, (name, data) => {
+        if (ac.signal.aborted) return;
         if (name === "ready") {
           const next = (data as SseEventData<"ready">).session;
           received = !!next.messages.at(-1)?.teachingChoices?.length;
           setSession(next);
         }
       }, ac.signal);
-      if (!received) setChoicesError("선택지를 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
+      if (!ac.signal.aborted && !received) setChoicesError("선택지를 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
     } catch (e) {
-      if (!ac.signal.aborted) setChoicesError(e instanceof ApiError ? e.message : "선택지를 불러오지 못했어요.");
+      if (!ac.signal.aborted && !recover(e)) setChoicesError(e instanceof ApiError ? e.message : "선택지를 불러오지 못했어요.");
     } finally {
       if (!ac.signal.aborted) setChoicesLoading(false);
     }
-  }, [sessionId, setSession]);
+  }, [sessionId, setSession, recover]);
 
   useEffect(() => {
     if (!waitingQuestion || allObjectivesCovered || teachingChoices.length || sending || enrichmentRef.current === waitingQuestion.messageId) return;
@@ -119,20 +126,25 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
 
   const pushMessage = useCallback(
     (m: MessageDto) => {
-      setSession((prev) => (prev && !prev.messages.some((item) => item.messageId === m.messageId)
-        ? { ...prev, messages: [...prev.messages, m] } : prev));
+      setSession((prev) => {
+        if (prev?.sessionId !== sessionId) return prev;
+        const present = prev.messages.some((item) => item.messageId === m.messageId);
+        return { ...prev, messages: present ? prev.messages.map((item) => item.messageId === m.messageId ? m : item) : [...prev.messages, m] };
+      });
     },
-    [setSession],
+    [setSession, sessionId],
   );
 
-  const restoreExplanation = useCallback(async (attempt: ExplanationAttempt) => {
-    const next = await api.get<SessionDto>(`/sessions/${sessionId}`);
+  const restoreExplanation = useCallback(async (attempt: ExplanationAttempt, signal?: AbortSignal) => {
+    const next = await api.get<SessionDto>(`/sessions/${sessionId}`, { signal });
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const recovery = explanationRecovery(next.messages, attempt);
     setSession(next);
     if (next.status !== "EXPLAINING" || next.phase !== "QUESTION") router.replace(routeForSession(next));
     if (recovery.status === "answered") {
       setPending(null);
       setReactionText("");
+      setTurnError(null);
       await reloadGame();
     } else {
       setPending({ ...attempt, failed: true,
@@ -145,7 +157,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const send = useCallback(
     async (content: string, canonicalSession?: SessionDto) => {
       const current = canonicalSession ?? session;
-      if (!current || sendingRef.current || recoveryRef.current || choicesLoading || finishing) return;
+      if (!current || current.sessionId !== sessionId || sendingRef.current || recoveryRef.current || gameLoading || gameError || choicesLoading || finishing) return;
       const text = content.trim();
       if (!text) return;
       const previous = current.messages.at(-1);
@@ -157,19 +169,22 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       abortRef.current = ac;
       sendingRef.current = true;
       setSending(true);
+      setTurnError(null);
       setPending({ ...attempt, failed: false });
       setReactionText("");
       setDraft("");
       setDirectExplanation(false);
       const now = new Date().toISOString();
       let saved = !!attempt.messageId;
-      let reported = false;
       let answered = false;
+      let failed = false;
+      let redirected = false;
       try {
         await sse(
           `/sessions/${sessionId}/explanations`,
           { method: "POST", body: JSON.stringify({ content: text }) },
           (name, data) => {
+            if (ac.signal.aborted) return;
             switch (name) {
               case "user.saved": {
                 const d = data as SseEventData<"user.saved">;
@@ -181,7 +196,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
               }
               case "junior.concepts": {
                 const d = data as SseEventData<"junior.concepts">;
-                setSession((prev) => (prev ? { ...prev, heardConcepts: d.heardConcepts } : prev));
+                setSession((prev) => (prev?.sessionId === sessionId ? { ...prev, heardConcepts: d.heardConcepts } : prev));
                 break;
               }
               case "junior.doubt": {
@@ -213,10 +228,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                 break;
               }
               case "error": {
-                const d = data as SseEventData<"error">;
-                reported = true;
-                toast(d.message || "새내기가 답하지 못했습니다.", "error");
-                setPending({ ...attempt, failed: true, saved });
+                // The shared parser throws the typed error after dispatch.
                 break;
               }
               default:
@@ -229,43 +241,62 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         void reloadGame();
       } catch (e) {
         if (ac.signal.aborted) return;
+        if (recover(e)) { redirected = true; return; }
+        failed = true;
         setPending({ ...attempt, failed: true, saved });
         try {
           // The server commits the complete turn before sending its last SSE
           // events. Recover that turn first; never POST automatically on error.
-          const { recovery } = await restoreExplanation(attempt);
+          const { recovery } = await restoreExplanation(attempt, ac.signal);
           if (recovery.status === "answered") return;
-        } catch {
+        } catch (failure) {
+          if (ac.signal.aborted) return;
+          if (recover(failure)) { redirected = true; return; }
           // Keep the retry action when the recovery GET also loses connection.
         }
-        if (reported) {
-          // error 이벤트에서 이미 안내함
-        } else if (e instanceof ApiError && e.status === 409) {
+        setTurnError(e instanceof Error ? e.message : "응답 연결을 확인하지 못했습니다. 다시 시도해 주세요.");
+        if (e instanceof ApiError && e.status === 409) {
           toast(e.message || "세션 상태가 바뀌었습니다. 다시 불러옵니다.", "error");
           void reload();
         } else {
           toast(e instanceof Error ? e.message : "네트워크 오류가 발생했습니다.", "error");
         }
       } finally {
-        sendingRef.current = false;
         if (!ac.signal.aborted) {
+          if (!redirected) {
+            const fresh = await reload();
+            if (ac.signal.aborted) return;
+            if (fresh) {
+              const recovery = explanationRecovery(fresh.messages, attempt);
+              if (recovery.status === "answered") {
+                setPending(null); setTurnError(null);
+              } else if (failed && recovery.status === "unanswered") {
+                setPending({ ...attempt, messageId: recovery.messageId, failed: true, saved: true });
+              }
+            }
+          }
+          sendingRef.current = false;
           setSending(false);
           setReactionText("");
         }
       }
     },
-    [session, choicesLoading, finishing, sessionId, pushMessage, setSession, reload, reloadGame, restoreExplanation],
+    [session, choicesLoading, finishing, sessionId, pushMessage, setSession, reload, reloadGame, restoreExplanation, recover, gameLoading, gameError],
   );
 
   const retryExplanation = useCallback(async (content: string) => {
-    if (sendingRef.current || recoveryRef.current || choicesLoading || finishing) return;
+    if (sendingRef.current || recoveryRef.current || gameLoading || gameError || choicesLoading || finishing) return;
     recoveryRef.current = true;
     setRecovering(true);
+    const ac = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = ac;
     const attempt: ExplanationAttempt = pending?.content === content ? pending : {
       content, ...(lastMessage?.role === "USER" && lastMessage.content === content ? { messageId: lastMessage.messageId } : {}),
     };
     try {
-      const { next, recovery } = await restoreExplanation(attempt);
+      const { next, recovery } = await restoreExplanation(attempt, ac.signal);
+      if (ac.signal.aborted) return;
       if (recovery.status === "answered") return;
       if (recovery.status === "unknown") {
         toast("대화 상태가 바뀌었어요. 저장된 설명을 확인한 뒤 다시 시도해 주세요.", "error");
@@ -274,13 +305,16 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       if (next.status !== "EXPLAINING" || next.phase !== "QUESTION") return;
       recoveryRef.current = false;
       await send(content, next);
-    } catch {
+    } catch (e) {
+      if (ac.signal.aborted || recover(e)) return;
       toast("저장된 설명을 확인하지 못했어요. 연결을 확인하고 다시 시도해 주세요.", "error");
     } finally {
-      recoveryRef.current = false;
-      setRecovering(false);
+      if (!ac.signal.aborted || abortRef.current !== ac) {
+        recoveryRef.current = false;
+        setRecovering(false);
+      }
     }
-  }, [pending, lastMessage, choicesLoading, finishing, restoreExplanation, send]);
+  }, [pending, lastMessage, choicesLoading, finishing, restoreExplanation, send, recover, gameLoading, gameError]);
 
   const finish = useCallback(async () => {
     if (!session || userCount === 0 || sending || recovering || choicesLoading || finishing) return;
@@ -289,12 +323,13 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       await api.post<FinishExplanationResponse>(`/sessions/${sessionId}/finish-explanation`);
       router.push(`/session/${sessionId}/exam`);
     } catch (e) {
+      if (recover(e)) return;
       const msg = e instanceof ApiError ? e.message : "시험으로 넘어가지 못했습니다.";
       toast(msg, "error");
       if (e instanceof ApiError && e.status === 409 && e.code !== "NO_EXPLANATION") void reload();
       setFinishing(false);
     }
-  }, [session, userCount, sending, recovering, choicesLoading, finishing, sessionId, router, reload]);
+  }, [session, userCount, sending, recovering, choicesLoading, finishing, sessionId, router, reload, recover]);
 
   if (redirecting) return null;
   if ((loading && !session) || (session && session.sessionId !== sessionId) || (gameLoading && !game)) {
@@ -304,26 +339,22 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       </div>
     );
   }
-  if (error || !session) {
+  if (error || gameError || !session) {
     return (
       <EmptyState
         title="세션을 불러오지 못했습니다"
-        description={error?.message}
-        action={<Button onClick={() => void reload()}>다시 시도</Button>}
+        description={error?.message ?? gameError?.message}
+        action={<><Button onClick={() => { void reload(); void reloadGame(); }}>다시 시도</Button><Link href={session ? `/materials/${session.material.materialId}` : "/"} className="ml-3 text-sm underline">자료로 돌아가기</Link></>}
       />
     );
   }
-  if (gameError && !game) {
-    return <EmptyState title="후배 정보를 불러오지 못했습니다" description="가르치는 방식을 확인하려면 다시 불러와 주세요." action={<Button onClick={() => void reloadGame()}>다시 시도</Button>} />;
-  }
-
-  const meta = run ? CHARACTER_META[run.character] : null;
-  const interactionBusy = sending || recovering || choicesLoading || finishing;
+  const meta = run || session.character ? CHARACTER_META[character] : null;
+  const interactionBusy = sending || recovering || choicesLoading || finishing || gameLoading;
   const recoveringExplanation = !sending && !pending && lastMessage?.role === "USER" ? lastMessage.content : null;
-  const repeatConcepts = run?.character === "KU_HARD" ? game?.mastery.filter((item) => item.mastery < 100) ?? [] : [];
-  const composerPlaceholder = run?.character === "FEMALE_NORMAL"
+  const repeatConcepts = character === "KU_HARD" ? game?.mastery.filter((item) => item.mastery < 100) ?? [] : [];
+  const composerPlaceholder = character === "FEMALE_NORMAL"
     ? "어떤 뜻인지, 왜 그런지 연결해서 설명해 주세요."
-    : run?.character === "KU_HARD"
+    : character === "KU_HARD"
       ? "KU가 헷갈린 부분을 다른 표현이나 예시로 다시 설명해 주세요."
       : "후배에게 가르칠 내용을 직접 설명해 주세요.";
 
@@ -333,10 +364,13 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         session={session}
         step={1}
         chipLabel="가르치기"
-        subtitle={meta ? `${meta.teachLabel} · 가르친 내용만 기억해요` : "새내기는 가르친 내용만 기억합니다"}
+        subtitle={meta ? `${meta.teachLabel} · ${withJosa(meta.name, "은/는")} 가르친 내용만 기억해요` : "새내기는 가르친 내용만 기억합니다"}
         right={
           <>
             <RunHeaderBadge run={run} />
+            {run && <Link aria-disabled={interactionBusy} tabIndex={interactionBusy ? -1 : undefined} className={clsx("text-sm font-semibold text-primary", interactionBusy && "pointer-events-none opacity-50")}
+              href={`/materials/${session.material.materialId}/junior?chapterId=${session.chapter.chapterId}&sessionId=${sessionId}`}>후배 변경</Link>}
+            {game?.kind !== "FINAL" && !session.chapter.title.endsWith(" 졸업시험") && <TeacherNotePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} chapterTitle={session.chapter.title} />}
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen} aria-controls="study-objectives">
               {panelOpen ? "목표 닫기" : "학습 목표"}
@@ -359,7 +393,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         </div>
         <div className="study-character">
           <span aria-hidden className="study-character-word">HELLO,<br />SENIOR.</span>
-          <JuniorAvatar character={run?.character ?? "KU_HARD"} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter />
+          <JuniorAvatar character={character} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter />
         </div>
       </div>
 
@@ -373,14 +407,15 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           <Card className="study-dialogue overflow-hidden p-0">
             <ChatThread
               messages={messages}
-              character={run?.character ?? "KU_HARD"}
-              juniorName={run ? CHARACTER_META[run.character].name : "새내기"}
+              character={character}
+              juniorName={meta?.name ?? "새내기"}
               pending={pending}
               reactionText={reactionText}
               sending={sending}
               animateId={animateId}
               onResend={(content) => void retryExplanation(content)}
             />
+            {turnError && <div role="alert" className="border-t border-danger bg-danger-soft px-4 py-3 text-sm text-danger">{turnError}</div>}
             {recovering && <p className="px-4 pb-3 text-sm text-muted" role="status">저장된 설명과 후배의 응답을 확인하고 있어요…</p>}
             {recoveringExplanation && (
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 text-sm text-muted" role="status">
@@ -422,7 +457,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
             )}
             {(!male || directExplanation) && (
               <div id="direct-explanation">
-                <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} disabled={recovering || choicesLoading || finishing} placeholder={composerPlaceholder} />
+                <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} disabled={recovering || choicesLoading || finishing || gameLoading} placeholder={composerPlaceholder} />
               </div>
             )}
           </Card>
@@ -444,7 +479,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           <aside id="study-objectives" className={clsx(panelOpen ? "block" : "hidden")} aria-label="학습 목표와 들은 개념">
           <div className="space-y-5 pb-6">
             <ObjectivesPanel objectives={session.objectives} covered={restoredCovered} heardConcepts={session.heardConcepts} collapsible={false} />
-            {run?.character === "KU_HARD" && (
+            {character === "KU_HARD" && (
               <Card className="space-y-3 border-0 bg-bg p-4 sm:p-6">
                 <h2 className="text-sm font-bold">KU의 기억 다지기</h2>
                 <p className="text-xs leading-5 text-muted">들은 개념과 충분히 익힌 개념은 달라요. KU가 되말한 내용을 확인하고 다른 예시로 다시 설명해 주세요.</p>

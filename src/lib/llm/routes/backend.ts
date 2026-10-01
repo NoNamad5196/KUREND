@@ -4,12 +4,14 @@ import type {
   SessionDto, SessionPhase, SessionStatus, SourceKind,
 } from "@/contracts/types";
 import type { SessionGameSnapshot } from "@/contracts/game";
+import type { ErrorDetails } from "@/contracts/errors";
 
 export class RouteError extends Error {
   constructor(
     public readonly status: 400 | 401 | 404 | 409 | 502,
     public readonly code: "VALIDATION" | "UNAUTHORIZED" | "NOT_FOUND" | "INVALID_STATE" | "LLM_FAILED",
     message: string,
+    public readonly details: ErrorDetails = {},
   ) {
     super(message);
     this.name = "RouteError";

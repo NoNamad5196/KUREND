@@ -19,7 +19,8 @@ export const LIFE_OUTCOMES = ["CLEAR", "FAILED", "PERFECT", "NONE"] as const;
 export type LifeOutcome = (typeof LIFE_OUTCOMES)[number];
 export const LifeOutcomeSchema = z.enum(LIFE_OUTCOMES);
 
-export const EXAM_FORMATS = ["DESCRIPTIVE", "OBJECTIVE"] as const;
+/** MIXED = 졸업시험(객관식 + 서술형 섞음) */
+export const EXAM_FORMATS = ["DESCRIPTIVE", "OBJECTIVE", "MIXED"] as const;
 export type ExamFormat = (typeof EXAM_FORMATS)[number];
 export const ExamFormatSchema = z.enum(EXAM_FORMATS);
 
@@ -37,20 +38,46 @@ export type CharacterSpec = {
   level: JuniorLevel;
   examFormat: ExamFormat;
   passScore: number;
+  /** 챕터 시험 문항 수 (EASY 3 · NORMAL 5 · HARD 7) */
+  questionCount: number;
   tagline: string;
 };
 
 export const CHARACTERS: Record<JuniorCharacter, CharacterSpec> = {
-  MALE_EASY: { name: "남학생", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, tagline: "이해가 빠른 후배 · 객관식 시험" },
-  FEMALE_NORMAL: { name: "여학생", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, tagline: "이해는 빠르지만 서술형 시험" },
-  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형" },
+  MALE_EASY: { name: "남학생", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 3, tagline: "이해가 빠른 후배 · 객관식 3문항" },
+  FEMALE_NORMAL: { name: "여학생", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
+  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 7, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 7문항" },
 };
 
 export const DEFAULT_MAX_LIVES = 3;
 export const MAX_LIVES_OPTIONS = [3, 5] as const;
 export const PERFECT_SCORE = 100;
 
+/** 졸업시험: 자료 전체 범위, 객관식 + 서술형 섞어 10문항 */
+export const FINAL_QUESTION_COUNT = 10;
+/** 후배 없는 연습 세션의 문항 수 */
+export const PRACTICE_QUESTION_COUNT = 3;
+
 export const passScoreFor = (c: JuniorCharacter): number => CHARACTERS[c].passScore;
+export const questionCountFor = (c: JuniorCharacter): number => CHARACTERS[c].questionCount;
+
+/** 문항 수 n 에 대해 합계 100 이 되는 배점 (앞 문항부터 1점씩 더 받음): 3 → 34/33/33, 7 → 15,15,14…, 10 → 10×10 */
+export function pointsPlan(n: number): number[] {
+  const count = Math.max(1, Math.floor(n));
+  const base = Math.floor(100 / count);
+  const extra = 100 - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/** 문항 i(0-base)가 평가하는 학습 목표 — 목표는 항상 3개(o1~o3)이고 문항이 순서대로 돌아가며 맡는다 */
+export const objectiveRefFor = (index: number): string => `o${(index % 3) + 1}`;
+
+/** MIXED(졸업시험)에서 객관식인 문항: 앞쪽 절반(올림) — 10문항이면 q1~q5 객관식, q6~q10 서술형 */
+export function isObjectiveQuestion(format: ExamFormat, index: number, count: number): boolean {
+  if (format === "OBJECTIVE") return true;
+  if (format === "MIXED") return index < Math.ceil(count / 2);
+  return false;
+}
 export const levelFor = (c: JuniorCharacter): JuniorLevel => CHARACTERS[c].level;
 export const examFormatFor = (c: JuniorCharacter): ExamFormat => CHARACTERS[c].examFormat;
 
@@ -105,6 +132,14 @@ export const RunSchema = z.object({
     chapters: z.array(RunChapterProgressSchema),
   }),
   next: z.object({ chapterId: z.string(), title: z.string() }).nullable(),
+  /** 졸업시험: LOCKED(챕터 남음) · READY(응시 가능) · IN_PROGRESS · PASSED. 통과해야 졸업 */
+  finalExam: z.object({
+    status: z.enum(["LOCKED", "READY", "IN_PROGRESS", "PASSED"]),
+    sessionId: z.string().nullable(),
+    bestScore: z.number().int().nullable(),
+    attempts: z.number().int(),
+    questionCount: z.number().int(),
+  }),
   canGraduate: z.boolean(),
 });
 export type RunDto = z.infer<typeof RunSchema>;
@@ -144,6 +179,10 @@ export const SessionGameSchema = z.object({
   passScore: z.number().int().nullable(),
   lifeEvent: LifeEventSchema.nullable(),
   mastery: z.array(ConceptMasterySchema),
+  /** CHAPTER | FINAL(졸업시험) */
+  kind: z.enum(SESSION_KINDS).optional(),
+  /** 이 세션의 문항 수 (남 3 · 여 5 · KU 7 · 졸업시험 10 · 연습 3) */
+  questionCount: z.number().int().optional(),
 });
 export type SessionGameDto = z.infer<typeof SessionGameSchema>;
 
@@ -218,6 +257,10 @@ export type SessionGameSnapshot = {
   passScore: number;
   examFormat: ExamFormat;
   mastery: ConceptMasteryDto[];
+  /** 이 세션 시험의 문항 수 (후배 3/5/7, 졸업시험 10) */
+  questionCount?: number;
+  /** CHAPTER | FINAL(졸업시험) */
+  kind?: SessionKind;
 };
 
 export const WrongNoteListResponseSchema = z.object({ notes: z.array(WrongNoteSchema) });
@@ -249,6 +292,18 @@ export const CreateRunRequestSchema = z.object({
   maxLives: z.union([z.literal(3), z.literal(5)]).optional(),
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
+
+export const ChangeCharacterRequestSchema = z.object({
+  character: JuniorCharacterSchema,
+  chapterId: z.string().min(1).optional(),
+  sessionId: z.string().min(1).optional(),
+});
+export type ChangeCharacterRequest = z.infer<typeof ChangeCharacterRequestSchema>;
+export type ChangeCharacterResponse = { run: RunDto; sessionId: string | null };
+
+/** POST /runs/{id}/final → 졸업시험 세션 (이미 진행 중이면 그 세션) */
+export const StartFinalResponseSchema = z.object({ sessionId: z.string(), created: z.boolean() });
+export type StartFinalResponse = z.infer<typeof StartFinalResponseSchema>;
 
 export const ApplyLifeRequestSchema = z.object({ sessionId: z.string() });
 export type ApplyLifeRequest = z.infer<typeof ApplyLifeRequestSchema>;

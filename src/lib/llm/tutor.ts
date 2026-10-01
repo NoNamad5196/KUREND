@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { completeJSON, streamText } from "./provider";
+import type { completeJSON, streamText } from "./transport";
 import type { Llm } from "./types";
 import { compactChapter } from "./text";
 import { TUTOR_EXPLAIN_PROMPT } from "./prompts/tutor-explain";

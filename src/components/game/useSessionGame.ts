@@ -5,16 +5,20 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionGameDto } from "@/contracts/game";
+import { ApiError } from "@/lib/client/api";
 import { gameApi } from "@/lib/client/game-api";
 
 export function useSessionGame(sessionId: string | null | undefined) {
-  const [state, setState] = useState<{ sessionId: typeof sessionId; game: SessionGameDto | null; loading: boolean; error: Error | null }>({
+  const [state, setState] = useState<{ sessionId: typeof sessionId; game: SessionGameDto | null; loading: boolean; error: ApiError | null }>({
     sessionId, game: null, loading: !!sessionId, error: null,
   });
   const requestRef = useRef(0);
   const reload = useCallback(async () => {
     const request = ++requestRef.current;
-    if (!sessionId) return null;
+    if (!sessionId) {
+      setState({ sessionId, game: null, loading: false, error: null });
+      return null;
+    }
     setState((previous) => ({ sessionId, game: previous.sessionId === sessionId ? previous.game : null, loading: true, error: null }));
     try {
       const next = await gameApi.getSessionGame(sessionId);
@@ -22,7 +26,7 @@ export function useSessionGame(sessionId: string | null | undefined) {
       return next;
     } catch (cause) {
       if (request === requestRef.current) setState((previous) => ({ ...previous, loading: false,
-        error: cause instanceof Error ? cause : new Error("후배 정보를 불러오지 못했습니다."),
+        error: cause instanceof ApiError ? cause : new ApiError("NETWORK", "후배 정보를 불러오지 못했습니다. 다시 시도해 주세요.", 0),
       }));
       return null;
     }

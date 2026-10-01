@@ -6,11 +6,15 @@
 
 ## 0. 룰 요약
 
-| 후배 | `character` | 난이도 표시 | 세션 `juniorLevel` | 시험 형식 | 합격선 |
-|---|---|---|---|---|---|
-| 남학생 | `MALE_EASY` | EASY | EASY | `OBJECTIVE`(객관식 4지선다) | 60 |
-| 여학생 | `FEMALE_NORMAL` | NORMAL | EASY | `DESCRIPTIVE` | 70 |
-| KU | `KU_HARD` | HARD | HARD | `DESCRIPTIVE`(+응용) | 80 |
+| 후배 | `character` | 난이도 표시 | 세션 `juniorLevel` | 시험 형식 | 문항 수 | 합격선 |
+|---|---|---|---|---|---|---|
+| 남학생 | `MALE_EASY` | EASY | EASY | `OBJECTIVE`(객관식 4지선다) | 3 | 60 |
+| 여학생 | `FEMALE_NORMAL` | NORMAL | EASY | `DESCRIPTIVE` | 5 | 70 |
+| KU | `KU_HARD` | HARD | HARD | `DESCRIPTIVE`(+응용) | 7 | 80 |
+| (졸업시험) | — | 후배 그대로 | 후배 그대로 | `MIXED`(앞 절반 객관식 + 뒤 절반 서술형) | 10 | 후배 합격선 |
+
+- 문항은 AI(②)가 출제한다. 배점은 `pointsPlan(n)` — 합계 100, 앞 문항부터 1점씩 더(예: 3문항 34/33/33, 7문항 15/15/14/14/14/14/14).
+- 학습 목표는 항상 3개(o1~o3), 문항 i 는 목표 `o((i%3)+1)` 를 평가한다. 연습 모드(Run 없음)는 서술형 3문항.
 
 - **Run** = 사용자 × 자료 × 후배. 자료당 `ACTIVE` Run 은 최대 1개.
 - **LIFE**: 기본 3(생성 시 5 선택). 시험 1회 = 판정 1회.
@@ -20,7 +24,8 @@
   - 세션당 1회만 적용된다(멱등). 점수는 서버의 `Session.score` 만 쓴다.
 - **챕터 통과**: 이 Run 에서의 최고점 ≥ 합격선.
 - **GAME OVER**: LIFE 0 이 되는 순간. 자료·세션·`Chapter.taughtAt/stableAt` 은 남고, 새 Run 은 진행도 0 부터.
-- **졸업**(P0): 자료의 모든 챕터 통과 → `POST /runs/{id}/graduate`.
+- **졸업시험**: 모든 챕터 통과 → `POST /runs/{id}/final` 로 자료 전체 범위 10문항(객관식+서술형) 시험. 불합격이면 다른 시험과 똑같이 LIFE −1, 다시 볼 수 있다.
+- **졸업**: 모든 챕터 통과 + 졸업시험 통과 → `POST /runs/{id}/graduate`.
 - **연습 모드**: ACTIVE Run 이 없는 자료에서 만든 세션(`runId` 없음). LIFE 영향 없음.
 
 ## 1. 에러 코드 (게임 확장)
@@ -28,7 +33,7 @@
 | code | HTTP | 언제 |
 |---|---|---|
 | `RUN_ACTIVE` | 409 | 같은 자료에 ACTIVE Run 이 이미 있는데 `POST /runs` |
-| `NOT_READY` | 409 | 통과 못 한 챕터가 남았거나, 이미 끝난(GAME_OVER) Run 에 `graduate` |
+| `NOT_READY` | 409 | 통과 못 한 챕터·졸업시험이 남았거나, 이미 끝난(GAME_OVER) Run 에 `graduate`/`final`, 이미 통과했는데 `final` |
 | `NO_RUN` | 404 | Run 이 없거나 남의 Run, 또는 세션이 그 Run 소속이 아님(연습 세션 포함) |
 
 기존 코드(`NOT_FOUND`·`INVALID_STATE`·`VALIDATION`·`UNAUTHORIZED`·`LLM_FAILED`)도 그대로 쓴다.
@@ -57,6 +62,7 @@
     { "chapterId": "chp_PqG…", "title": "라운드 로빈과 시간 할당량", "order": 4, "attempts": 0, "bestScore": null, "cleared": false }
   ] },
   "next": { "chapterId": "chp_PqG…", "title": "라운드 로빈과 시간 할당량" },
+  "finalExam": { "status": "LOCKED", "sessionId": null, "bestScore": null, "attempts": 0, "questionCount": 10 },
   "canGraduate": false
 }
 ```
@@ -90,7 +96,8 @@
 - 같은 세션 재호출 → `applied: false` 와 처음과 같은 결과(새로고침 안전).
 - Run 이 이미 끝났으면(GAME_OVER·GRADUATED) → `applied: false, outcome: "NONE"`, LIFE 변화 없음.
 - 오류: 채점 전 세션(RESULT_READY/REVIEWING/COMPLETED 아님) 409 `INVALID_STATE` · 그 Run 소속이 아닌 세션 404 `NO_RUN`.
-- 화면 분기: `runStatus === "GAME_OVER"` → `/runs/{id}/game-over`, `canGraduate` → "졸업하기" 노출.
+- 화면 분기: `runStatus === "GAME_OVER"` → `/runs/{id}/game-over`, `canGraduate` → "졸업하기" 노출, 그 외 `run.finalExam.status` READY/IN_PROGRESS → "졸업시험 보기".
+- 졸업시험 세션이면 챕터 진행(ChapterProgress)은 바뀌지 않고, 합격 시 `chapter.cleared = true`(= 졸업시험 통과), `canGraduate = true`.
 - 오버레이: `outcome` CLEAR / FAILED(`livesBefore`→`livesAfter`) / PERFECT(`livesAfter === livesBefore` 면 "이미 가득").
 
 ### `POST /runs/{id}/graduate` → `{ run, summary }`
@@ -147,7 +154,13 @@
 - `SessionDto.exam.questions[].choices`, `ResultDto.items[].choices` — 객관식(`Exam.format = OBJECTIVE`)일 때만 4개.
 - ② 가 `SessionRecord.game.mastery` 를 채워 커밋하면 `ConceptMastery` 에 저장되고 `GET /sessions/{id}/game` 의 `mastery` 로 나온다(KU, P1).
 
-### 남은 것: 졸업시험(`Session.kind = FINAL`, P1 #13) — ② 의 FINAL 출제와 함께 진행.
+### `POST /runs/{id}/final` → `{ sessionId, created }` — 졸업시험
+- 조건: ACTIVE · 모든 챕터 통과 · 아직 졸업시험 미통과. 아니면 409 `NOT_READY`.
+- 진행 중(PREPARING~EVALUATING) 졸업시험이 있으면 그 세션(`created: false`, 200), 없으면 새로 만든다(201).
+- 새 세션: `kind = FINAL`, 마지막 챕터에 붙고, 이 Run 의 챕터 세션에서 선배가 가르친 설명(USER, 제외되지 않은 것, 최근 80개)을 그대로 옮겨 담는다 → 후배는 지금까지 배운 것으로 시험을 본다.
+- ② 에는 자료 전체 본문(최대 16,000자)·제목 "<자료> 졸업시험"·포인트 = 챕터 제목들이 넘어가고 `game = { kind: "FINAL", examFormat: "MIXED", questionCount: 10 }`.
+- `RunDto.finalExam.status`: `LOCKED`(챕터 남음) · `READY` · `IN_PROGRESS` · `PASSED`. `bestScore`/`attempts` 는 채점된 졸업시험 기준.
+- 자료 화면의 챕터 행동(START/CONTINUE/RETRY)·홈 진행 목록에는 졸업시험 세션이 끼지 않는다.
 
 ## 3. 시드 계정 (`pnpm db:reset`)
 
@@ -155,7 +168,7 @@
 |---|---|---|---|---|
 | 체험 1 `usr_demo1` | 운영체제 + 경제학원론 | KU (운영체제) | ♥♥♡, 4/6 통과, 다음 = 라운드 로빈(진행 중 세션) | 평상시 흐름 |
 | 체험 2 `usr_demo2` | 경제학원론 | KU | ♥♡♡, 0/5 통과 | Scene 3→4→6: 한 번 실패하면 GAME OVER |
-| 체험 3 `usr_demo3` | 운영체제 | KU | ♥♥♥, 6/6 통과 | Scene 7: 바로 "졸업하기" |
+| 체험 3 `usr_demo3` | 운영체제 | KU | ♥♥♥, 6/6 통과(챕터별 완료 세션·가르친 설명 포함), 졸업시험 READY | Scene 7: "졸업시험 보기" → 통과하면 "졸업하기" |
 
 체험1 경제학원론에는 Run 이 없다(후배 선택 화면 시연용).
 
@@ -163,5 +176,5 @@
 
 ```bash
 pnpm db:reset && pnpm dev            # 다른 터미널 (db:reset 뒤에는 dev 서버를 재시작)
-pnpm tsx scripts/smoke-api.ts        # 249 체크 (기존 + 게임 100개)
+pnpm tsx scripts/smoke-api.ts        # 276 체크 (기존 + 게임·졸업시험)
 ```

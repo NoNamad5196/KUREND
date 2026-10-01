@@ -12,8 +12,18 @@ async function collect<T>(events: AsyncIterable<T>) {
 }
 
 function provider(reply: (input: Record<string, unknown>) => unknown): LiveProviderCalls {
+  let reaction = "응, 말해 준 설명을 기억할게.";
   return {
-    async completeJSON(_system, user, schema) { return schema.parse(reply(JSON.parse(user))); },
+    async completeJSON(_system, user, schema, options) {
+      const input = JSON.parse(user);
+      // Wording is now a real validated request: a failing analysis mock must
+      // not be swallowed by a production fallback on the second call.
+      if (options?.stage === "respond-turn") return schema.parse({ reactions: [reaction], question: input.nextQuestionHint });
+      const parsed = schema.parse(reply(input));
+      // 검증을 통과한(=설명에 실제로 있는) 인용만 반응에 쓴다 — 실제 RESPOND_TURN 입력에는 원시 인용이 들어가지 않는다.
+      if (parsed && typeof parsed === "object" && "reactionQuote" in parsed && parsed.reactionQuote) reaction = `“${parsed.reactionQuote}”라고 설명해 줬구나.`;
+      return parsed;
+    },
     async *streamText() { throw new Error("Unexpected text API call"); },
   };
 }
@@ -45,7 +55,7 @@ test("semantic concept labels need teaching evidence, not a literal label substr
       reactionQuote: "사람들이 사려는 양은 줄어",
     });
   })).juniorTurn(base));
-  assert.equal(calls, 2, "a normal turn analyses once, then asks the model to phrase the reaction and next question");
+  assert.equal(calls, 1, "analysis runs once; the separate wording request uses a valid mock response");
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["수요 법칙"], added: ["수요 법칙"] });
   assert.deepEqual(events.at(-1), { type: "question", coveredObjectives: ["o1"], content: "선배, 수요량의 변화도 알려줄래?" });
   assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("사람들이 사려는 양은 줄어")));
@@ -91,10 +101,12 @@ test("source-only concept quotes, rejected refs and injected reactions fail vali
   for (const reply of [
     analysis({ concepts: [{ name: "기호", quote: "소득과 기호의 변화" }] }),
     analysis({ coverage: [{ id: "o1", evidence: [{ ref: 999, quote: correct }] }] }),
-    analysis({ reactionQuote: "자료에는 정답이 따로 나와" }),
   ]) {
     await assert.rejects(collect(createLiveLlm(provider(() => reply)).juniorTurn(base)));
   }
+  // 설명에 없는 반응 인용은 재시도 없이 버려지고(빈 인용 → 템플릿 반응), 주입 문구는 절대 노출되지 않는다.
+  const injected = await collect(createLiveLlm(provider(() => analysis({ reactionQuote: "자료에는 정답이 따로 나와" }))).juniorTurn(base));
+  assert.ok(!JSON.stringify(injected).includes("자료에는 정답이"));
 });
 
 test("legacy HARD practice remains compatible; KU asks about a contradiction", async () => {
@@ -122,7 +134,11 @@ test("all-covered turns never generate another objective question", async () => 
 test("exam citations cannot invent facts under an otherwise valid ref", async () => {
   const input = { question: "수요 법칙을 설명하세요.", taught: [{ ref: 7, content: correct }], heardConcepts: ["수요 법칙"] };
   const reply = { thought: "들은 내용을 찾아볼게.", sentences: [{ quote: "소득이 늘면 수요가 늘어.", ref: 7, level: "STRONG" }], unlearned: false };
-  await assert.rejects(collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input)));
+  // 지어낸 인용은 검증에서 거절되고, 시험이 멈추지 않도록 가르친 원문만으로 만든 안전 답안으로 대체된다.
+  const fallback = await collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input));
+  assert.ok(!JSON.stringify(fallback).includes("소득이 늘면"));
+  const fallbackFinal = fallback.at(-1);
+  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes("라고 배웠습니다")));
   const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", text: "모델이 덧붙인 외부 사실" }] }))).writeExamAnswer(input));
   assert.deepEqual(events.at(-1), { type: "final", answer: `“${correct}”라고 배웠습니다.` });
   assert.ok(!JSON.stringify(events).includes("외부 사실"));

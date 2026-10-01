@@ -35,7 +35,7 @@ export type SseEvent =
   | { event: "tutor.token"; data: { token: string } }
   | { event: "tutor.message"; data: { id: string; gapId: string; request: string; response: string } }
   // 공통
-  | { event: "error"; data: { code: string; message: string } }
+  | { event: "error"; data: { code: string; message: string } & import("./errors").ErrorDetails }
   | { event: "done"; data: Record<string, unknown> };
 
 export type SseEventName = SseEvent["event"];

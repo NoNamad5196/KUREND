@@ -10,17 +10,17 @@ export type AnswerSheetItem = {
   badge?: ReactNode; extra?: ReactNode;
 };
 
-export function AnswerSheet({ courseName, title = "2026학년도 KUREND 학력평가 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
-  courseName: string; title?: string; items: AnswerSheetItem[]; activeQid?: string | null;
+export function AnswerSheet({ studentName = "새내기", courseName, title = "2026학년도 KUREND 학력평가 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
+  studentName?: string; courseName: string; title?: string; items: AnswerSheetItem[]; activeQid?: string | null;
   instant?: boolean; typingSpeedMs?: number; onTypingDone?: (qid: string) => void; className?: string;
 }) {
   return (
-    <section aria-label="새내기 답안지" className={clsx("min-w-0 rounded-sm border border-paper-rule bg-paper p-5 text-paper-ink sm:p-8 lg:p-10", className)}>
+    <section aria-label={`${studentName} 답안지`} className={clsx("min-w-0 rounded-sm border border-paper-rule bg-paper p-5 text-paper-ink sm:p-8 lg:p-10", className)}>
       <header className="border-b border-paper-rule pb-6">
         <p className="editorial-label mb-3 text-muted">KUREND EXAM · 가르친 만큼, 기억한 만큼</p>
         <h2 className="text-balance text-lg font-semibold tracking-tight sm:text-xl">{title}</h2>
         <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
-          <div><dt className="text-[11px] text-muted">성명</dt><dd className="mt-1.5 font-medium">새내기</dd></div>
+          <div><dt className="text-[11px] text-muted">성명</dt><dd className="mt-1.5 font-medium">{studentName}</dd></div>
           <div className="min-w-0"><dt className="text-[11px] text-muted">과목</dt><dd className="mt-1.5 break-words font-medium">{courseName}</dd></div>
           <div><dt className="text-[11px] text-muted">배점</dt><dd className="mt-1.5 font-medium tabular-nums">100점</dd></div>
         </dl>

@@ -18,9 +18,13 @@ export function progressSummary(rows: ProgressRow[]) {
   };
 }
 
-/** 졸업 가능: ACTIVE 이고 챕터가 1개 이상이며 전부 cleared (P0 규칙) */
-export const canGraduate = (status: string, rows: Pick<ProgressRow, "cleared">[]) =>
+/** 졸업시험 응시 가능: ACTIVE 이고 챕터가 1개 이상이며 전부 cleared */
+export const allChaptersCleared = (status: string, rows: Pick<ProgressRow, "cleared">[]) =>
   status === "ACTIVE" && rows.length > 0 && rows.every((r) => r.cleared);
+
+/** 졸업 가능: 모든 챕터 통과 + 졸업시험 통과 */
+export const canGraduate = (status: string, rows: Pick<ProgressRow, "cleared">[], finalPassed: boolean) =>
+  allChaptersCleared(status, rows) && finalPassed;
 
 /** 함께한 일수 (시작~종료, 최소 1일) */
 export function daysBetween(start: Date, end: Date): number {

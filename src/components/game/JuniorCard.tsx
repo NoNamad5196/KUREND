@@ -1,6 +1,7 @@
 /** 현재 후배의 진행 상태와 기존 이어하기·졸업 동작을 보여 주는 홈 스포트라이트. */
 import Link from "next/link";
 import { ProgressBar } from "@/components/session/ui";
+import { FinalExamAction, finalStageText, inFinalStage } from "./FinalExamAction";
 import { CHARACTER_META } from "./characters";
 import { JuniorAvatar } from "./JuniorAvatar";
 import { LifeHearts } from "./LifeHearts";
@@ -45,12 +46,12 @@ export function JuniorCard({ run, continueHref, meetHref = "/new" }: { run: RunS
           <ProgressBar value={run.progress.cleared} max={run.progress.total} />
         </div>
         <p className="junior-spotlight-next">
-          {run.canGraduate ? "모든 챕터를 통과했어요 — 졸업할 수 있습니다!" : run.next ? <>다음 수업 <span>{run.next.title}</span></> : "다음 수업이 없습니다"}
+          {inFinalStage(run) ? finalStageText(run) : run.next ? <>다음 수업 <span>{run.next.title}</span></> : "다음 수업이 없습니다"}
         </p>
         {ended ? (
           <Link href={`/materials/${run.materialId}/junior`} className="junior-spotlight-cta">새 후배 만나기 <span aria-hidden="true">↗</span></Link>
-        ) : run.canGraduate ? (
-          <Link href={`/runs/${run.runId}/graduation`} className="junior-spotlight-cta">졸업하기 <span aria-hidden="true">↗</span></Link>
+        ) : inFinalStage(run) ? (
+          <FinalExamAction run={run} className="junior-spotlight-final-action" />
         ) : (
           <Link href={href} className="junior-spotlight-cta">계속 가르치기 <span aria-hidden="true">↗</span></Link>
         )}

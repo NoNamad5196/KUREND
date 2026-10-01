@@ -35,6 +35,12 @@
 .junior-spotlight-next > span { color: #f7f5ef; margin-left: 6px; }
 .junior-spotlight-cta { display: flex; align-items: center; justify-content: space-between; min-height: 46px; padding: 11px 16px; border: 1px solid #d9ed92; border-radius: 3px; background: #d9ed92; color: #244638; font-size: 14px; font-weight: 750; transition: background .2s; }
 .junior-spotlight-cta:hover { background: #edfac4; }
+
+.junior-spotlight-final-action { display: block; }
+.junior-spotlight-final-action .k-button { min-height: 46px; border-color: var(--accent); background: var(--accent); color: var(--primary); }
+.junior-spotlight-final-action .k-button:hover { background: var(--accent-soft); }
+.junior-spotlight-final-action [role="alert"] { padding: 8px 12px; border-left: 2px solid var(--danger); background: var(--danger-soft); }
+
 .junior-spotlight-cta > span { font-size: 20px; transition: transform .2s; }
 .junior-spotlight-cta:hover > span { transform: translate(2px, -2px); }
 .junior-spotlight-empty .junior-spotlight-art { height: 282px; }

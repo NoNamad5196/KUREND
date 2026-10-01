@@ -17,6 +17,8 @@ pnpm dev
 Windows에서는 `cp` 대신 `Copy-Item .env.example .env.local`을 사용할 수 있습니다. 기본 API 경로는 `/api`입니다.
 
 로그인은 Google 계정을 사용합니다. 서버 환경 변수에 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`을 설정하고, Google Cloud Console에 `${APP_URL}/api/auth/google/callback`을 승인된 리디렉션 URI로 등록하세요. `APP_URL`은 서비스의 공개 주소이며, 필요한 경우 `GOOGLE_REDIRECT_URI`로 콜백 주소를 직접 지정할 수 있습니다.
+운영 세션은 서명과 30일 만료를 검증합니다. `SESSION_SECRET`을 설정하면 우선 사용하며, 없으면 기존 Google client secret을 사용합니다. 이번 버전에서 기존 사용자 ID 쿠키는 만료되므로 Google 재로그인이 한 번 필요합니다. 서명 키를 변경해도 기존 세션은 무효화됩니다.
+
 
 화면 개발용 API는 `NEXT_PUBLIC_API_BASE=/api/a-preview` 또는 `/api/mock`으로 선택할 수 있습니다. 체험 계정 선택 UI는 제공하지 않습니다. 개발·테스트용 `auth/demo-accounts`와 `auth/demo-login` API는 시드 계정 `usr_demo1`·`usr_demo2`·`usr_demo3`만 허용하며, 운영 환경에서는 실제·모의 체험 인증 API 모두 `404`를 반환합니다. A 미리보기 API는 개발 모드에서만 동작하고 서버 재시작 시 데이터가 초기화됩니다.
 

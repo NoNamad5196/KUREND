@@ -32,7 +32,7 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     exampleLine: "선배님, 이건 어떤 뜻이에요?",
     teachingHint: "후배에게 알려줄 내용을 선택하세요. 고른 내용 그대로 후배가 배워요.",
     traits: { 이해력: 5, 기억력: 5, 되묻기: 2, 시험난이도: 2 },
-    examLabel: "객관식 4지선다",
+    examLabel: "객관식 4지선다 3문항",
     gameOver: {
       title: "GAME OVER",
       lines: ["어라...", "남자 후배가 결국 군대로 떠나버렸네.", "잘 다녀와...", "다음에 보자~~"],
@@ -51,7 +51,7 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     exampleLine: "선배님, 왜 그렇게 되는 건가요?",
     teachingHint: "뜻과 이유를 함께 설명해 주세요. 개념끼리 어떻게 이어지는지도 좋아요.",
     traits: { 이해력: 4, 기억력: 5, 되묻기: 3, 시험난이도: 3 },
-    examLabel: "서술형 (의미 설명)",
+    examLabel: "서술형 5문항 (의미 설명)",
     gameOver: {
       title: "GAME OVER",
       lines: ["어라...", "여자 후배가 어디로 갔지?", "음...", "다음에 볼 수 있겠지~"],
@@ -70,7 +70,7 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     exampleLine: "선배, 그 말 다시 설명해 줘.",
     teachingHint: "한 번 들었다고 모두 기억하지는 못해요. 다른 표현과 예시로 다시 설명해 주세요.",
     traits: { 이해력: 2, 기억력: 3, 되묻기: 5, 시험난이도: 5 },
-    examLabel: "서술형 + 응용",
+    examLabel: "서술형 7문항 + 응용",
     gameOver: {
       title: "GAME OVER",
       lines: ["어...", "KU가 어디 트럭에 타버렸네.", "안녕~", "다음에 봐~~"],

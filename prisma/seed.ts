@@ -12,7 +12,7 @@ import { resolve } from "node:path";
 import { db } from "@/lib/server/db";
 import { normalizeText } from "@/lib/server/ingest";
 import { newId, examItemId } from "@/lib/server/ids";
-import { CHARACTERS, lifeOutcomeFor, type JuniorCharacter } from "@/contracts/game";
+import { CHARACTERS, lifeOutcomeFor, pointsPlan, type JuniorCharacter } from "@/contracts/game";
 
 /* ───────── 입력 형식 ───────── */
 type SeedChapter = { title: string; points: string[]; startPara: number; endPara: number };
@@ -351,9 +351,66 @@ type SeedRun = {
   maxLives: number;
   startedDaysAgo: number;
   linkSeedSessions?: boolean;
+  /** true 면 history 의 합성 세션을 실제 완료 세션으로 만든다 */
+  historySessions?: boolean;
   history: SeedRunHistory[];
 };
 type SeedRuns = { runs: SeedRun[]; extraMaterials?: { userId: string; materialSlug: string }[] };
+
+/** 받침에 따라 을/를 */
+const eul = (w: string) => { const c = w.trim().charCodeAt(w.trim().length - 1) - 0xac00; return c >= 0 && c <= 11171 && c % 28 ? `${w}을` : c >= 0 && c <= 11171 ? `${w}를` : `${w}을(를)`; };
+type SeedNote = { mustTeach: string[]; keyTakeaways: string[]; confusing: string[]; likelyQuestions: string[] };
+const NOTE_FILES: Record<string, string> = { "os-scheduling": "teacher-notes.os.json", "econ-supply-demand": "teacher-notes.econ.json" };
+function loadNotes(slug: string): Record<string, SeedNote> {
+  const file = resolve(ROOT, "src/lib/llm/fixtures", NOTE_FILES[slug] ?? "");
+  return NOTE_FILES[slug] && existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+}
+
+/**
+ * Run 기록(history)의 지난 시험을 실제 완료 세션으로 남긴다: 선배 설명 1개 + 후배 문항 수만큼의 채점.
+ * 홈 통계·내 세션·오답노트와 Run 진행도가 어긋나지 않고, 졸업시험이 "지금까지 가르친 설명"을 옮겨 담을 수 있다.
+ */
+async function seedHistorySession(input: {
+  sessionId: string; userId: string; runId: string; character: JuniorCharacter; chapterId: string;
+  chapterTitle: string; note: SeedNote | undefined; score: number; at: Date;
+}) {
+  const spec = CHARACTERS[input.character];
+  const note = input.note ?? { mustTeach: [input.chapterTitle], keyTakeaways: [`${input.chapterTitle}의 핵심을 설명했다.`], confusing: [], likelyQuestions: [] };
+  const explanation = [...note.keyTakeaways, ...note.mustTeach.map((m) => `${m}도 중요해.`)].join(" ").slice(0, 1800);
+  const asks = [...note.likelyQuestions, ...note.mustTeach.map((m) => `${eul(m)} 설명하세요.`), ...note.confusing.map((c) => `${c} 이 점을 설명하세요.`)];
+  const plan = pointsPlan(spec.questionCount);
+  let left = input.score;
+  const items = plan.map((points, i) => {
+    const got = Math.max(0, Math.min(points, left));
+    left -= got;
+    const verdict = got === points ? "CORRECT" : got > 0 ? "PARTIAL" : "WRONG";
+    return { qid: `q${i + 1}`, order: i + 1, points, got, verdict, question: asks[i % Math.max(1, asks.length)] ?? `${eul(input.chapterTitle)} 설명하세요.` };
+  });
+  const examId = newId("exam");
+  const t = (min: number) => new Date(input.at.getTime() + min * 60_000);
+  await db.session.create({
+    data: {
+      id: input.sessionId, userId: input.userId, chapterId: input.chapterId, runId: input.runId,
+      status: "COMPLETED", phase: "EXAM_READY", juniorLevel: spec.level,
+      objectivesJson: JSON.stringify(note.mustTeach.slice(0, 3).map((text, i) => ({ id: `o${i + 1}`, text: `${eul(text)} 설명할 수 있다`, covered: true }))),
+      heardJson: JSON.stringify(note.mustTeach.slice(0, 6)),
+      score: input.score, finalVerdict: input.score >= 90 ? "STABLE" : input.score >= 70 ? "MOSTLY" : "NEEDS_WORK",
+      createdAt: input.at, updatedAt: t(30), completedAt: t(30),
+      messages: { create: [
+        { id: newId("msg"), role: "JUNIOR", stage: "QUESTION", content: `선배, ${input.chapterTitle}부터 알려줄래?`, createdAt: t(0) },
+        { id: newId("msg"), role: "USER", stage: "ANSWER", content: explanation, createdAt: t(3) },
+        { id: newId("msg"), role: "JUNIOR", stage: "REACTION", content: "아하, 이제 좀 알 것 같아요!", createdAt: t(4) },
+      ] },
+      exam: { create: {
+        id: examId, status: "GRADED", format: spec.examFormat, createdAt: t(10),
+        questions: { create: items.map((q) => ({ id: examItemId(examId, q.qid), qid: q.qid, order: q.order, points: q.points, question: q.question, objectiveRef: `o${(q.order - 1) % 3 + 1}`, rubric: "핵심 개념;근거" })) },
+        answers: { create: items.map((q) => ({ id: examItemId(examId, q.qid), qid: q.qid, answer: q.verdict === "WRONG" ? "이 부분은 선배한테 못 들어서 모르겠습니다." : explanation.slice(0, 160), sentencesJson: "[]" })) },
+        grades: { create: items.map((q) => ({ id: examItemId(examId, q.qid), qid: q.qid, score: q.got, maxScore: q.points, verdict: q.verdict,
+          comment: q.verdict === "CORRECT" ? "자료의 채점 요소를 모두 설명했습니다." : q.verdict === "PARTIAL" ? "일부 요소가 빠졌습니다." : "선배의 설명에서 찾지 못했습니다." })) },
+      } },
+    },
+  });
+}
 
 async function seedGame(
   materials: SeedMaterial[],
@@ -385,6 +442,8 @@ async function seedGame(
     const attempts = new Map<number, number>();
     const clearedAt = new Map<number, Date>();
     const events: Array<Record<string, unknown>> = [];
+    const notes = loadNotes(r.materialSlug);
+    const pending: Parameters<typeof seedHistorySession>[0][] = [];
 
     for (const [i, h] of r.history.entries()) {
       const createdAt = daysFromNow(-h.daysAgo, 20 + (i % 3));
@@ -393,6 +452,11 @@ async function seedGame(
       lives = Math.max(0, Math.min(r.maxLives, lives + lifeOutcomeFor({ score: h.score, passScore: spec.passScore, lives, maxLives: r.maxLives }).delta));
       const sessionId = h.sessionId === "completed" ? seedSessions.completedId : `sess_seed_${r.key}_${i + 1}`;
       if (!sessionId) throw new Error(`runs.json ${r.key}: 완료 세션이 시드되지 않음`);
+      if (r.historySessions && h.sessionId !== "completed") {
+        const m = bySlug.get(r.materialSlug)!;
+        pending.push({ sessionId, userId: r.userId, runId, character: r.character, chapterId: mat.chapterIds[h.chapterIndex],
+          chapterTitle: m.chapters[h.chapterIndex].title, note: notes[m.chapters[h.chapterIndex].title], score: h.score, at: createdAt });
+      }
       events.push({
         id: newId("lev"), runId, sessionId, chapterId: mat.chapterIds[h.chapterIndex], outcome, delta: lives - before,
         livesBefore: before, livesAfter: lives, score: h.score, passScore: spec.passScore, createdAt,
@@ -416,6 +480,7 @@ async function seedGame(
         },
       },
     });
+    for (const h of pending) await seedHistorySession(h);
     for (const e of events) await db.lifeEvent.create({ data: e as Parameters<typeof db.lifeEvent.create>[0]["data"] });
     // 통과한 챕터는 "가르침" 기록도 남긴다 (홈의 "목차 n개 중 m개 가르침" 과 Run 진행도가 어긋나지 않게)
     for (const [idx, at] of clearedAt) {

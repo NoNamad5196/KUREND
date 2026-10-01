@@ -16,20 +16,23 @@ export const POST = withApi<{ id: string }>(async (req, { params }) => {
   const note = await loadOwnedWrongNote(user.userId, params.id);
   if (!note) throw notFound("오답노트를 찾을 수 없습니다.");
   const chapter = note.session.chapter;
-  const run = await findActiveRun(user.userId, chapter.material.id);
   const focusConcepts = parseStringArray(note.missedConceptsJson);
-  const session = await db.session.create({
-    data: {
-      id: newId("sess"),
-      userId: user.userId,
-      chapterId: chapter.id,
-      status: "PREPARING",
-      phase: "QUESTION",
-      juniorLevel: run ? levelFor(run.character as JuniorCharacter) : "EASY",
-      runId: run?.id ?? null,
-      focusConceptsJson: JSON.stringify(focusConcepts),
-    },
-    select: { id: true },
+  const session = await db.$transaction(async (tx) => {
+    const run = await findActiveRun(user.userId, chapter.material.id, tx);
+    return tx.session.create({
+      data: {
+        id: newId("sess"),
+        userId: user.userId,
+        chapterId: chapter.id,
+        status: "PREPARING",
+        phase: "QUESTION",
+        juniorLevel: run ? levelFor(run.character as JuniorCharacter) : "EASY",
+        runId: run?.id ?? null,
+        character: run?.character ?? null,
+        focusConceptsJson: JSON.stringify(focusConcepts),
+      },
+      select: { id: true },
+    });
   });
   const body: ReteachResponse = { sessionId: session.id, focusConcepts };
   return json(body, 201);

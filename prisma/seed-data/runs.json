@@ -1,5 +1,5 @@
 {
-  "_comment": "[① 게임 코어] 데모 Run 시드. history 는 과거 시험 기록(LifeEvent). chapterIndex 는 materials.json 챕터 순서(0부터). sessionId 가 'completed' 면 sessions.json 의 완료 세션, 그 외는 이미 지워진 과거 세션을 뜻하는 합성 id.",
+  "_comment": "[① 게임 코어] 데모 Run 시드. history 는 과거 시험 기록(LifeEvent). chapterIndex 는 materials.json 챕터 순서(0부터). sessionId 가 'completed' 면 sessions.json 의 완료 세션, 그 외는 이미 지워진 과거 세션을 뜻하는 합성 id. historySessions:true 면 그 합성 id 로 실제 완료 세션(선배 설명 + 채점)을 만든다(졸업시험이 가르친 설명을 옮겨 담을 수 있게).",
   "runs": [
     {
       "key": "demo1-os",
@@ -36,6 +36,7 @@
       "character": "KU_HARD",
       "maxLives": 3,
       "startedDaysAgo": 9,
+      "historySessions": true,
       "history": [
         { "chapterIndex": 0, "score": 92, "daysAgo": 9 },
         { "chapterIndex": 1, "score": 85, "daysAgo": 8 },

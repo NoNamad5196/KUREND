@@ -1,9 +1,11 @@
 # Render 무료 시연 배포
 
 기본 구성은 Google 로그인과 실제 AI(`LLM_PROVIDER=openai`)를 사용합니다.
+`OPENAI_API_KEY`는 Render의 비밀 환경 변수로 설정합니다. OpenAI API 사용료는 Render 플랜과 별개입니다.
 무료 인스턴스의 SQLite 데이터는 재배포·인스턴스 재시작 시 사라질 수 있으며,
 DB가 없으면 초기 시드 계정 3개와 샘플 자료를 생성하지만 운영 환경의 체험 로그인 API는 열리지 않습니다.
 같은 DB 파일이 남아 있는 동안에는 재시작해도 기존 데이터를 덮어쓰지 않습니다.
+시작 스크립트는 기존 DB에 스키마 변경만 적용하며, 데이터 손실을 강제하거나 다시 시드하지 않습니다.
 
 ## 배포
 
@@ -43,3 +45,7 @@ DATABASE_URL=file:/tmp/kurend-render-demo.db PORT=10000 LLM_PROVIDER=stub bash s
 
 이 명령은 로컬 개발 DB와 다른 데모 DB를 사용합니다.
 빌드할 때는 `.next`를 함께 사용하는 개발 서버를 먼저 종료합니다.
+
+## 세션 서명 전환
+
+운영 쿠키는 HMAC 서명과 만료를 검증하고 HTTPS 전용으로 발급합니다. 별도 `SESSION_SECRET`이 없으면 이미 설정한 Google client secret을 사용하므로 새 필수 설정은 없습니다. 기존 서명 없는 쿠키는 허용하지 않아 배포 후 Google 재로그인이 한 번 필요합니다.

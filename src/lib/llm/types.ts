@@ -7,7 +7,7 @@ export type TaughtMsg = { ref: number; content: string };                       
 export interface Llm {
   generateChapters(input: { sources: { sourceId: string; text: string }[]; persona?: JuniorCharacter }):
     Promise<{ title: string; chapters: { title: string; points: string[]; sourceId: string; startOffset: number; endOffset: number }[] }>;
-  prepareSession(input: { chapter: ChapterText; level: "EASY"|"HARD"; persona?: JuniorCharacter; examFormat?: "DESCRIPTIVE"|"OBJECTIVE" }):
+  prepareSession(input: { chapter: ChapterText; level: "EASY"|"HARD"; persona?: JuniorCharacter; examFormat?: "DESCRIPTIVE"|"OBJECTIVE"|"MIXED"; questionCount?: number; kind?: "CHAPTER"|"FINAL" }):
     Promise<{ objectives: { id: string; text: string }[]; questions: { qid: string; order: number; points: number; question: string; objectiveRef: string; rubric: string; choices?: string[] }[]; firstQuestion: string; firstTeachingChoices?: TeachingChoiceDto[] }>;
   juniorTurn(input: { chapter: ChapterText; level: "EASY"|"HARD"; persona?: JuniorCharacter; objectives: {id:string;text:string}[]; heardConcepts: string[]; history: { role: "USER"|"JUNIOR"; stage: string; content: string }[]; explanation: string; mastery?: ConceptMasteryDto[] }):
     AsyncIterable<{ type: "concepts"; heardConcepts: string[]; added: string[] } | { type: "doubt"; content: string } | { type: "reaction"; content: string } | { type: "question"; content: string; coveredObjectives: string[]; teachingChoices?: TeachingChoiceDto[]; mastery?: ConceptMasteryDto[] }>;

@@ -257,3 +257,21 @@ test("teaching choices omit material directions and favor substantive explanatio
     text: "이 장의 설명 목표는 프로세스와 프로세스 상태를 서로 구별하는 것이다. 이 자료는 관련 개념을 익히기 위해 작성한 강의노트다." };
   assert.deepEqual(teachingChoicesFor(directionsOnly, "프로세스"), [], "no fallback may reintroduce excluded directions as teachable facts");
 });
+
+test("live objective grading rejects a guessed choice even with a longer persona-normalized answer", async () => {
+  const llm = createLiveLlm({ async completeJSON(_prompt, _input, schema) {
+    return schema.parse({ gap: { title: "미학습", diagnosis: "아직 설명을 듣지 못했습니다.", evidenceQuote: "",
+      concepts: ["수요 법칙"], sourceExcerpt: chapter.text.slice(0, 40) } });
+  }, async *streamText() { throw new Error("unused"); } });
+  for (const address of ["선배한테", "선배님께"]) {
+    const answer = `① 이 부분은 ${address} 못 들어서 모르겠습니다. 다른 내용은 배웠습니다.`;
+    const events = await collect(llm.gradeExam({ chapter, taught: [],
+      questions: [{ qid: "q1", question: "가격과 수요량의 관계는?", points: 100,
+        rubric: "정답 ①;근거: 가격이 오르면 수요량은 줄어든다", choices: ["① 감소", "② 증가", "③ 일정", "④ 무관"] }],
+      answers: [{ qid: "q1", answer }],
+    }));
+    const grade = events.find((event) => event.type === "grade")!;
+    assert.equal(grade.score, 0);
+    assert.equal(grade.verdict, "WRONG");
+  }
+});
