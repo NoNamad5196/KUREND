@@ -1,0 +1,3 @@
+.static-character { display: inline-flex; position: relative; max-width: 100%; align-items: flex-end; justify-content: center; vertical-align: bottom; line-height: 0; }
+.static-character-viewport { display: block; position: relative; flex: none; overflow: hidden; }
+.static-character-viewport > img { position: absolute; display: block; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; }

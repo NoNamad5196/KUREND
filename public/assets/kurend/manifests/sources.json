@@ -1,0 +1,170 @@
+[
+  {
+    "number": 1,
+    "original": "01_남학생_기본복장_정면.png",
+    "path": "/assets/kurend/characters/male/source/default-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "8d53123c435fd09e3fecde9a406483b42116f80bd1e712d567e12d5216a6c69d"
+  },
+  {
+    "number": 2,
+    "original": "02_남학생_군복방탄모_정면.png",
+    "path": "/assets/kurend/characters/male/source/military-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "732c79583dc7a1336192d6a0c25e5bdb0f25a901a7f27d82b294ba9bf5b14c19"
+  },
+  {
+    "number": 3,
+    "original": "03_남학생_졸업복_정면.png",
+    "path": "/assets/kurend/characters/male/source/graduation-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "4ab6b0357f2f8656830d5241881c61aadfa60e72547ee11ebbb58da11c1fed2b"
+  },
+  {
+    "number": 4,
+    "original": "04_여학생_기본과잠_정면.png",
+    "path": "/assets/kurend/characters/female/source/default-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "3273e0c2a57dabf2d5f50ee6af82599c4b60ed4eafc3c8757298a0b8a985934a"
+  },
+  {
+    "number": 5,
+    "original": "05_여학생_베이지스웨터청바지_정면.png",
+    "path": "/assets/kurend/characters/female/source/casual-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "5e88908f1c25d2392c17000d253792551af0d7fda8f4df3055a2c28240cbdb5a"
+  },
+  {
+    "number": 6,
+    "original": "06_여학생_졸업복_정면.png",
+    "path": "/assets/kurend/characters/female/source/graduation-front.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "e3a674714d70c7972b99e8f8ae3a8d9e4320307b094a75d45c42cc3f3ed991ce"
+  },
+  {
+    "number": 7,
+    "original": "07_남학생_기본복장_측면.png",
+    "path": "/assets/kurend/characters/male/source/default-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "181cbe33fef18884a24527394558fc7afc4ea64ce1e851578797bff619dfc567"
+  },
+  {
+    "number": 8,
+    "original": "08_남학생_군복방탄모_측면.png",
+    "path": "/assets/kurend/characters/male/source/military-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "43ead6124729e7d3a4f76044c2e1aad82c342991ac0fb14edf96ccd1b4e978b7"
+  },
+  {
+    "number": 9,
+    "original": "09_남학생_졸업복_측면.png",
+    "path": "/assets/kurend/characters/male/source/graduation-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "2e6db7f52cb6034973c92843ed4e9ef3f6733ef0f6e1f51a2966496a2b65d0a5"
+  },
+  {
+    "number": 10,
+    "original": "10_여학생_기본과잠_측면.png",
+    "path": "/assets/kurend/characters/female/source/default-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "ee637f807753059bcdcacc83f3325b72da387e2650d13498d343aaf393f1d6d7"
+  },
+  {
+    "number": 11,
+    "original": "11_여학생_베이지스웨터청바지_측면.png",
+    "path": "/assets/kurend/characters/female/source/casual-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "fc7a436e4a498b17fb5d16f97212bca22707dca4974d2c4e9e684500322407d7"
+  },
+  {
+    "number": 12,
+    "original": "12_여학생_졸업복_측면.png",
+    "path": "/assets/kurend/characters/female/source/graduation-side.png",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "59bbc415ad784914e86bf5719229b5540de13d97cae0003613cc1a48a54c7e7a"
+  },
+  {
+    "number": 13,
+    "original": "13_KU_기본_정면.png",
+    "path": "/assets/kurend/characters/ku/source/default-front.png",
+    "width": 1145,
+    "height": 1374,
+    "sha256": "df6c91a32dd9d90f9b7f67e5c52bf0a57c0e63b7756e2ccd87630afbdd1421c6"
+  },
+  {
+    "number": 14,
+    "original": "14_KU_졸업복_정면.png",
+    "path": "/assets/kurend/characters/ku/source/graduation-front.png",
+    "width": 1268,
+    "height": 1240,
+    "sha256": "9772ed889e5d6ce859631afc242508fbb94b48b1e254c1f9f6677d28570a8d23"
+  },
+  {
+    "number": 15,
+    "original": "15_KU_기본_측면.png",
+    "path": "/assets/kurend/characters/ku/source/default-side.png",
+    "width": 1322,
+    "height": 1190,
+    "sha256": "40107a533ce1b38f34bb6ace767415f9a4a0df241150f33f48f517e103dcbc73"
+  },
+  {
+    "number": 16,
+    "original": "16_KU_졸업복_측면.png",
+    "path": "/assets/kurend/characters/ku/source/graduation-side.png",
+    "width": 1230,
+    "height": 1278,
+    "sha256": "fe1afabfa869a246eb053652b8e206fc56b7f18e422dea114717e148e5f89718"
+  },
+  {
+    "number": 17,
+    "original": "17_KU_GAMEOVER_일반트럭_측면.png",
+    "path": "/assets/kurend/vehicles/ku-truck/source.png",
+    "width": 1942,
+    "height": 809,
+    "sha256": "1bc07f264a2fe38e4d4d2f95610f7bb175d39dccadeee94f8dc31806edccfca6"
+  },
+  {
+    "number": 18,
+    "original": "18_남학생_GAMEOVER_군용트럭_측면.png",
+    "path": "/assets/kurend/vehicles/military-truck/source.png",
+    "width": 1951,
+    "height": 806,
+    "sha256": "e371c5abcfe3b5e240d13e85cb4b3a86bebbd3044ac8b5865f5ace6ecd04c5b1"
+  },
+  {
+    "number": 19,
+    "original": "19_공용_학사모.png",
+    "path": "/assets/kurend/props/graduation-cap/source.png",
+    "width": 1536,
+    "height": 1024,
+    "sha256": "1bb77adfacef115a74980c3a7ed0dd4591995827639c24e2f084b10ac39efdf4"
+  },
+  {
+    "number": 20,
+    "original": "20_공용_졸업장.png",
+    "path": "/assets/kurend/props/diploma/source.png",
+    "width": 1278,
+    "height": 1230,
+    "sha256": "f3fe40d7524f86c8cc4f3b7ba7d386965e6afe16fc5100938ae2706d6038e380"
+  },
+  {
+    "number": null,
+    "original": "bg_캠퍼스배경.png",
+    "path": "/assets/kurend/backgrounds/campus/source.png",
+    "width": 1672,
+    "height": 941,
+    "sha256": "1e279bd654ee92e71660389bce377a0b8ec86057edf9b6fa146095f1cd7a545a"
+  }
+]

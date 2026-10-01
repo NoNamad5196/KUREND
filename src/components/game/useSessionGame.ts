@@ -41,5 +41,8 @@ export function useSessionGame(sessionId: string | null | undefined) {
   const game = current ? state.game : null;
   const loading = current ? state.loading : !!sessionId;
   const error = current ? state.error : null;
-  return { game, run: game?.run ?? null, loading, error, reload };
+  // A successful run:null response confirms practice mode. Until then, avoid
+  // substituting the generic mascot for an unknown selected character.
+  const identityPending = !!sessionId && !game;
+  return { game, run: game?.run ?? null, loading, error, identityPending, reload };
 }

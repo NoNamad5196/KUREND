@@ -35,7 +35,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   const [ready, setReady] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const { run, game, loading: gameLoading, error: gameError, reload: reloadGame } = useSessionGame(sessionId);
+  const { run, game, loading: gameLoading, error: gameError, identityPending, reload: reloadGame } = useSessionGame(sessionId);
   const isFinal = game?.kind === "FINAL";
   const abortRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
@@ -122,7 +122,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
           </div>
           <div className="prepare-art">
             <span aria-hidden className="prepare-art-type">READY<br />TO LEARN.</span>
-            {run ? <JuniorAvatar character={run.character} size={290} mood={ready ? "happy" : streamError ? "confused" : "think"} enter className={clsx("relative", ready && "kurend-pop")} /> : <JuniorOrMascot state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={250} className={clsx("relative", ready && "kurend-pop")} />}
+            {run ? <JuniorAvatar character={run.character} size={290} mood={ready ? "happy" : streamError ? "confused" : "think"} enter className={clsx("relative", ready && "kurend-pop")} /> : <JuniorOrMascot identityPending={identityPending} state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={250} className={clsx("relative", ready && "kurend-pop")} />}
           </div>
           {run ? (
             <div className="relative space-y-4 border-t border-primary/20 pt-5">

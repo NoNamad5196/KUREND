@@ -10,6 +10,7 @@ import { gameApi } from "@/lib/client/game-api";
 import { JuniorCard } from "@/components/game/JuniorCard";
 import { TodayTasks } from "@/components/home/TodayTasks";
 import { JuniorAvatar } from "@/components/game/JuniorAvatar";
+import { StaticBackdrop } from "@/components/game/StaticBackdrop";
 import "@/components/game/editorial.css";
 
 function dDayLabel(n: number | null) { if (n === null) return null; return n < 0 ? "시험 끝" : n === 0 ? "D-Day" : `D-${n}`; }
@@ -35,6 +36,7 @@ export default function HomePage() {
           <div className="editorial-home-notation"><span>LEARN IT.<br />TEACH IT. OWN IT.</span><span aria-hidden="true">↓</span><span>설명하는 순간,<br />배움이 내 것이 되는 곳.</span></div>
         </div>
         {run !== undefined && !emptyHome ? <section aria-label="현재 후배" className="editorial-home-partner"><JuniorCard run={run} meetHref={home.courses[0]?.materials[0] ? `/materials/${home.courses[0].materials[0].materialId}/junior` : "/new"} /></section> : <div className="editorial-home-welcome" aria-label="함께 공부할 후배들">
+          <StaticBackdrop />
           <p className="editorial-label">MEET. TEACH. UNDERSTAND.</p>
           <span className="editorial-welcome-word" aria-hidden="true">HELLO,<br />SENIOR.</span>
           <div className="editorial-welcome-characters"><JuniorAvatar character="MALE_EASY" size={270} pose="still" /><JuniorAvatar character="FEMALE_NORMAL" size={270} pose="still" /><JuniorAvatar character="KU_HARD" size={175} pose="still" /></div>
