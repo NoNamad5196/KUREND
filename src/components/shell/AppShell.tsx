@@ -13,6 +13,7 @@ const links = [
   { href: "/new", label: "새 자료", icon: "＋" },
   { href: "/sessions", label: "내 세션", icon: "◷" },
   { href: "/wrong-notes", label: "오답노트", icon: "✎" },
+  { href: "/album", label: "졸업앨범", icon: "🎓" },
   { href: "/map", label: "지식 지도", icon: "◈" },
 ];
 

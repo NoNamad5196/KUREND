@@ -149,7 +149,7 @@ async function main() {
   const os = homeDto?.courses.find((c) => c.courseName === "운영체제");
   ok("운영체제 D-day 7", os?.dDay === 7 && os.examDate !== null, os);
   ok("운영체제 자료 resume(EXPLAINING) 존재", os?.materials[0]?.resume?.status === "EXPLAINING" && os.materials[0].resume.stageLabel === "가르치는 중", os?.materials[0]);
-  ok("taughtCount 1 / chapterCount 6", os?.materials[0]?.taughtCount === 1 && os.materials[0].chapterCount === 6, os?.materials[0]);
+  ok("taughtCount 4(시드: 완료 세션 1 + Run 통과 3) / chapterCount 6", os?.materials[0]?.taughtCount === 4 && os.materials[0].chapterCount === 6, os?.materials[0]);
   ok("최근 세션 2개, 완료 1개 94점, 연속 1일", homeDto?.recentSessions.length === 2 && homeDto.stats.completedSessions === 1 && homeDto.stats.averageScore === 94 && homeDto.stats.streakDays === 1, homeDto?.stats);
 
   /* ── 자료 ── */
@@ -265,6 +265,7 @@ async function main() {
   const chapter = detailDto!.chapters.find((c) => c.action.kind === "START")!;
   expectError("POST /sessions 본문 없음", await call("POST", "/sessions", {}), 400, "VALIDATION");
   expectError("POST /sessions 없는 챕터", await call("POST", "/sessions", { chapterId: "chp_nope" }), 404, "NOT_FOUND");
+  const chapterBefore = await db.chapter.findUnique({ where: { id: chapter.chapterId }, select: { taughtAt: true, stableAt: true } });
   const created = await call("POST", "/sessions", { chapterId: chapter.chapterId, juniorLevel: "HARD" });
   ok("POST /sessions 201", created.status === 201, created);
   const sid = validate("POST /sessions 응답", CreateSessionResponseSchema, created.data)?.sessionId as string;
@@ -387,7 +388,7 @@ async function main() {
   const chDone = matDone?.chapters.find((c) => c.chapterId === chapter.chapterId);
   ok("챕터 RETRY / bestScore 54 / openGapCount 1 / taughtAt", chDone?.action.kind === "RETRY" && chDone.bestScore === 54 && chDone.openGapCount === 1 && !!chDone.taughtAt, chDone);
   const homeDone = validate("GET /home (완료 후)", HomeSchema, (await call("GET", "/home")).data);
-  ok("홈 completedSessions 2, 평균 74, 연속 2일(어제+오늘), taughtCount 2", homeDone?.stats.completedSessions === 2 && homeDone.stats.averageScore === 74 && homeDone.stats.streakDays === 2 && homeDone.courses.find((c) => c.courseName === "운영체제")?.materials[0]?.taughtCount === 2, homeDone?.stats);
+  ok("홈 completedSessions 2, 평균 74, 연속 2일(어제+오늘), taughtCount 시드+1", homeDone?.stats.completedSessions === 2 && homeDone.stats.averageScore === 74 && homeDone.stats.streakDays === 2 && homeDone.courses.find((c) => c.courseName === "운영체제")?.materials[0]?.taughtCount === (chapterBefore?.taughtAt ? 4 : 5), homeDone?.stats);
   const meDone = validate("GET /auth/me (완료 후)", MeSchema, (await call("GET", "/auth/me")).data);
   ok("me.streakDays 2", meDone?.streakDays === 2, meDone);
 
@@ -431,7 +432,7 @@ async function main() {
 
   /* ── 정리: 테스트가 만든 세션 삭제(시드 상태 복원) ── */
   validate("DELETE 테스트 세션", OkResponseSchema, (await call("DELETE", `/sessions/${sid}`)).data);
-  await db.chapter.update({ where: { id: chapter.chapterId }, data: { taughtAt: null, stableAt: null } });
+  await db.chapter.update({ where: { id: chapter.chapterId }, data: { taughtAt: chapterBefore?.taughtAt ?? null, stableAt: chapterBefore?.stableAt ?? null } });
   await db.chapter.update({ where: { id: econCh.chapterId }, data: { taughtAt: null, stableAt: null } });
   const homeRestored = validate("GET /home (복원)", HomeSchema, (await call("GET", "/home")).data);
   ok("시드 상태 복원 (완료 1, 94점)", homeRestored?.stats.completedSessions === 1 && homeRestored.stats.averageScore === 94, homeRestored?.stats);

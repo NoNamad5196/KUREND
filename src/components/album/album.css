@@ -1,0 +1,7 @@
+@keyframes al-rise { from { opacity: 0; transform: translateY(14px) rotate(var(--tilt, 0deg)); } to { opacity: 1; transform: rotate(var(--tilt, 0deg)); } }
+@keyframes al-hang { 0%,100% { transform: rotate(var(--tilt, 0deg)); } 50% { transform: rotate(calc(var(--tilt, 0deg) * -0.6)); } }
+.al-polaroid { animation: al-rise .5s cubic-bezier(.2,.8,.2,1) both; transform-origin: 50% 0; }
+.al-polaroid:hover { animation: al-hang 1.6s ease-in-out infinite; }
+.al-photo { background: radial-gradient(circle at 50% 70%, var(--primary-soft), transparent 70%), var(--paper); }
+.al-gone { filter: grayscale(.85); opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .al-polaroid, .al-polaroid:hover { animation: none; } }
