@@ -1,0 +1,177 @@
+import type { Llm, TaughtMsg } from "./types";
+import { completeJSON, streamText } from "./provider";
+import {
+  analyzeTurnSchema, chaptersSchema, doubtSchema, examAnswerSchema,
+  gradeExamSchema, prepareSessionSchema, respondTurnSchema,
+} from "./schemas";
+import {
+  compactChapter, compactText, paragraphizeSources, rubricElements,
+  uniqueStrings, UNLEARNED_ANSWER,
+} from "./text";
+import { GENERATE_CHAPTERS_PROMPT } from "./prompts/generate-chapters";
+import { PREPARE_SESSION_PROMPT } from "./prompts/prepare-session";
+import { ANALYZE_TURN_PROMPT } from "./prompts/analyze-turn";
+import { RESPOND_TURN_PROMPT } from "./prompts/respond-turn";
+import { WRITE_EXAM_ANSWER_PROMPT } from "./prompts/write-exam-answer";
+import { GRADE_EXAM_PROMPT } from "./prompts/grade-exam";
+import { TUTOR_EXPLAIN_PROMPT } from "./prompts/tutor-explain";
+
+function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
+  const refs = new Set<number>();
+  return messages.map(({ ref, content }) => {
+    if (!Number.isInteger(ref) || ref < 1 || refs.has(ref)) throw new Error("사용자 설명 참조 번호가 올바르지 않습니다.");
+    refs.add(ref);
+    return { ref, content };
+  }).filter(({ content }) => content.trim().length > 0);
+}
+
+function recentHistory(history: Parameters<Llm["juniorTurn"]>[0]["history"]) {
+  let budget = 8_000;
+  const selected = [];
+  for (const message of [...history].reverse()) {
+    if (!budget) break;
+    const content = compactText(message.content, Math.min(budget, 2_000));
+    selected.push({ role: message.role, stage: message.stage, content });
+    budget -= content.length;
+  }
+  return selected.reverse();
+}
+
+export type LiveProviderCalls = {
+  completeJSON: typeof completeJSON;
+  streamText: typeof streamText;
+};
+
+export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamText }): Llm {
+  return {
+    async generateChapters({ sources }) {
+      const prepared = paragraphizeSources(sources);
+      const response = await calls.completeJSON(GENERATE_CHAPTERS_PROMPT, JSON.stringify({
+        sources: prepared.sources.map(({ sourceId, truncated, paragraphs }) => ({
+          sourceId, truncated, omissionNotice: truncated ? "…이하 생략" : "",
+          paragraphs: paragraphs.map(({ index, text }) => ({ index, label: `[P${index}]`, text, length: text.length })),
+        })),
+        minChapters: prepared.minChapters, maxChapters: prepared.maxChapters,
+      }), chaptersSchema(prepared.paragraphs, prepared.minChapters), { temperature: 0.2 });
+      return {
+        title: response.title,
+        chapters: response.chapters.map((chapter) => {
+          const first = prepared.paragraphs[chapter.startPara];
+          const last = prepared.paragraphs[chapter.endPara];
+          return {
+            title: chapter.title, points: chapter.points, sourceId: first.sourceId,
+            startOffset: first.startOffset, endOffset: last.endOffset,
+          };
+        }),
+      };
+    },
+
+    async prepareSession({ chapter, level }) {
+      return calls.completeJSON(PREPARE_SESSION_PROMPT, JSON.stringify({
+        chapter: compactChapter(chapter), level,
+      }), prepareSessionSchema, { temperature: 0.2 });
+    },
+
+    async *juniorTurn(input) {
+      const history = recentHistory(input.history);
+      const analysis = await calls.completeJSON(ANALYZE_TURN_PROMPT, JSON.stringify({
+        chapter: compactChapter(input.chapter), objectives: input.objectives,
+        previousExplanations: history.filter((message) => message.role === "USER").map((message) => message.content),
+        explanation: input.explanation,
+      }), analyzeTurnSchema(input.explanation, input.objectives.map((objective) => objective.id)), { temperature: 0 });
+      const previousConcepts = uniqueStrings(input.heardConcepts);
+      const needsDoubt = input.level === "EASY" && analysis.contradictions.length > 0;
+      if (needsDoubt) {
+        // Only the learner's own words can enter a doubt. Internal "why" and source text never do.
+        const claim = compactText(analysis.contradictions[0].claim, 100);
+        const allowedDoubt = `어? “${claim}”라는 설명이 조금 헷갈려. 한 번만 더 설명해줄래?`;
+        const response = await calls.completeJSON(RESPOND_TURN_PROMPT, JSON.stringify({
+          level: input.level, explanation: input.explanation, allowedDoubt,
+          analysis: { contradictionClaims: analysis.contradictions.map(({ claim }) => claim) },
+        }), doubtSchema(allowedDoubt), { temperature: 0 });
+        yield { type: "concepts", heardConcepts: previousConcepts, added: [] };
+        yield { type: "doubt", content: response.doubt };
+        return;
+      }
+      // Extracted labels must actually occur in the user's explanation, not merely in the source.
+      const mentionedConcepts = uniqueStrings(analysis.heardConcepts).filter((concept) => input.explanation.includes(concept));
+      const added = mentionedConcepts.filter((concept) => !previousConcepts.includes(concept));
+      const heardConcepts = uniqueStrings([...previousConcepts, ...added]);
+      const coveredObjectives = uniqueStrings(analysis.coveredObjectives);
+      const response = await calls.completeJSON(RESPOND_TURN_PROMPT, JSON.stringify({
+        level: input.level, history, explanation: input.explanation, objectives: input.objectives,
+        analysis: { heardConcepts, coveredObjectives, contradictionClaims: [] },
+      }), respondTurnSchema, { temperature: 0.4 });
+      yield { type: "concepts", heardConcepts, added };
+      for (const reaction of response.reactions) yield { type: "reaction", content: reaction };
+      const allCovered = input.objectives.length > 0 && input.objectives.every((objective) => coveredObjectives.includes(objective.id));
+      yield {
+        type: "question", coveredObjectives,
+        content: allCovered ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : response.question,
+      };
+    },
+
+    async *writeExamAnswer({ question, taught, heardConcepts }) {
+      const messages = taughtMessages(taught);
+      const response = messages.length ? await calls.completeJSON(WRITE_EXAM_ANSWER_PROMPT, JSON.stringify({
+        // This explicit allowlist is a knowledge boundary: never spread a session/chapter/rubric here.
+        question, taught: messages, heardConcepts: uniqueStrings(heardConcepts),
+      }), examAnswerSchema(messages.map((message) => message.ref)), { temperature: 0.1 }) : {
+        thought: "아직 선배에게 들은 설명이 없어.",
+        sentences: [{ text: UNLEARNED_ANSWER, ref: null, level: "NONE" as const }],
+        unlearned: true,
+      };
+      const citedRefs = new Set(response.sentences.map((sentence) => sentence.ref));
+      yield { type: "sources", sources: messages.filter((message) => citedRefs.has(message.ref)) };
+      for (const token of response.thought) yield { type: "thought", token, closed: false };
+      yield { type: "thought", token: "", closed: true };
+      for (const sentence of response.sentences) {
+        yield {
+          type: "sentence", text: sentence.text, ref: sentence.ref,
+          level: sentence.ref === null ? "NONE" : sentence.level,
+          unlearned: response.unlearned || sentence.ref === null,
+        };
+      }
+      yield { type: "final", answer: response.sentences.map((sentence) => sentence.text).join(" ") };
+    },
+
+    async *gradeExam({ chapter, questions, answers, taught }) {
+      const messages = taughtMessages(taught);
+      if (new Set(questions.map(({ qid }) => qid)).size !== questions.length || new Set(answers.map(({ qid }) => qid)).size !== answers.length) {
+        throw new Error("문항 또는 답안 번호가 중복되었습니다.");
+      }
+      const boundedChapter = compactChapter(chapter);
+      for (const question of questions) {
+        const elements = rubricElements(question.rubric);
+        if (!elements.length || !Number.isInteger(question.points) || question.points < 1 || question.points > 100) {
+          throw new Error("문항 배점 또는 채점 기준이 올바르지 않습니다.");
+        }
+        const answer = answers.find(({ qid }) => qid === question.qid);
+        if (!answer) throw new Error("모든 문항의 답안을 작성한 뒤 채점할 수 있습니다.");
+        const response = await calls.completeJSON(GRADE_EXAM_PROMPT, JSON.stringify({
+          chapter: boundedChapter, question, rubricElements: elements, answer: answer.answer, taught: messages,
+        }), gradeExamSchema({ qid: question.qid, rubricCount: elements.length, chapterText: chapter.text, taught: messages }), { temperature: 0 });
+        // Compute grades from checked rubric elements; never trust a model-generated total or label.
+        const fulfilled = response.rubricChecks.filter(Boolean).length;
+        const score = response.contradictsSource ? 0 : Math.max(0, Math.min(question.points, Math.round(fulfilled / elements.length * question.points)));
+        const verdict = score === question.points ? "CORRECT" : score === 0 ? "WRONG" : "PARTIAL";
+        yield { type: "grade", qid: question.qid, score, maxScore: question.points, verdict, comment: response.comment };
+        if (verdict !== "CORRECT" && response.gap) {
+          yield { type: "gap", qid: question.qid, ...response.gap };
+        }
+      }
+    },
+
+    async *tutorExplain({ chapter, gap, request }) {
+      let response = "";
+      for await (const chunk of calls.streamText(TUTOR_EXPLAIN_PROMPT, JSON.stringify({
+        chapter: compactChapter(chapter), gap, request,
+      }))) {
+        response += chunk;
+        for (const token of chunk) yield { type: "token", token };
+      }
+      if (!response.trim()) throw new Error("튜터 설명을 생성하지 못했습니다.");
+      yield { type: "final", response };
+    },
+  };
+}

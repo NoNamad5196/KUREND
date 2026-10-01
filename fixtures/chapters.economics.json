@@ -1,0 +1,97 @@
+{
+  "title": "수요와 공급",
+  "courseName": "경제학원론",
+  "fileName": "economics.md",
+  "sourceId": "src_d_economics",
+  "sourceSha256": "989944ac1bb337ad0be9499c940f24b701739c477c0d5ef601d34862c0cc0ae3",
+  "chapters": [
+    {
+      "title": "수요의 이해",
+      "points": [
+        "수요 법칙",
+        "수요량의 변화",
+        "수요 결정요인"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 0,
+      "endOffset": 1117
+    },
+    {
+      "title": "개인 수요와 시장 수요",
+      "points": [
+        "개인과 시장",
+        "같은 가격의 합",
+        "소비자 수"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 1117,
+      "endOffset": 1962
+    },
+    {
+      "title": "수요를 움직이는 조건",
+      "points": [
+        "소득과 수요",
+        "대체재와 보완재",
+        "기호와 기대"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 1962,
+      "endOffset": 2811
+    },
+    {
+      "title": "공급의 이해",
+      "points": [
+        "공급 법칙",
+        "공급량의 변화",
+        "생산비와 기술"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 2811,
+      "endOffset": 3648
+    },
+    {
+      "title": "균형과 조정 과정",
+      "points": [
+        "균형가격",
+        "초과수요",
+        "초과공급"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 3648,
+      "endOffset": 4472
+    },
+    {
+      "title": "변화 전후를 비교하는 법",
+      "points": [
+        "곡선 이동",
+        "새 균형",
+        "동시 변화"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 4472,
+      "endOffset": 5284
+    },
+    {
+      "title": "탄력성과 반응의 크기",
+      "points": [
+        "반응의 크기",
+        "대체 가능성",
+        "분석 기간"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 5284,
+      "endOffset": 6113
+    },
+    {
+      "title": "가격 규제와 모형의 활용",
+      "points": [
+        "가격상한",
+        "가격하한",
+        "비가격 배분"
+      ],
+      "sourceId": "src_d_economics",
+      "startOffset": 6113,
+      "endOffset": 6999
+    }
+  ]
+}
