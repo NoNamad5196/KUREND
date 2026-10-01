@@ -1,0 +1,96 @@
+/* [③] 후배 아바타(이미지 + 이펙트) 모션. mood(jr-mood-*), pose(jr-pose-*), 진입(jr-enter) 클래스 조합. */
+.jr { display: inline-block; position: relative; line-height: 0; --jr-ground: rgba(30,35,48,.16); }
+.jr .jr-figure { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; transform-origin: 50% 100%; will-change: transform; }
+.jr .jr-figure img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; object-position: bottom center; transform-origin: 50% 100%; user-select: none; -webkit-user-drag: none; }
+.jr .jr-shadow { position: absolute; left: 14%; right: 14%; bottom: -3%; height: 7%; border-radius: 50%; background: radial-gradient(ellipse at center, var(--jr-ground) 0%, rgba(30,35,48,0) 70%); transform-origin: 50% 50%; }
+.jr .jr-fx { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.jr .fx { display: none; }
+.jr.jr-flip .jr-figure img { transform: scaleX(-1); }
+
+/* ── 진입 ── */
+.jr.jr-enter .jr-figure { animation: jr-pop-in .55s cubic-bezier(.34,1.56,.64,1) both; }
+
+/* ── idle: 숨쉬기 + 살짝 흔들 ── */
+.jr .jr-figure img { animation: jr-breathe 3.4s ease-in-out infinite; }
+.jr .jr-shadow { animation: jr-shadow-breathe 3.4s ease-in-out infinite; }
+
+/* ── happy: 점프 + 찌그러짐 + 반짝/하트 ── */
+.jr.jr-mood-happy .jr-figure { animation: jr-jump 1.1s cubic-bezier(.3,.9,.4,1) infinite; }
+.jr.jr-mood-happy .jr-figure img { animation: jr-squash 1.1s cubic-bezier(.3,.9,.4,1) infinite; }
+.jr.jr-mood-happy .jr-shadow { animation: jr-shadow-jump 1.1s ease-in-out infinite; }
+.jr.jr-mood-happy .fx-happy { display: block; }
+.jr .fx-star { transform-box: fill-box; transform-origin: center; animation: jr-twinkle 1.6s ease-in-out infinite; }
+.jr .fx-star-2 { animation-delay: .5s; } .jr .fx-star-3 { animation-delay: 1s; }
+.jr .fx-heart { transform-box: fill-box; transform-origin: center; animation: jr-float 2s ease-in-out infinite; }
+
+/* ── confused: 갸웃갸웃 + 물음표 + 땀 ── */
+.jr.jr-mood-confused .jr-figure { animation: jr-tilt 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+.jr.jr-mood-confused .fx-confused { display: block; }
+.jr .fx-q { transform-box: fill-box; transform-origin: center; animation: jr-pop 1.4s ease-in-out infinite; }
+.jr .fx-sweat { transform-box: fill-box; transform-origin: center; animation: jr-sweat 1.6s ease-in infinite; }
+
+/* ── sad: 축 처짐 + 눈물 + 먹구름 + 채도 ↓ ── */
+.jr.jr-mood-sad .jr-figure { animation: jr-droop 3s ease-in-out infinite; transform-origin: 50% 100%; }
+.jr.jr-mood-sad .jr-figure img { filter: saturate(.8) brightness(.96); animation: none; }
+.jr.jr-mood-sad .fx-sad { display: block; }
+.jr .fx-tear { transform-box: fill-box; transform-origin: center; animation: jr-sweat 1.8s ease-in infinite; }
+.jr .fx-cloud { transform-box: fill-box; transform-origin: center; animation: jr-float 3s ease-in-out infinite; }
+.jr .fx-rain { transform-box: fill-box; transform-origin: center; animation: jr-rain 1s linear infinite; }
+.jr .fx-rain-2 { animation-delay: .3s; } .jr .fx-rain-3 { animation-delay: .6s; }
+
+/* ── think: 느린 흔들 + 말줄임 ── */
+.jr.jr-mood-think .jr-figure { animation: jr-sway 4s ease-in-out infinite; }
+.jr.jr-mood-think .fx-think { display: block; }
+.jr .fx-dot { transform-box: fill-box; transform-origin: center; animation: jr-dot 1.4s ease-in-out infinite; }
+.jr .fx-dot-2 { animation-delay: .2s; } .jr .fx-dot-3 { animation-delay: .4s; }
+
+/* ── talk: 끄덕끄덕 + 음표 ── */
+.jr.jr-mood-talk .jr-figure { animation: jr-nod .6s ease-in-out infinite; transform-origin: 50% 90%; }
+.jr.jr-mood-talk .fx-talk { display: block; }
+.jr .fx-note { transform-box: fill-box; transform-origin: center; animation: jr-float 1.6s ease-in-out infinite; }
+.jr .fx-note-2 { animation-delay: .8s; }
+
+/* ── angry/shake: 부들부들 (FAILED) ── */
+.jr.jr-mood-shake .jr-figure { animation: jr-shake .4s linear infinite; }
+.jr.jr-mood-shake .fx-angry { display: block; }
+
+/* ── graduate: 폴짝 + 좌우 + (모자 던지기는 jr-toss) ── */
+.jr.jr-mood-graduate .jr-figure { animation: jr-hop 1.4s ease-in-out infinite; }
+.jr.jr-mood-graduate .jr-shadow { animation: jr-shadow-jump 1.4s ease-in-out infinite; }
+.jr.jr-mood-graduate .fx-happy { display: block; }
+.jr.jr-toss .fx-cap { display: block; }
+.jr.jr-toss .fx-cap-body { transform-box: fill-box; transform-origin: center; animation: jr-toss 1.8s cubic-bezier(.25,.8,.35,1) forwards; }
+
+/* ── 포즈 ── */
+.jr.jr-pose-walk .jr-figure { animation: jr-walk 0.55s ease-in-out infinite; transform-origin: 50% 100%; }
+.jr.jr-pose-walk .jr-figure img { animation: jr-walk-rock 0.55s ease-in-out infinite; }
+.jr.jr-pose-walk .jr-shadow { animation: jr-shadow-walk .55s ease-in-out infinite; }
+.jr.jr-pose-wave .jr-figure { animation: jr-wobble .9s ease-in-out infinite; transform-origin: 50% 100%; }
+.jr.jr-pose-jump .jr-figure { animation: jr-jump 1.1s cubic-bezier(.3,.9,.4,1) infinite; }
+.jr.jr-pose-still .jr-figure, .jr.jr-pose-still .jr-figure img, .jr.jr-pose-still .jr-shadow { animation: none; }
+.jr.jr-pose-bounce .jr-figure { animation: jr-bounce-once .7s cubic-bezier(.3,.9,.4,1) both; }
+
+@keyframes jr-pop-in { 0% { transform: scale(.4) translateY(30px); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+@keyframes jr-breathe { 0%,100% { transform: scaleY(1) scaleX(1); } 50% { transform: scaleY(1.022) scaleX(.992); } }
+@keyframes jr-shadow-breathe { 0%,100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.97); opacity: .9; } }
+@keyframes jr-jump { 0%,100% { transform: translateY(0); } 15% { transform: translateY(3px); } 45% { transform: translateY(-16%); } 75% { transform: translateY(0); } }
+@keyframes jr-squash { 0%,100% { transform: scale(1,1); } 15% { transform: scale(1.08,.9); } 45% { transform: scale(.95,1.07); } 75% { transform: scale(1.05,.95); } }
+@keyframes jr-shadow-jump { 0%,100% { transform: scaleX(1); opacity: 1; } 45% { transform: scaleX(.65); opacity: .45; } }
+@keyframes jr-twinkle { 0%,100% { transform: scale(.6) rotate(0); opacity: .4; } 50% { transform: scale(1.2) rotate(25deg); opacity: 1; } }
+@keyframes jr-float { 0%,100% { transform: translateY(0) scale(1); opacity: .9; } 50% { transform: translateY(-12px) scale(1.12); opacity: 1; } }
+@keyframes jr-tilt { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(5deg) translateY(-2px); } }
+@keyframes jr-pop { 0%,100% { transform: scale(1) rotate(-6deg); } 50% { transform: scale(1.25) rotate(8deg); } }
+@keyframes jr-sweat { 0% { transform: translateY(-6px) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(16px) scale(1); opacity: 0; } }
+@keyframes jr-droop { 0%,100% { transform: rotate(3deg) translateY(2%); } 50% { transform: rotate(5deg) translateY(3%); } }
+@keyframes jr-rain { 0% { transform: translateY(-4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(14px); opacity: 0; } }
+@keyframes jr-sway { 0%,100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+@keyframes jr-dot { 0%,100% { transform: translateY(0) scale(1); opacity: .6; } 50% { transform: translateY(-6px) scale(1.15); opacity: 1; } }
+@keyframes jr-nod { 0%,100% { transform: rotate(0) translateY(0); } 50% { transform: rotate(2deg) translateY(3px); } }
+@keyframes jr-shake { 0%,100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-4px) rotate(-2deg); } 75% { transform: translateX(4px) rotate(2deg); } }
+@keyframes jr-hop { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8%) rotate(2deg); } }
+@keyframes jr-toss { 0% { transform: translateY(0) rotate(0); opacity: 1; } 55% { transform: translateY(-150px) rotate(220deg); opacity: 1; } 100% { transform: translateY(-10px) rotate(360deg); opacity: 1; } }
+@keyframes jr-walk { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4%); } }
+@keyframes jr-walk-rock { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes jr-shadow-walk { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(.85); opacity: .7; } }
+@keyframes jr-wobble { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes jr-bounce-once { 0% { transform: translateY(-30%) scale(1.05,.95); } 50% { transform: translateY(0) scale(.98,1.04); } 100% { transform: translateY(0) scale(1,1); } }
