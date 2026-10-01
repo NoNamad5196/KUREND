@@ -66,8 +66,17 @@ export function normalizePersonaAddress(
   }).join("");
 }
 
+/** Choose a Korean particle without adding an address to the question. */
+function josa(word: string, withFinal: string, withoutFinal: string): string {
+  const last = word.trim().replace(/[)\]」』"'”’.\s]+$/u, "").at(-1) ?? "";
+  const code = last.charCodeAt(0) - 0xac00;
+  return code >= 0 && code <= 11171 && code % 28 !== 0 ? withFinal : withoutFinal;
+}
+
 export function personaQuestion(topic: string, character?: JuniorCharacter, first = false): string {
   if (character === "MALE_EASY") return `${topic}${first ? "부터" : "에 대해"} 설명해 주시면 좋겠습니다.`;
-  if (character === "FEMALE_NORMAL") return `${topic}의 의미와 이유를 설명해 주실래요?`;
-  return `선배, ${topic}${first ? "부터 말해 줘." : "을 다른 말로 한 번 더 설명해 줘."}`;
+  if (character === "FEMALE_NORMAL") return /의미|이유|원인|차이|조건|요건|전제|기준/u.test(topic)
+    ? `${topic}${josa(topic, "을", "를")} 설명해 주실래요?`
+    : `${topic}의 의미와 이유를 설명해 주실래요?`;
+  return `선배, ${topic}${first ? "부터 말해 줘." : `${josa(topic, "을", "를")} 다른 말로 한 번 더 설명해 줘.`}`;
 }

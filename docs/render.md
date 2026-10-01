@@ -68,8 +68,19 @@ DATABASE_URL=file:/tmp/kurend-render-demo.db PORT=10000 LLM_PROVIDER=stub bash s
 
 ## 운영 DB 영속성
 
-현재 Blueprint는 `plan: free`, `DATABASE_URL=file:./prisma/dev.db`이고 영속 디스크를 선언하지 않습니다. 로컬 DB 파일이 재배포나 인스턴스 교체로 사라지면, 시작 시 만들어지는 시드 DB에는 기존 Google 계정과 학습 기록이 없습니다. `/api/health`가 200이어도 기존 데이터가 보존되었다는 뜻은 아닙니다.
+현재 Blueprint 기본값은 `plan: free`, `DATABASE_URL=file:./prisma/dev.db`이고 영속 디스크를 선언하지 않습니다. 로컬 DB 파일이 재배포나 인스턴스 교체로 사라지면, 시작 시 만들어지는 시드 DB에는 기존 Google 계정과 학습 기록이 없습니다. `/api/health`가 200이어도 기존 데이터가 보존되었다는 뜻은 아닙니다.
 
 운영에서는 서비스의 영속 저장소에 SQLite 파일을 두고 `DATABASE_URL`이 실제 보존 경로를 가리키게 하거나, 지원되는 영속 DB 구성으로 이전해야 합니다. 기존 DB 백업·복원과 인스턴스 간 저장소 공유 조건도 함께 검증해야 합니다. 이 변경에서는 유료 플랜·디스크를 만들거나 DB를 이전하지 않았습니다.
+
+### 원격 libSQL/Turso 선택 지원
+
+원격 `libsql://` DB와 토큰을 사용하는 지원을 유지합니다. 실제 DB 생성·이전·접속 검증은 별도 운영 작업입니다.
+
+1. 사용할 DB의 URL과 인증 토큰을 준비합니다.
+2. Render 환경 변수에 `TURSO_DATABASE_URL`과 `TURSO_AUTH_TOKEN`을 설정합니다. `render-start.sh`가 URL을 런타임 `DATABASE_URL`로 전달합니다. 직접 실행할 때는 `DATABASE_URL=libsql://...`과 `DATABASE_AUTH_TOKEN`을 사용할 수 있습니다. 토큰 선택 순서는 `DATABASE_AUTH_TOKEN` → `TURSO_AUTH_TOKEN`이므로 두 변수를 함께 설정했다면 대상 DB와 일치하는지 확인하세요.
+3. `scripts/render-db.mjs`가 로컬 임시 SQLite에 기준 스키마를 만들고 원격 대상에 없는 테이블·인덱스·컬럼을 추가합니다. 기존 계정의 온보딩 이력 업그레이드를 먼저 적용하며 기존 데이터를 다시 시드하지 않습니다. 기존 객체가 전혀 없는 새 DB에만 최초 데모 시드를 넣습니다. 사용자 수가 0이라는 이유만으로 기존 DB를 비우지 않습니다.
+4. 기존 로컬 DB의 자료·계정을 옮기려면 별도의 백업·복원 절차가 필요합니다. URL만 바꾸는 것은 데이터 이전이 아닙니다. 원격 DB에도 백업과 권한 관리가 필요합니다.
+
+Prisma CLI의 `db:push`는 로컬 기준 스키마 생성용이며, 원격 libSQL 준비에는 위 시작 스크립트를 사용합니다. 자동 준비는 추가 가능한 변경만 처리하고 테이블 삭제·컬럼 타입 변경을 수행하지 않습니다. 기본값 없는 필수 컬럼 추가 등 안전하게 자동 적용할 수 없는 변경은 준비를 중단하므로 별도 데이터 마이그레이션을 먼저 준비해야 합니다. 검증용 `RENDER_DB_FORCE_REMOTE=1`은 로컬 임시 SQLite로 원격 분기를 검사하는 용도이며 운영에서 필요하지 않습니다.
 
 장애 확인 시 Render의 재배포·인스턴스 교체 시각, `New demo database initialized.` 로그, 실제 `DATABASE_URL`의 저장 경로와 기존 사용자 데이터 보존 여부, 서명키 변경 시점을 대조하세요. 운영 로그를 확보하기 전에는 DB 유실이나 키 변경을 실제 발생 원인으로 단정하지 않습니다.

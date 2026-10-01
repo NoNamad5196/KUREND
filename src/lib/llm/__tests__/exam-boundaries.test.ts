@@ -83,13 +83,14 @@ test("exam answer presentation is identical across personas and cannot use a fab
   const quote = "선배님, 준비 상태는 CPU 할당을 기다리는 상태야.";
   const llm = createLiveLlm({ async completeJSON(_prompt, input, schema) {
     assert.equal(JSON.parse(input).persona, undefined);
-    return schema.parse({ thought: "근거 확인", sentences: [{ quote, ref: 1, level: "STRONG", text: "외부 지식과 허위 사실" }], unlearned: false });
+    return schema.parse({ thought: "근거 확인", sentences: [{ quote, ref: 1, level: "STRONG", text: "외부 지식과 허위 사실",
+      answer: "준비 상태는 CPU 할당을 기다리지 않는 상태다." }], unlearned: false });
   }, async *streamText() { throw new Error("unused"); } });
   for (const persona of ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const) {
     const output = await collect(llm.writeExamAnswer({ question: "준비 상태를 설명하시오.", taught: [{ ref: 1, content: quote }], heardConcepts: [], persona }));
     const answer = output.find((event) => event.type === "final")!.answer;
     assert.equal(answer, "준비 상태는 CPU 할당을 기다리는 상태다.");
-    assert.doesNotMatch(answer, /선배|제 생각|배웠습니다|\*\*|허위|외부 지식/u);
+    assert.doesNotMatch(answer, /선배|제 생각|배웠습니다|\*\*|허위|외부 지식|기다리지 않는/u);
     assert.deepEqual(output.find((event) => event.type === "sources")?.sources, [{ ref: 1, content: quote }]);
   }
 });

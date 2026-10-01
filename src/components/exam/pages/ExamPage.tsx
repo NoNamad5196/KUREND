@@ -35,7 +35,7 @@ export function ExamPage({ sessionId }: { sessionId: string }) {
 function ExamContent({ session: initial, reload }: { session: SessionDto; reload: () => Promise<unknown> }) {
   const router = useRouter();
   const [session, setSession] = useState(initial);
-  const { run: juniorRun, loading: gameLoading } = useSessionGame(initial.sessionId);
+  const { run: juniorRun, loading: gameLoading, identityPending } = useSessionGame(initial.sessionId);
   const character = session.character ?? juniorRun?.character;
   const [settings, updateSettings] = useExamViewSettings();
   const { busy, error, run } = useTask(reload);
@@ -108,7 +108,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
         <Button size="lg" className="mt-5 w-full sm:w-auto" loading={busy} onClick={startExam}>시험 시작 →</Button>
         {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
       </div>
-      <div className="flex justify-center border-t border-line pt-6 sm:border-t-0 sm:pt-0"><JuniorOrMascot character={character} state="writing" size={184} /></div>
+      <div className="flex justify-center border-t border-line pt-6 sm:border-t-0 sm:pt-0"><JuniorOrMascot character={character} identityPending={identityPending} state="writing" size={184} /></div>
     </Card> : <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div aria-live="polite"><p className="editorial-label mb-3 text-muted">THE EXAM</p><h2 className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{allDone && !busy ? "답안 작성 완료" : `답안 작성 중 ${Math.max(1, activeIndex + 1)} / ${questions.length}`}</h2><p className="mt-2 text-xs text-muted">{completed}문항 저장됨</p></div>
@@ -130,7 +130,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
           </div>
         </div>
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-28">
-          <div className="flex items-center gap-4 py-2"><JuniorOrMascot character={character} state={busy ? "writing" : "idle"} size={88} />
+          <div className="flex items-center gap-4 py-2"><JuniorOrMascot character={character} identityPending={identityPending} state={busy ? "writing" : "idle"} size={88} />
             {settings.showThought && active?.thought && !thoughtHidden ? <SpeechBubble speaker={`${juniorLabel(character)} · 속마음`} tone="muted" className="min-w-0 flex-1"><span className="break-words" aria-live="polite">{stripMarkdownBold(active.thought, { streaming: busy })}</span></SpeechBubble> : <p className="text-sm text-muted">{busy ? "배운 내용을 떠올리고 있어요…" : "선배의 설명을 기억했어요."}</p>}
           </div>
           <RecallPanel title={`${withJosa(juniorLabel(character), "이/가")} 떠올리는 내 설명`} sources={active?.sources ?? []} highlights={active?.highlights ?? {}} unlearned={active?.unlearned} />

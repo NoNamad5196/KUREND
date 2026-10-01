@@ -1,0 +1,14 @@
+.static-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: .18;
+  pointer-events: none;
+  z-index: -2;
+}
+.junior-spotlight-art > .static-backdrop { opacity: .26; border-radius: 3px; }
+.junior-spotlight-art > .jr { height: 100% !important; width: auto !important; aspect-ratio: .8; }
+.editorial-home-welcome > .static-backdrop { object-position: 48% center; }

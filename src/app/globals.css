@@ -171,6 +171,13 @@ p { word-break: keep-all; overflow-wrap: anywhere; }
   .display-title { font-size: clamp(2.2rem, 9.5vw, 3.3rem); }
 }
 
+@media (max-width: 380px) {
+  .site-header-inner { flex-wrap: wrap; padding-block: 12px; row-gap: 8px; }
+  .site-junior { order: 1; flex-basis: 100%; justify-content: center; margin-left: 0; border-radius: 4px; }
+  .site-junior-text { display: flex; }
+  .site-junior + .site-profile { margin-left: auto; }
+}
+
 /* 접근성: 움직임 줄이기 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

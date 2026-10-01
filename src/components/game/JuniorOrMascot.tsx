@@ -16,7 +16,11 @@ const MOOD: Record<MascotState, { mood: JuniorMood; pose?: JuniorPose }> = {
   encourage: { mood: "talk" },
 };
 
-export function JuniorOrMascot({ character, state = "idle", size = 120, typing, className }: { character?: JuniorCharacter | null; state?: MascotState; size?: number; typing?: boolean; className?: string }) {
+export function JuniorOrMascot({ character, identityPending = false, state = "idle", size = 120, typing, className }: { character?: JuniorCharacter | null; identityPending?: boolean; state?: MascotState; size?: number; typing?: boolean; className?: string }) {
+  if (identityPending && !character) {
+    const height = Math.round(size * 1.15);
+    return <span role="img" aria-label="후배 정보를 불러오는 중" data-character-pending className={className} style={{ display: "inline-flex", flex: "none", width: Math.round(height * .8), height, alignItems: "center", justifyContent: "center", verticalAlign: "bottom" }}><span aria-hidden="true" className="flex gap-1.5"><i className="h-1.5 w-1.5 rounded-full bg-muted/40" /><i className="h-1.5 w-1.5 rounded-full bg-muted/40" /><i className="h-1.5 w-1.5 rounded-full bg-muted/40" /></span></span>;
+  }
   if (!character) return <Mascot state={state} size={size} typing={typing} className={className} />;
   const { mood, pose } = MOOD[state];
   return <JuniorAvatar character={character} mood={mood} pose={pose} size={Math.round(size * 1.15)} className={className} />;

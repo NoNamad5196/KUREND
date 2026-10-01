@@ -114,7 +114,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         chapter: compactChapter(chapter), level, examFormat: format, questionCount: count, kind: kind ?? "CHAPTER",
       }), prepareSessionSchemaFor(count, objectiveIndexes, compactChapter(chapter).text), {
         temperature: 0.2, stage: "prepare-session",
-        maxOutputTokens: Math.max(1_500, 500 + count * (objectiveIndexes.length ? 480 : 320)),
+        maxOutputTokens: Math.max(1_500, 600 + count * (objectiveIndexes.length ? 560 : 400)),
         timeoutMs: Math.max(18_000, 8_000 + count * 4_000),
       });
       const topic = objectiveTopic(prepared.objectives[0]);

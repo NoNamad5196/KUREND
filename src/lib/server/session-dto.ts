@@ -90,7 +90,7 @@ export function toExamDto(exam: SessionWithRelations["exam"]): ExamDto | null {
       points: q.points,
       question: formatExamQuestion(q.question),
       objectiveRef: q.objectiveRef,
-      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson)!.map((choice) => stripMarkdownBold(choice)) } : {}),
     })),
     answers: exam.answers.map((a) => ({ qid: a.qid, answer: displayAnswer(a.answer,
       Boolean(parseChoices(exam.questions.find((q) => q.qid === a.qid)?.choicesJson)?.length)) })),
@@ -183,7 +183,7 @@ export function toResultDto(s: SessionWithRelations): ResultDto {
       grade: g
         ? { score: g.score, maxScore: g.maxScore, verdict: g.verdict as GradeVerdict, comment: stripMarkdownBold(g.comment) }
         : { score: 0, maxScore: q.points, verdict: "WRONG", comment: "채점 결과가 없습니다." },
-      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson)!.map((choice) => stripMarkdownBold(choice)) } : {}),
     };
   });
 

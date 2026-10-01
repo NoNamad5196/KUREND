@@ -61,7 +61,13 @@ function AuthenticatedShell({ children, pathname, onboardingMode }: { children: 
 
   useEffect(() => {
     let active = true;
-    const refreshRun = () => { gameApi.getCurrentRun().then((current) => { if (active) setRun(current); }).catch(() => {}); };
+    const refreshRun = () => {
+      const requestedUserId = verifiedUserId.current;
+      if (!requestedUserId) return;
+      gameApi.getCurrentRun().then((current) => {
+        if (active && verifiedUserId.current === requestedUserId) setRun(current);
+      }).catch(() => {});
+    };
     window.addEventListener(RUN_CHANGED_EVENT, refreshRun);
     return () => { active = false; window.removeEventListener(RUN_CHANGED_EVENT, refreshRun); };
   }, []);
@@ -84,8 +90,10 @@ function AuthenticatedShell({ children, pathname, onboardingMode }: { children: 
         setAuthError(null);
         setUser(me);
         if (pathname !== "/onboarding") {
-          api.get<HomeDto>("/home").then((home) => { if (active) setStats(home.stats); }).catch(() => {});
-          gameApi.getCurrentRun().then((current) => { if (active) setRun(current); }).catch(() => { if (active) setRun(null); });
+          api.get<HomeDto>("/home").then((home) => { if (active && verifiedUserId.current === me.userId) setStats(home.stats); }).catch(() => {});
+          gameApi.getCurrentRun().then((current) => {
+            if (active && verifiedUserId.current === me.userId) setRun(current);
+          }).catch(() => { if (active && verifiedUserId.current === me.userId) setRun(null); });
         }
       }).catch((error: unknown) => {
         if (!active) return;

@@ -1,7 +1,7 @@
 /**
  * [C 소유] 쿠키(tb_uid) → 사용자. D 는 requireUser(req) 만 import 한다.
  *
- *   const user = await requireUser(req);   // { userId, nickname } 또는 401 ApiError throw
+ *   const user = await requireUser(req);   // 사용자 또는 인증 실패 401 / 계정 확인 장애 503
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/server/db";

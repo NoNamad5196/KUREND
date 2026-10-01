@@ -4,14 +4,24 @@ import type { AnswerSentenceDto } from "@/contracts/types";
 export const MAX_SOURCE_CHARACTERS = 40_000;
 export const MAX_CHAPTER_CHARACTERS = 8_000;
 export const UNLEARNED_ANSWER = "모르겠습니다.";
+const LEGACY_UNLEARNED_ANSWERS = [
+  "이 부분은 선배한테 못 들어서 모르겠습니다.",
+  "이 부분은 선배님께 못 들어서 모르겠습니다.",
+  "배우지 못한 내용이라 답을 쓸 수 없음.",
+];
 export function isUnlearnedAnswer(answer: string): boolean {
   const text = answer.trim().replace(/^(?:[①②③④]|[1-4]번)\s*/u, "").replace("선배님께", "선배한테");
-  return text === UNLEARNED_ANSWER || text === "이 부분은 선배한테 못 들어서 모르겠습니다.";
+  return text === UNLEARNED_ANSWER || LEGACY_UNLEARNED_ANSWERS.includes(text);
+}
+
+/** Recognize historical objective answers that appended an unlearned marker. */
+export function containsUnlearnedAnswer(answer: string): boolean {
+  return [UNLEARNED_ANSWER, ...LEGACY_UNLEARNED_ANSWERS].some((marker) => answer.includes(marker));
 }
 
 /** New answer-only displays keep learning provenance in persisted sentences. */
 export function hasLearnedAnswer(answer: { answer: string; sentences?: AnswerSentenceDto[] }, taught: TaughtMsg[]): boolean {
-  if (isUnlearnedAnswer(answer.answer)) return false;
+  if (containsUnlearnedAnswer(answer.answer)) return false;
   if (answer.sentences !== undefined) return answer.sentences.some((sentence) => !sentence.unlearned && sentence.level !== "NONE"
     && sentence.ref !== null && taught.some((message) => message.ref === sentence.ref && !isUnlearnedAnswer(message.content)));
   // Older stored prose retains its original grading path. A bare choice with

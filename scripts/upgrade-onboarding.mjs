@@ -11,7 +11,7 @@ import { createClient } from "@libsql/client";
  */
 export async function upgradeOnboarding(url) {
   if (url.startsWith("file:") && !existsSync(resolve(url.slice(5)))) return;
-  const client = createClient({ url });
+  const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined });
   let transaction;
   try {
     transaction = await client.transaction("write");

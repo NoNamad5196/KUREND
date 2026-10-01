@@ -51,10 +51,17 @@ test("deterministic learning questions and reactions use each human junior's reg
 
 test("KU's existing dialogue and address conversion remain unchanged by the human-junior rule", () => {
   assert.equal(personaQuestion("준비 상태", "KU_HARD", true), "선배, 준비 상태부터 말해 줘.");
-  assert.equal(personaQuestion("준비 상태", "KU_HARD"), "선배, 준비 상태을 다른 말로 한 번 더 설명해 줘.");
+  assert.equal(personaQuestion("준비 상태", "KU_HARD"), "선배, 준비 상태를 다른 말로 한 번 더 설명해 줘.");
+  assert.equal(personaQuestion("수요 법칙", "KU_HARD"), "선배, 수요 법칙을 다른 말로 한 번 더 설명해 줘.");
   assert.equal(PERSONAS.KU_HARD.examples.reaction, "음... 대충 알 것 같아.");
   assert.equal(PERSONAS.KU_HARD.examples.doubt, "잠깐만 선배. 그러면 가격이 오르면 수요도 늘어난다는 거야?");
   assert.equal(normalizePersonaAddress('선배님, “선배님께서 설명했다”라고 들었어.', "KU_HARD", { kind: "reaction", allowAddress: false }),
     '선배, “선배님께서 설명했다”라고 들었어.');
   assert.equal(normalizePersonaAddress("선배님, 알 것 같아요."), "선배님, 알 것 같아요.");
+});
+
+test("female questions avoid repeating meaning and reason already present in the topic", () => {
+  assert.equal(personaQuestion("수요의 의미", "FEMALE_NORMAL"), "수요의 의미를 설명해 주실래요?");
+  assert.equal(personaQuestion("수요 법칙의 전제", "FEMALE_NORMAL"), "수요 법칙의 전제를 설명해 주실래요?");
+  assert.equal(personaQuestion("수요", "FEMALE_NORMAL"), "수요의 의미와 이유를 설명해 주실래요?");
 });

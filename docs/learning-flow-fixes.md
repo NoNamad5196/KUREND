@@ -115,9 +115,7 @@ Do not use Markdown bold syntax (**text**) under any circumstances.
 
 ## 검증 결과
 
-최종 `pnpm build`와 타입 검사가 통과했습니다. ESLint 오류는 없으며, 이번 변경과 무관한 `src/app/layout.tsx`의 기존 폰트 경고 1개가 남아 있습니다.
-
-자동 회귀 테스트는 총 168개 통과했습니다: LLM 105개, 서버 33개, 클라이언트 16개, 출력 표시·정규화 14개.
+원격 main 통합 전 자동 회귀 테스트는 총 168개 통과했습니다: LLM 105개, 서버 33개, 클라이언트 16개, 출력 표시·정규화 14개.
 
 최종 production 빌드와 타입 검사를 통과했습니다. 전체 ESLint 오류는 0개이며, 기존 `src/app/layout.tsx`의 폰트 사용 경고 1개는 유지됩니다. 운영 모드에서도 서명 쿠키 인증, 세 후배의 저장된 5문항·100점 결과 조회, 서명 없는 쿠키 401, 체험 API 404, 결과 화면 표시를 확인했고 브라우저 예외는 0건입니다.
 
@@ -148,6 +146,10 @@ Do not use Markdown bold syntax (**text**) under any circumstances.
 검증 자료는 작업공간의 `/workspace/kurend-bugfix-review/`에 있습니다: `full-learning-results.json`, `onboarding-entry-results.json`, `loading-exam-results.json`, `eval-llm.log`, `build.log`, `production-results.json`, 캐릭터별 `real-*-result.png`. 중간 실패를 재현한 자료도 별도로 보관하고 원인을 수정한 뒤 재검증했습니다.
 
 최종 빌드를 `next start`로 실행한 운영 모드 확인도 통과했습니다. 정상 서명 쿠키는 200, 서명 없는 시드 ID와 비로그인은 401, 체험 계정 API는 404이며 세 후배의 저장된 5문항·100점 결과와 결과 페이지를 정상 조회했습니다. 결과는 `production-smoke-results.json`에 기록했습니다.
+
+## 최신 main 통합
+
+원격 `70bf5b7`의 정적 PNG 캐릭터·차량·배경, 모바일 홈 개선, 원격 libSQL/Turso 연결 지원을 함께 보존합니다. 동일한 버그를 수정한 두 버전은 새 세션 5개 목표·5문항, 검증된 USER 인용 기반 답안, 미학습 0점 판정과 원문·코드 보존 기준으로 통합했습니다. 유효한 쿠키의 계정 행이 사라진 경우에는 저장소 장애로 구분하며, 인증 요청에서 계정을 자동 재생성하지 않습니다.
 
 ## 남은 확인 사항
 
