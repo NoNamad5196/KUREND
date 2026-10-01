@@ -70,7 +70,9 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
   const parser = new PDFParse({ data: bytes });
   try {
     const result = await parser.getText();
-    return result.text ?? "";
+    // pdf-parse v2 의 result.text 에는 "-- 1 of N --" 페이지 구분선이 끼어 있다 → 페이지 텍스트만 이어 붙인다.
+    const pages = (result.pages ?? []).map((p) => (p.text ?? "").trim()).filter(Boolean);
+    return pages.length ? pages.join("\n\n") : (result.text ?? "");
   } finally {
     await parser.destroy().catch(() => undefined);
   }
