@@ -58,12 +58,15 @@ export const FINAL_SUFFIX = " 졸업시험";
 const titleOf = (s: { kind?: string | null; chapter: { title: string; material: { title: string } } }) =>
   s.kind === "FINAL" ? `${s.chapter.material.title}${FINAL_SUFFIX}` : s.chapter.title;
 
+/** 후배·AI 가 쓴 글의 마크다운 강조(** __ `)는 화면에 그대로 찍히므로 내려줄 때 지운다(예전 기록 포함). 선배가 쓴 글은 그대로 둔다. */
+const plain = (text: string) => text.replace(/\*\*|__|`/gu, "");
+
 export function toMessageDto(m: SessionWithRelations["messages"][number]): MessageDto {
   return {
     messageId: m.id,
     role: m.role as MessageDto["role"],
     stage: m.stage as MessageDto["stage"],
-    content: m.content,
+    content: m.role === "USER" ? m.content : plain(m.content),
     ...(parseTeachingChoices(m.teachingChoicesJson) ? { teachingChoices: parseTeachingChoices(m.teachingChoicesJson) } : {}),
     createdAt: m.createdAt.toISOString(),
   };
@@ -79,11 +82,11 @@ export function toExamDto(exam: SessionWithRelations["exam"]): ExamDto | null {
       qid: q.qid,
       order: q.order,
       points: q.points,
-      question: q.question,
+      question: plain(q.question),
       objectiveRef: q.objectiveRef,
-      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson)!.map(plain) } : {}),
     })),
-    answers: exam.answers.map((a) => ({ qid: a.qid, answer: a.answer })),
+    answers: exam.answers.map((a) => ({ qid: a.qid, answer: plain(a.answer) })),
   };
 }
 
@@ -91,8 +94,8 @@ export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
   return {
     gapId: g.id,
     qid: g.qid,
-    title: g.title,
-    diagnosis: g.diagnosis,
+    title: plain(g.title),
+    diagnosis: plain(g.diagnosis),
     evidenceQuote: g.evidenceQuote,
     concepts: parseStringArray(g.conceptsJson),
     sourceExcerpt: g.sourceExcerpt,
@@ -100,7 +103,7 @@ export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
     tutorMessages: g.tutorMessages.map((t) => ({
       id: t.id,
       request: t.request,
-      response: t.response,
+      response: plain(t.response),
       createdAt: t.createdAt.toISOString(),
     })),
   };
@@ -173,7 +176,7 @@ export function toResultDto(s: SessionWithRelations): ResultDto {
       grade: g
         ? { score: g.score, maxScore: g.maxScore, verdict: g.verdict as GradeVerdict, comment: g.comment }
         : { score: 0, maxScore: q.points, verdict: "WRONG", comment: "채점 결과가 없습니다." },
-      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson)!.map(plain) } : {}),
     };
   });
 

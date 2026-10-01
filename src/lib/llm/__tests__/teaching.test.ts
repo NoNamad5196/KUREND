@@ -7,6 +7,7 @@ import { stubLlm } from "../stub";
 import { createLiveLlm } from "../live";
 import { normalizePersonaAddress } from "../personas";
 import { teachingChoicesFor, selectedTeachingObjective } from "../teaching-choices";
+import { UNLEARNED_ANSWER } from "../text";
 import { createRouteHandlers } from "../routes/handlers";
 import { createDefaultStubSeed, createStubBackend, D_STUB_IDS } from "../routes/backend-stub";
 import type { Llm } from "../types";
@@ -57,9 +58,12 @@ test("male choice uses the existing USER answer pipeline, accepts wrong teaching
   assert.ok(taught.heardConcepts.length > 0);
   assert.equal(taught.game?.mastery[0].mastery, 100);
   const question = taught.exam!.questions[0];
-  const answer = (await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices,
-    heardConcepts: taught.heardConcepts, persona: "MALE_EASY", taught: [{ ref: 1, content: wrong }] }))).find((event) => event.type === "final")!;
-  assert.ok(answer.type === "final" && answer.answer.includes(wrong.replace(/[.!?]+$/u, "")));
+  const answerEvents = await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices,
+    heardConcepts: taught.heardConcepts, persona: "MALE_EASY", taught: [{ ref: 1, content: wrong }] }));
+  const answer = answerEvents.find((event) => event.type === "final")!;
+  // 잘못 가르친 설명이 답의 근거로 쓰이고, 답안은 고른 보기만 적는다(대화체 없음).
+  assert.ok(answerEvents.some((event) => event.type === "sources" && event.sources.some((source) => source.content === wrong)));
+  assert.ok(answer.type === "final" && /^[①②③④] /u.test(answer.answer) && !/배웠|선배/u.test(answer.answer));
   const grades = await collect(stubLlm.gradeExam({ chapter: taught.chapter, questions: [question], answers: [{ qid: question.qid, answer: answer.answer }], taught: [{ ref: 1, content: wrong }] }));
   assert.ok(grades[0].type === "grade" && grades[0].verdict === "WRONG");
   const direct = await (await handlers.explanations(request("다른 조건이 일정할 때 가격이 오르면 수요량은 줄어든다."), id)).text();
@@ -118,7 +122,9 @@ test("live male learns source contradictions without passing the source or alter
   }, async *streamText() { throw new Error("unused"); } });
   const events = await collect(llm.juniorTurn({ chapter, level: "EASY", persona: "MALE_EASY", objectives, history: [], heardConcepts: [], explanation }));
   assert.ok(events.some((event) => event.type === "concepts" && event.heardConcepts.includes("수요 법칙")));
-  assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("선배님")));
+  // 반응에는 호칭을 붙이지 않고, 질문에서만 선배님이라고 부른다.
+  assert.ok(events.some((event) => event.type === "reaction" && event.content === "그렇게 기억할게요!"));
+  assert.ok(!events.some((event) => event.type === "reaction" && /선배/u.test(event.content)));
   assert.ok(!events.some((event) => event.type === "doubt"));
   assert.ok(events.some((event) => event.type === "question" && event.teachingChoices?.length));
 });
@@ -162,8 +168,9 @@ test("stub objective answers follow taught statements regardless of option posit
   const answer = events.find((event) => event.type === "final")!;
   assert.match(answer.answer, /^①/u);
   const unknown = (await collect(stubLlm.writeExamAnswer({ question: "모르는 개념은?", taught: [], heardConcepts: [], persona: "FEMALE_NORMAL" }))).find((event) => event.type === "final")!;
-  assert.match(unknown.answer, /선배님께/u);
-  assert.doesNotMatch(unknown.answer, /선배(?!님)/u);
+  // 못 배운 문항도 답안지 문체(호칭·대화체 없음)
+  assert.equal(unknown.answer, UNLEARNED_ANSWER);
+  assert.doesNotMatch(unknown.answer, /선배/u);
 });
 
 test("overlapping objective names preserve the specific legacy question and credit the selected topic", async () => {
@@ -230,7 +237,7 @@ test("OS unknown teaching is never exam evidence or credit even when the guessed
     assert.equal(sentence.ref, null);
     assert.equal(sentence.level, "NONE");
     const answer = events.find((event) => event.type === "final")!.answer;
-    assert.match(answer, /^①.*모르겠습니다/u);
+    assert.match(answer, /^①.*배우지 못한 내용/u);
     for (const rubric of [question.rubric, "정답 ①;근거: 자료의 사실"]) {
       const grade = (await collect(llm.gradeExam({ chapter: osChapter, questions: [{ ...question, rubric }],
         answers: [{ qid: question.qid, answer }], taught: input.taught }))).find((event) => event.type === "grade")!;

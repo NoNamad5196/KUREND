@@ -12,7 +12,9 @@ export const DEFAULT_DATABASE_URL = "file:./prisma/dev.db";
 
 function createPrismaClient() {
   const url = process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
-  const adapter = new PrismaLibSql({ url });
+  // 원격 libSQL(Turso 등, libsql://…)을 쓰면 토큰을 함께 넘긴다. 로컬 file: 은 토큰 없이 그대로.
+  const authToken = process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined;
+  const adapter = new PrismaLibSql(authToken ? { url, authToken } : { url });
   return new PrismaClient({
     adapter,
     log: process.env.PRISMA_LOG === "query" ? ["query", "warn", "error"] : ["warn", "error"],

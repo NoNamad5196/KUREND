@@ -10,7 +10,7 @@ import type { ChapterText, Llm, TaughtMsg } from "./types";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
 import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, selectedTeachingObjective } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
-import { isUnlearnedAnswer } from "./text";
+import { answerStyle, examQuestionText, isUnlearnedAnswer, containsUnlearnedAnswer, plainText, UNLEARNED_ANSWER } from "./text";
 import { acceptedExplanations } from "./turn-state";
 
 type Yielded<T> = T extends AsyncIterable<infer E> ? E : never;
@@ -26,7 +26,7 @@ const fixtures = [
   { domain: "economics" as const, chapters: economicsChapters, demo: economicsDemo },
   { domain: "os" as const, chapters: osChapters, demo: osDemo },
 ];
-const unknownAnswer = "이 부분은 선배한테 못 들어서 모르겠습니다.";
+const unknownAnswer = UNLEARNED_ANSWER;
 
 function delayMs(): number {
   const configured = process.env.LLM_STUB_DELAY_MS;
@@ -134,10 +134,17 @@ function chapterTopic(chapter: ChapterText, index: number): Topic | undefined {
   return { domain: demo === economicsDemo ? "economics" : "os", index, demo };
 }
 
+/** 측면 목표(…의 이유/예시 적용/비교를 설명할 수 있다)는 그 측면을 실제로 말해야 달성된다 */
+const ASPECT_CUES: [RegExp, RegExp][] = [
+  [/의 이유[을를]? 설명/u, /왜|때문|이유|그래서|므로|덕분/u],
+  [/의 예시 적용[을를]? 설명/u, /예를 들|예시|예컨대|가령|경우|상황/u],
+  [/의 비교[을를]? 설명/u, /차이|다르|반면|비교|달리/u],
+];
 function covered(chapter: ChapterText, objectives: { id: string; text: string }[], messages: string[]): string[] {
   return objectives.filter((objective, index) => {
-    const topic = chapterTopic(chapter, index);
-    return messages.some((content) => topic ? relevantTo(topic, content) : genericRelevant(objective.text, content));
+    const topic = chapterTopic(chapter, index % 3);
+    const cue = ASPECT_CUES.find(([pattern]) => pattern.test(objective.text))?.[1];
+    return messages.some((content) => (topic ? relevantTo(topic, content) : genericRelevant(objective.text, content)) && (!cue || cue.test(content)));
   }).map((objective) => objective.id);
 }
 
@@ -291,7 +298,7 @@ export const stubLlm: Llm = {
         objectives: points.map((point, index) => ({ id: `o${index + 1}`, text: `${point}${josa(point, "을", "를")} 설명할 수 있다` })),
         questions: points.map((point, index) => ({
           qid: `q${index + 1}`, order: index + 1, points: 0,
-          question: `${point}의 의미와 자료에서 제시한 근거를 설명하세요.`,
+          question: `${point}의 의미와 자료에서 제시한 근거를 설명하시오.`,
           objectiveRef: `o${index + 1}`, rubric: `${point}의 의미;자료 본문의 관련 근거`,
         })),
         firstQuestion: level === "EASY" ? `선배, ${points[0]}부터 알려줄래?` : `${points[0]}부터 말해 줘. 받아쓸게.`,
@@ -301,33 +308,46 @@ export const stubLlm: Llm = {
     // 문항 수에 맞춰 늘린다: 같은 목표의 다른 측면(이유 → 적용 → 비교)을 묻고 채점 요소는 그 목표의 기준을 따른다.
     // 졸업시험은 chapter.points(= 각 챕터 제목)를 돌아가며 자료 전체에 고르게 출제한다.
     const stems = [
-      (t: string) => `${t}이(가) 왜 그렇게 되는지, 자료가 든 이유와 함께 설명하세요.`,
-      (t: string) => `${t}을(를) 자료에 나온 예시나 상황에 적용해 설명하세요.`,
-      (t: string) => `${t}과(와) 가까운 다른 개념은 어떻게 다른지 비교해 설명하세요.`,
+      (t: string) => `${t}${josa(t, "이", "가")} 성립하는 이유를 자료의 근거와 함께 설명하시오.`,
+      (t: string) => `${t}${josa(t, "을", "를")} 자료에 나온 예시나 상황에 적용하여 설명하시오.`,
+      (t: string) => `${t}${josa(t, "과", "와")} 가까운 다른 개념의 차이를 비교하여 서술하시오.`,
     ];
     const plan = pointsPlan(count);
+    // 목표 수 = 문항 수(일대일). 기본 3개를 넘는 목표는 같은 개념의 다른 측면(이유 → 예시 → 비교)이다.
+    const aspects = ["이유", "예시 적용", "비교"] as const;
+    const objectives: { id: string; text: string }[] = [];
     const questions = plan.map((pointsValue, i) => {
       const ref = objectiveRefFor(i);
       if (kind === "FINAL") {
         const topic = chapter.points[i % Math.max(1, chapter.points.length)] ?? chapter.title;
         const round = Math.floor(i / Math.max(1, chapter.points.length));
+        objectives.push({ id: ref, text: round === 0 ? `${topic}${josa(topic, "을", "를")} 설명할 수 있다` : `${topic}의 ${aspects[(round - 1) % aspects.length]}${josa(aspects[(round - 1) % aspects.length], "을", "를")} 설명할 수 있다` });
         return { qid: `q${i + 1}`, order: i + 1, points: pointsValue, objectiveRef: ref,
-          question: round === 0 ? `${topic}의 핵심 내용을 자료의 근거와 함께 설명하세요.` : stems[(round - 1) % stems.length](topic),
+          question: round === 0 ? `${topic}의 핵심 내용을 자료의 근거와 함께 설명하시오.` : stems[(round - 1) % stems.length](topic),
           rubric: `${topic}의 핵심 내용;자료 본문의 관련 근거` };
       }
-      const source = base.questions[i % base.questions.length];
-      if (i < base.questions.length) return { ...source, points: pointsValue, objectiveRef: ref };
-      const topic = objectiveTopic(base.objectives[i % 3]);
+      const baseIndex = i % base.objectives.length;
+      const round = Math.floor(i / base.objectives.length);
+      const source = base.questions[baseIndex];
+      if (round === 0) {
+        objectives.push({ ...base.objectives[baseIndex], id: ref });
+        return { ...source, points: pointsValue, objectiveRef: ref };
+      }
+      const topic = objectiveTopic(base.objectives[baseIndex]);
+      const aspect = aspects[(round - 1) % aspects.length];
+      objectives.push({ id: ref, text: `${topic}의 ${aspect}${josa(aspect, "을", "를")} 설명할 수 있다` });
       return { ...source, qid: `q${i + 1}`, order: i + 1, points: pointsValue, objectiveRef: ref,
-        question: stems[(Math.floor(i / 3) - 1) % stems.length](topic) };
+        question: stems[(round - 1) % stems.length](topic) };
     });
+    base = { ...base, objectives };
     const prepared = { ...base,
       questions: persona === "KU_HARD" && kind !== "FINAL"
-        ? questions.map((question, index) => index === 2 ? { ...question, question: `${question.question} 자료에 나온 이유나 비교도 함께 설명하세요.` } : question)
+        ? questions.map((question, index) => index === 2 ? { ...question, question: `${question.question.replace(/[.。]\s*$/u, "")}. 자료에 나온 이유나 비교도 함께 서술하시오.` } : question)
         : questions,
       ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, objectiveTopic(base.objectives[0])) } : {}),
     };
-    return format === "DESCRIPTIVE" ? prepared : withObjectiveChoices(prepared, chapter, (i) => isObjectiveQuestion(format, i, count));
+    const result = format === "DESCRIPTIVE" ? prepared : withObjectiveChoices(prepared, chapter, (i) => isObjectiveQuestion(format, i, count));
+    return { ...result, questions: result.questions.map((question) => ({ ...question, question: examQuestionText(question.question) })) };
   },
 
   async *juniorTurn(input): AsyncGenerator<TurnEvent> {
@@ -371,7 +391,7 @@ export const stubLlm: Llm = {
     };
   },
 
-  async *writeExamAnswer({ question, taught, choices, persona }): AsyncGenerator<AnswerEvent> {
+  async *writeExamAnswer({ question, taught, choices }): AsyncGenerator<AnswerEvent> {
     // Do not consult chapter text, prepared rubrics, or golden answers here.
     const sources = selectedSources(question, taught);
     yield { type: "sources", sources };
@@ -384,23 +404,25 @@ export const stubLlm: Llm = {
     const parts = sources.flatMap((source) => {
       const sentences = splitSentences(source.content);
       const relevant = sentences.filter((sentence) => topic ? relevantTo(topic, sentence) : genericRelevant(question, sentence));
-      return (relevant.length ? relevant : [source.content.trim()]).slice(0, 4).map((sentence) => ({
-        text: `“${sentence}”라고 배웠습니다.`, ref: source.ref, level: "STRONG" as const, unlearned: false,
-      }));
+      // 답안지 문체: 배운 문장을 그대로 정답 문장으로 쓴다(“…”라고 배웠습니다 같은 대화체 없음).
+      return (relevant.length ? relevant : [source.content.trim()]).slice(0, 4).map((sentence) => {
+        return { text: answerStyle(plainText(sentence)), ref: source.ref, level: "STRONG" as const, unlearned: false };
+      });
     });
     const choice = choices ? chooseTaughtOption(choices, sources) : "";
     if (!parts.length) {
       await pause();
-      yield { type: "sentence", text: `${choice}${choice ? " " : ""}${normalizePersonaAddress(unknownAnswer, persona)}`, ref: null, level: "NONE", unlearned: true };
-      yield { type: "final", answer: `${choice}${choice ? " " : ""}${normalizePersonaAddress(unknownAnswer, persona)}` };
+      yield { type: "sentence", text: `${choice}${choice ? " " : ""}${unknownAnswer}`, ref: null, level: "NONE", unlearned: true };
+      yield { type: "final", answer: `${choice}${choice ? " " : ""}${unknownAnswer}` };
       return;
     }
-    if (choice) parts[0].text = `${choice} ${parts[0].text}`;
-    for (const sentence of parts.slice(0, 4)) {
+    // 객관식은 고른 번호와 보기 내용만 답안으로 쓴다.
+    const written = choice ? [{ ...parts[0], text: plainText(choices!.find((item) => item.startsWith(choice)) ?? choice) }] : parts.slice(0, 4);
+    for (const sentence of written) {
       await pause();
       yield { type: "sentence", ...sentence };
     }
-    yield { type: "final", answer: parts.slice(0, 4).map((sentence) => sentence.text).join(" ") };
+    yield { type: "final", answer: written.map((sentence) => sentence.text).join(" ") };
   },
 
   async *gradeExam({ chapter, questions, answers, taught }): AsyncGenerator<GradeEvent> {
@@ -420,7 +442,7 @@ export const stubLlm: Llm = {
         }
         continue;
       }
-      const unknown = !answer || answer.includes(unknownAnswer) || /모르겠습니다|못 들었|못 들어/u.test(answer);
+      const unknown = !answer || containsUnlearnedAnswer(answer) || /모르겠습니다|못 들었|못 들어/u.test(answer);
       const topic = topicFor(question.question);
       const fixture = demoFor(chapter);
       const checks = topic && topic.demo === fixture && question.rubric === fixture.prepare.questions[topic.index].rubric ? fixture.rubricChecks[topic.index].checks : undefined;

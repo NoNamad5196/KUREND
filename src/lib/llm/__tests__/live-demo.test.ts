@@ -138,10 +138,17 @@ test("exam citations cannot invent facts under an otherwise valid ref", async ()
   const fallback = await collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input));
   assert.ok(!JSON.stringify(fallback).includes("소득이 늘면"));
   const fallbackFinal = fallback.at(-1);
-  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes("라고 배웠습니다")));
-  const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", text: "모델이 덧붙인 외부 사실" }] }))).writeExamAnswer(input));
-  assert.deepEqual(events.at(-1), { type: "final", answer: `“${correct}”라고 배웠습니다.` });
+  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes(correct.slice(0, 12))));
+  assert.ok(fallbackFinal?.type === "final" && !/배웠|선배|“/u.test(fallbackFinal.answer));
+  // 모델이 답안 문장에 외부 사실을 덧붙이면 버리고, 근거 원문을 답안 문장으로 쓴다.
+  const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "소득과 기호, 미래 가격 기대가 모두 수요를 바꾸는 외부 사실이다." }] }))).writeExamAnswer(input));
+  assert.deepEqual(events.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
   assert.ok(!JSON.stringify(events).includes("외부 사실"));
+  // 근거와 같은 내용을 답안 문체로 다듬은 문장은 그대로 쓴다(대화체·마크다운 없음).
+  const polished = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." }] }))).writeExamAnswer(input));
+  assert.deepEqual(polished.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
+  const chatty = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "**선배님**이 가격이 오르면 사려는 양이 줄어든다고 알려주셨어요." }] }))).writeExamAnswer(input));
+  assert.deepEqual(chatty.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
 });
 
 test("unlearned answers stay canonical even with unrelated taught messages", async () => {

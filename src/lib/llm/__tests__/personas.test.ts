@@ -166,6 +166,9 @@ test("question counts follow the junior (3 objective / 5 / 7 descriptive) and th
     const prepared = prepareSessionSchemaFor(count, indexes).parse(await stubLlm.prepareSession({
       chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: count, kind: "CHAPTER" }));
     assert.equal(prepared.questions.length, count);
+    // 후배가 목표마다 한 번씩 물으므로 목표 수 = 시험 문항 수, 문항 qN → 목표 oN
+    assert.equal(prepared.objectives.length, count);
+    assert.deepEqual(prepared.questions.map((q) => q.objectiveRef), prepared.objectives.map((o) => o.id));
     assert.equal(prepared.questions.reduce((sum, q) => sum + q.points, 0), 100);
   }
   assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [3, 5, 7]);

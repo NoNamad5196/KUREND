@@ -12,7 +12,7 @@ const labels: Record<MaterialStep, string> = {
 export function MaterialPreparation({ step, busy, error, onRetry }: {
   step: MaterialStep; busy: boolean; error: string | null; onRetry: () => void;
 }) {
-  return <Card className="max-w-2xl py-10 text-center" aria-busy={busy}>
+  return <Card className="mx-auto my-8 w-full max-w-2xl py-10 text-center" aria-busy={busy}>
     <div className={`material-book ${busy ? "material-book-reading" : ""}`} aria-hidden="true">
       <span className="material-book-page" /><span className="material-book-page" /><span className="material-book-page" />
       <span className="material-book-star">✦</span>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SessionDto, StartExamResponse } from "@/contracts/types";
+import type { JuniorCharacter } from "@/contracts/game";
 import { api } from "@/components/session/_api";
 import { useSession } from "@/components/session/useSession";
 import { SpeechBubble } from "@/components/session/SpeechBubble";
@@ -16,6 +17,13 @@ import { RecallPanel } from "../RecallPanel";
 import { useExamViewSettings, ViewSettingsMenu } from "../ViewSettings";
 import { emptyPlayback, reduceAnswer, type AnswerPlayback } from "./exam-state";
 import { PageError, PageLoading, stream, useTask } from "./shared";
+
+/** 시험 직전 후배 대사 — 남학생은 ~습니다체, 여학생은 해요체, KU(와 연습 모드)는 원래 반말 그대로 */
+function examStartLine(character?: JuniorCharacter | null): string {
+  if (character === "MALE_EASY") return "선배님, 이제 시험 보겠습니다! 알려주신 만큼만 답하겠습니다. 끝까지 지켜봐 주세요!";
+  if (character === "FEMALE_NORMAL") return "선배님, 이제 시험 볼게요. 배운 내용으로 차근차근 답해 볼게요. 끝날 때까지 지켜봐 주세요.";
+  return "나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘.";
+}
 
 export function ExamPage({ sessionId }: { sessionId: string }) {
   const state = useSession(sessionId, (session) => session.status === "EXAM_IN_PROGRESS" || (session.status === "EXPLAINING" && session.phase === "EXAM_READY"));
@@ -92,7 +100,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
       <div className="min-w-0">
         <p className="editorial-label text-muted">TIME TO REMEMBER</p>
         <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tighter sm:text-4xl">가르친 만큼,<br />기억한 만큼.</h2>
-        <div className="mt-6"><SpeechBubble speaker={juniorLabel(juniorRun?.character)} tail="none">나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘.</SpeechBubble></div>
+        <div className="mt-6"><SpeechBubble speaker={juniorLabel(juniorRun?.character)} tail="none">{examStartLine(juniorRun?.character)}</SpeechBubble></div>
         <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? "객관식" : "서술형"} {questions.length || 3}문항 · 총 100점</p>
         <Button size="lg" className="mt-5 w-full sm:w-auto" loading={busy} onClick={startExam}>시험 시작 →</Button>
         {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}

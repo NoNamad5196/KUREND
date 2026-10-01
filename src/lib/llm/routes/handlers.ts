@@ -237,7 +237,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
           persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
-        if (prepared.objectives.length !== 3 || new Set(prepared.objectives.map((item) => item.id)).size !== 3
+        if (prepared.objectives.length !== questionCount || new Set(prepared.objectives.map((item) => item.id)).size !== questionCount
           || prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount
           || prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100
           || prepared.questions.some((item) => !Number.isInteger(item.points) || item.points < 1

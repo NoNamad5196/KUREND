@@ -69,8 +69,11 @@ export function pointsPlan(n: number): number[] {
   return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-/** 문항 i(0-base)가 평가하는 학습 목표 — 목표는 항상 3개(o1~o3)이고 문항이 순서대로 돌아가며 맡는다 */
-export const objectiveRefFor = (index: number): string => `o${(index % 3) + 1}`;
+/**
+ * 문항 i(0-base)가 평가하는 학습 목표 — 목표 수 = 문항 수, 일대일(q1→o1, q2→o2 …).
+ * 후배가 가르치기에서 묻는 질문 수와 시험 문항 수가 같아진다. (예전 세션의 o1~o3 반복 데이터는 그대로 읽힌다)
+ */
+export const objectiveRefFor = (index: number): string => `o${index + 1}`;
 
 /** MIXED(졸업시험)에서 객관식인 문항: 앞쪽 절반(올림) — 10문항이면 q1~q5 객관식, q6~q10 서술형 */
 export function isObjectiveQuestion(format: ExamFormat, index: number, count: number): boolean {

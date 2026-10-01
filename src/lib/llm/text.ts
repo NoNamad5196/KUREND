@@ -2,9 +2,58 @@ import type { ChapterText } from "./types";
 
 export const MAX_SOURCE_CHARACTERS = 40_000;
 export const MAX_CHAPTER_CHARACTERS = 8_000;
-export const UNLEARNED_ANSWER = "이 부분은 선배한테 못 들어서 모르겠습니다.";
+/** 배우지 못한 문항의 답안(답안지 문체). 예전 대화체 문구도 같은 뜻으로 인식한다. */
+export const UNLEARNED_ANSWER = "배우지 못한 내용이라 답을 쓸 수 없음.";
+const LEGACY_UNLEARNED = ["이 부분은 선배한테 못 들어서 모르겠습니다.", "이 부분은 선배님께 못 들어서 모르겠습니다."];
 export function isUnlearnedAnswer(answer: string): boolean {
-  return answer.trim().replace(/^[①②③④]\s*/u, "").replace("선배님께", "선배한테") === UNLEARNED_ANSWER;
+  const body = answer.trim().replace(/^[①②③④]\s*/u, "");
+  return body === UNLEARNED_ANSWER || LEGACY_UNLEARNED.includes(body);
+}
+/** 답안 어딘가에 미학습 표시가 들어 있는지(객관식 "② 배우지 못한…" 포함) */
+export function containsUnlearnedAnswer(answer: string): boolean {
+  return [UNLEARNED_ANSWER, ...LEGACY_UNLEARNED].some((marker) => answer.includes(marker));
+}
+
+/** 모델 출력에서 마크다운 강조·코드·제목 기호를 지운다. 사용자 원문 인용 검증에는 쓰지 않는다. */
+export function plainText(text: string): string {
+  return text.replace(/\*\*|__|`/gu, "").replace(/^\s*#{1,6}\s+/gmu, "").replace(/[ \t]{2,}/gu, " ").trim();
+}
+
+/* 답안지 문체: 선배의 반말·해요체 설명을 시험 답안처럼 "~다."로 끝맺는다(내용은 바꾸지 않고 문장 끝만). */
+const VERB_ENDINGS: [RegExp, string][] = [
+  [/라고 보면 돼$/u, "라고 볼 수 있다"], [/(?:것|거)이?야$/u, "것이다"],
+  [/줄어$/u, "줄어든다"], [/늘어$/u, "늘어난다"], [/생겨$/u, "생긴다"], [/움직여$/u, "움직인다"], [/바뀌어$/u, "바뀐다"],
+  [/달라$/u, "다르다"], [/커져$/u, "커진다"], [/작아져$/u, "작아진다"], [/내려가$/u, "내려간다"], [/올라가$/u, "올라간다"],
+  [/져$/u, "진다"], [/돼$/u, "된다"], [/해$/u, "한다"], [/있어$/u, "있다"], [/없어$/u, "없다"], [/같아$/u, "같다"],
+  [/많아$/u, "많다"], [/적어$/u, "적다"], [/높아$/u, "높다"], [/낮아$/u, "낮다"], [/몰라$/u, "모른다"], [/이야$/u, "이다"],
+];
+function formalSentence(sentence: string): string {
+  const body = sentence.trim().replace(/[.!~…]+$/u, "");
+  if (!body || /[?？]$/u.test(body) || /(다|음|함|됨|임)$/u.test(body)) return sentence.trim().replace(/[!~…]+$/u, ".");
+  if (/(?:이)?에요$|예요$/u.test(body)) return `${body.replace(/(?:이)?에요$|예요$/u, "이다")}.`;
+  const base = body.replace(/요$/u, "");
+  const rule = VERB_ENDINGS.find(([pattern]) => pattern.test(base));
+  return `${rule ? base.replace(rule[0], rule[1]) : base}.`;
+}
+/** 여러 문장을 각각 "~다."로 맞춘다. 끝이 이미 평서형이면 그대로. */
+export function answerStyle(text: string): string {
+  return (text.match(/[^.!?。！？~…]+(?:[.!?。！？~…]+|$)/gu) ?? [text]).map(formalSentence).filter(Boolean).join(" ");
+}
+/** 답안 문장이 시험 답안 문체(평서형 ~다/~음)로 끝나는지 */
+export function isAnswerStyle(text: string): boolean {
+  return /(다|음|함|됨|임)\s*[.。]?\s*$/u.test(text.trim());
+}
+
+/** 시험지 문항 문체: 호칭으로 시작하지 않고, 해요체·반말 의문으로 끝나지 않는다. */
+export function examQuestionText(text: string): string {
+  return plainText(text)
+    .replace(/^(?:선배님?|후배님?)\s*[,，!]?\s*/u, "")
+    // "설명하세요." "고르세요." 같은 안내형 존댓말은 시험지 문체(~시오)로 맞춘다.
+    .replace(/세요(?=[.!]|\s*$)/gu, "시오")
+    .replace(/시오!/gu, "시오.");
+}
+export function isConversationalQuestion(text: string): boolean {
+  return /선배/u.test(text) || /(?:요|까|니|어|야|지|래|죠|자)\s*[?？.!~…]*\s*$/u.test(text);
 }
 
 export type SourceParagraph = {

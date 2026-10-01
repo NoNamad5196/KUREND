@@ -44,9 +44,14 @@ export function readCookie(req: Request, name: string): string | null {
 }
 
 export function getUserIdFromRequest(req: Request): string | null {
+  return readSession(req)?.userId ?? null;
+}
+
+/** signed=true 는 서버 비밀키로 서명을 확인한 운영 세션(개발용 평문 쿠키는 false). */
+function readSession(req: Request): { userId: string; signed: boolean } | null {
   const value = readCookie(req, SESSION_COOKIE);
   if (!value) return null;
-  if (fixtureCookiesAllowed() && USER_ID.test(value)) return value;
+  if (fixtureCookiesAllowed() && USER_ID.test(value)) return { userId: value, signed: false };
   const secret = sessionSecret();
   if (!secret) return null;
   const parts = value.split(".");
@@ -56,14 +61,36 @@ export function getUserIdFromRequest(req: Request): string | null {
   if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return null;
   const expectedSignature = signature(`${version}.${userId}.${expiresAt}`, secret);
   if (!timingSafeEqual(Buffer.from(suppliedSignature), Buffer.from(expectedSignature))) return null;
-  return userId;
+  return { userId, signed: true };
+}
+
+/** 표시 이름 쿠키 — 세션이 아니다(권한 없음). 계정 행을 되살릴 때 닉네임으로만 쓴다. */
+export const NAME_COOKIE = "tb_name";
+const NICKNAME_MAX = 40;
+export function nameCookieHeader(nickname: string): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${NAME_COOKIE}=${encodeURIComponent(nickname.slice(0, NICKNAME_MAX))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}${secure}`;
 }
 
 /** 쿠키의 userId 가 실제 존재하는 사용자일 때만 통과. 아니면 401. */
 export async function requireUser(req: Request): Promise<AuthUser> {
-  const userId = getUserIdFromRequest(req);
-  if (!userId) throw unauthorized();
-  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
+  const session = readSession(req);
+  if (!session) throw unauthorized();
+  const { userId } = session;
+  let user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
+  if (!user && session.signed) {
+    // 무료 호스팅처럼 DB 파일이 재시작·재배포 때 초기화되는 환경에서도, 서명이 확인된 로그인은
+    // 다시 로그인시키지 않고 계정 행만 되살린다(이전 학습 기록은 DB 와 함께 사라진 상태).
+    const nickname = (readCookie(req, NAME_COOKIE) ?? "").trim().slice(0, NICKNAME_MAX) || "선배";
+    const select = { id: true, nickname: true, onboardingCompletedAt: true } as const;
+    user = await db.user.upsert({
+      where: { id: userId },
+      create: { id: userId, nickname, onboardingCompletedAt: new Date() },
+      update: {},
+      select,
+    }).catch(() => db.user.findUnique({ where: { id: userId }, select })); // 동시 요청이 먼저 만든 경우
+    console.warn("[auth] 서명된 세션의 계정이 DB에 없어 다시 만들었습니다(DB 초기화 의심).");
+  }
   if (!user) throw unauthorized("세션이 만료되었습니다. 다시 로그인해 주세요.");
   return { userId: user.id, nickname: user.nickname, onboardingCompletedAt: user.onboardingCompletedAt };
 }
