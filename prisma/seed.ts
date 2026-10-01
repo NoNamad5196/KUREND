@@ -417,6 +417,10 @@ async function seedGame(
       },
     });
     for (const e of events) await db.lifeEvent.create({ data: e as Parameters<typeof db.lifeEvent.create>[0]["data"] });
+    // 통과한 챕터는 "가르침" 기록도 남긴다 (홈의 "목차 n개 중 m개 가르침" 과 Run 진행도가 어긋나지 않게)
+    for (const [idx, at] of clearedAt) {
+      await db.chapter.updateMany({ where: { id: mat.chapterIds[idx], taughtAt: null }, data: { taughtAt: at } });
+    }
 
     if (r.linkSeedSessions) {
       // 기존 시드 세션을 이 Run 에 연결: 완료 세션은 후배 난이도(HARD)로, 진행 중 세션은 runId 만.
