@@ -4,7 +4,7 @@
  * 이미 졸업한 Run(409) 이면 GET /api/runs/[id] 로 캐릭터만 읽어 씬을 보여준다. 개발 중에는 ?c= 쿼리로 미리보기.
  */
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { GraduationSummaryDto } from "@/contracts/game";
 import { gameApi } from "@/lib/client/game-api";
 import { GraduationScene } from "@/components/game/scenes/GraduationScene";
@@ -12,6 +12,7 @@ import { JUNIOR_CHARACTERS, type JuniorCharacter } from "@/components/game/types
 
 export default function GraduationPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const params = useSearchParams();
   const c = params.get("c");
   const queryCharacter: JuniorCharacter | null = (JUNIOR_CHARACTERS as readonly string[]).includes(c ?? "") ? (c as JuniorCharacter) : null;
@@ -27,6 +28,11 @@ export default function GraduationPage() {
       } catch (e) {
         try {
           const run = await gameApi.getRun(id);
+          // 아직 졸업 조건(모든 챕터 + 졸업시험)을 못 채운 후배 → 자료 화면으로 돌려보낸다(축하 장면을 띄우지 않음)
+          if (run.status === "ACTIVE") {
+            if (active) router.replace(`/materials/${encodeURIComponent(run.materialId)}`);
+            return;
+          }
           if (active) setState({ character: run.character, materialId: run.materialId, summary: null, error: e instanceof Error ? e.message : null });
         } catch {
           if (!active) return;
@@ -37,7 +43,7 @@ export default function GraduationPage() {
       }
     })();
     return () => { active = false; };
-  }, [id, queryCharacter, queryMaterial]);
+  }, [id, queryCharacter, queryMaterial, router]);
 
   if (!state) return null;
   return (

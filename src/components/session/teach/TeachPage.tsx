@@ -225,7 +225,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
             <RunHeaderBadge run={run} />
             {run && <Link aria-disabled={sending} tabIndex={sending ? -1 : undefined} className={clsx("text-sm font-semibold text-primary", sending && "pointer-events-none opacity-50")}
               href={`/materials/${session.material.materialId}/junior?chapterId=${session.chapter.chapterId}&sessionId=${sessionId}`}>후배 변경</Link>}
-            <TeacherNotePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} chapterTitle={session.chapter.title} />
+            {!session.chapter.title.endsWith(" 졸업시험") && <TeacherNotePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} chapterTitle={session.chapter.title} />}
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}
