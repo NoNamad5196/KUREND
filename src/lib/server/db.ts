@@ -21,9 +21,11 @@ function createPrismaClient() {
 
 const globalForPrisma = globalThis as unknown as { __kurendPrisma?: ReturnType<typeof createPrismaClient> };
 
-/** next dev 의 HMR 로 모듈이 다시 로드돼도 연결을 하나만 유지한다. */
-export const db = globalForPrisma.__kurendPrisma ?? createPrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.__kurendPrisma = db;
+/**
+ * 프로세스당 클라이언트 하나만 쓴다. next dev 의 HMR 재로드와, instrumentation 과 라우트가
+ * 서로 다른 번들로 db.ts 를 불러오는 경우(운영 빌드 포함) 모두 같은 연결을 공유한다.
+ */
+export const db = (globalForPrisma.__kurendPrisma ??= createPrismaClient());
 
 export type Db = typeof db;
 export { Prisma } from "@/generated/prisma/client";
