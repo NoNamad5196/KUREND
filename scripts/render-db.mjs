@@ -2,6 +2,7 @@ import { constants, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } f
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createClient } from "@libsql/client";
+import { upgradeOnboarding } from "./upgrade-onboarding.mjs";
 
 const url = process.env.DATABASE_URL || "file:./prisma/dev.db";
 if (!url.startsWith("file:") || url.includes("?")) {
@@ -10,6 +11,7 @@ if (!url.startsWith("file:") || url.includes("?")) {
 const databasePath = resolve(url.slice("file:".length));
 
 if (existsSync(databasePath)) {
+  await upgradeOnboarding(url);
   console.log("Existing demo database preserved.");
 } else {
   mkdirSync(dirname(databasePath), { recursive: true });

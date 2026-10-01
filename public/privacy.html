@@ -4,22 +4,41 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>개인정보처리방침 | KUREND</title>
+  <meta name="theme-color" content="#F7F5EF">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <style>
-    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.7; color: #1d2939; background: #f7f8fa; }
-    body { margin: 0; }
-    main { max-width: 760px; margin: 48px auto; padding: 32px; background: white; border-radius: 16px; box-shadow: 0 8px 28px #1d29390d; }
-    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { font-size: 1.2rem; margin: 32px 0 8px; }
-    p, li { font-size: 1rem; } .muted { color: #667085; } a { color: #175cd3; }
-    @media (max-width: 800px) { main { margin: 0; border-radius: 0; padding: 24px; } }
+    :root { color-scheme: light; --bg: #F7F5EF; --ink: #20261F; --primary: #244638; --muted: #676D63; --line: #D8DACE; font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", sans-serif; line-height: 1.8; color: var(--ink); background: var(--bg); }
+    * { box-sizing: border-box; }
+    body { margin: 0; -webkit-font-smoothing: antialiased; }
+    ::selection { background: #D9ED92; }
+    a { color: var(--primary); text-underline-offset: 4px; overflow-wrap: anywhere; }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+    .page-header, main { width: min(1040px, calc(100% - 80px)); margin-inline: auto; }
+    .page-header { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 27px; font-weight: 850; letter-spacing: -.07em; text-decoration: none; }
+    .brand svg { width: 25px; height: 25px; }
+    .eyebrow { font: 10px/1.6 Consolas, monospace; letter-spacing: .13em; color: var(--muted); }
+    main { padding-block: 62px 70px; }
+    h1, h2, p { word-break: keep-all; overflow-wrap: anywhere; }
+    h1 { max-width: 760px; margin: 0 0 22px; font-size: clamp(36px, 5.5vw, 62px); line-height: 1.2; letter-spacing: -.065em; font-weight: 800; }
+    h2 { margin: 36px 0 14px; border-top: 1px solid var(--line); padding-top: 28px; font-size: 21px; line-height: 1.4; letter-spacing: -.035em; font-weight: 650; }
+    main > p { max-width: 780px; margin-block: 12px; font-size: 15px; }
+    .muted { color: var(--muted); }
+    .return { display: inline-flex; align-items: center; gap: 28px; min-height: 44px; margin-top: 24px; padding-block: 9px; border-bottom: 1px solid currentColor; text-decoration: none; font-weight: 650; }
+    @media (max-width: 600px) { .page-header, main { width: calc(100% - 40px); } .page-header { min-height: 78px; } .page-header .eyebrow { max-width: 115px; text-align: right; font-size: 9px; } main { padding-block: 36px 48px; } main > p { font-size: 14px; } h2 { font-size: 19px; } }
   </style>
 </head>
 <body>
+  <header class="page-header">
+    <a class="brand" href="/" aria-label="KUREND 홈">KUREND<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" stroke-width="4" /></svg></a>
+    <span class="eyebrow">PRIVACY / YOUR INFORMATION</span>
+  </header>
   <main>
-    <h1>KUREND 개인정보처리방침</h1>
+    <h1>개인정보처리방침<span style="color:var(--primary)">.</span></h1>
     <p class="muted">시행일: 2026년 10월 2일</p>
     <p>KUREND는 이용자의 개인정보를 학습 서비스 제공에 필요한 범위에서 처리합니다.</p>
     <h2>1. 처리하는 정보</h2>
-    <p>Google 로그인 도입 시 로그인에 필요한 Google 계정 식별 정보와 이메일을 처리합니다. 서비스 이용 중 입력한 과목명, 시험일, 업로드한 학습자료의 추출 텍스트, 설명과 대화, 시험 답안, 평가 결과 및 학습 진행 기록을 처리합니다.</p>
+    <p>Google 로그인 시 로그인에 필요한 Google 계정 식별 정보와 이메일을 처리합니다. 서비스 이용 중 입력한 과목명, 시험일, 업로드한 학습자료의 추출 텍스트, 설명과 대화, 시험 답안, 평가 결과 및 학습 진행 기록을 처리합니다.</p>
     <h2>2. 이용 목적</h2>
     <p>로그인 및 계정 식별, 학습자료 관리, AI 대화·시험·평가, 학습 기록 제공에 사용합니다.</p>
     <h2>3. 외부 서비스</h2>
@@ -32,7 +51,7 @@
     <p>정보 열람·정정·삭제 요청은 <a href="mailto:nonamad5196@gmail.com">nonamad5196@gmail.com</a>으로 보내 주세요. 개인정보처리자는 KUREND입니다.</p>
     <h2>7. 변경</h2>
     <p>방침이 바뀌면 이 페이지에 변경 내용을 게시합니다.</p>
-    <p><a href="/login">KUREND로 돌아가기</a></p>
+    <p><a class="return" href="/">KUREND로 돌아가기 <span aria-hidden="true">↗</span></a></p>
   </main>
 </body>
 </html>

@@ -1,0 +1,52 @@
+.archive-page { overflow-wrap: anywhere; }
+.archive-profile { display: grid; grid-template-columns: 1fr 1.1fr; align-items: end; gap: 3rem; padding: 2rem 0 3.5rem; border-bottom: 1px solid var(--ink); }
+.archive-profile-name { overflow-wrap: anywhere; font-size: clamp(1.8rem, 3vw, 3rem); line-height: 1.3; letter-spacing: -.055em; font-weight: 650; }
+.archive-profile-name span { color: var(--muted); }
+.archive-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+.archive-stats dt { color: var(--muted); font-size: .7rem; }
+.archive-stats dd { margin-top: 1rem; font-size: clamp(2.3rem, 5vw, 4.5rem); line-height: 1; letter-spacing: -.065em; color: var(--primary); font-weight: 550; font-variant-numeric: tabular-nums; }
+.archive-stats dd span { margin-left: .35rem; font-size: .8rem; font-weight: 500; letter-spacing: 0; }
+.archive-section { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.35fr); gap: 3rem; padding: 3.5rem 0; border-bottom: 1px solid var(--line); }
+.archive-section-heading { display: flex; align-items: flex-start; gap: 1.5rem; min-width: 0; }
+.archive-index { font-size: .75rem; color: var(--muted); padding-top: .1rem; font-family: ui-monospace, monospace; }
+.archive-section-heading h2 { font-size: clamp(1.6rem, 2.2vw, 2.15rem); line-height: 1.2; letter-spacing: -.06em; font-weight: 650; }
+.archive-section-heading p:not(.editorial-label) { max-width: 21rem; margin-top: 1rem; font-size: .875rem; line-height: 1.9; color: var(--muted); word-break: keep-all; }
+.archive-section-body { min-width: 0; }
+.archive-note-list > li + li { border-top: 1px solid var(--line); }
+.archive-note-link { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 1.5rem; gap: .75rem; padding: 1.5rem 0; transition: color .2s ease; }
+.archive-note-link:hover { color: var(--primary); }
+.archive-note-list > li:first-child .archive-note-link { padding-top: .4rem; }
+.archive-arrow { font-size: 1.5rem; transition: transform .2s ease; }
+.archive-note-link:hover .archive-arrow { transform: translate(3px, -3px); }
+.archive-empty { border-left: 2px solid var(--primary); padding: .25rem 0 .25rem 1.5rem; }
+.archive-material { padding: 2rem 0; }
+.archive-material:first-child { padding-top: 0; }
+.archive-material + .archive-material { border-top: 1px solid var(--ink); }
+.archive-chapter summary { overflow-wrap: anywhere; list-style-position: outside; margin-left: 1rem; }
+.archive-chapter summary::marker { color: var(--primary); font-size: .7rem; }
+.archive-note-content { margin: 1.25rem 0 1.5rem; padding: 1.5rem; background: var(--surface); border-left: 2px solid var(--primary); overflow-wrap: anywhere; }
+.archive-note-content > div > section { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; }
+.archive-note-content > div > section + section { padding-top: 1.4rem; margin-top: 1.4rem; border-top: 1px solid var(--line); }
+.archive-note-content h3 > span { display: none; }
+.archive-note-content h3 { color: var(--primary); }
+.archive-note-content li { padding-bottom: .3rem; }
+.archive-account-link { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3rem; border-bottom: 1px solid var(--ink); padding-bottom: 1rem; font-size: 1.1rem; font-weight: 600; transition: color .2s ease; }
+.archive-account-link:hover { color: var(--primary); }
+.archive-account-link > span:last-child { font-size: 1.6rem; }
+@media (max-width: 900px) {
+  .archive-profile { grid-template-columns: 1fr; gap: 2.5rem; }
+  .archive-section { grid-template-columns: 1fr; gap: 2rem; }
+  .archive-section-heading p:not(.editorial-label) { max-width: 35rem; }
+}
+@media (max-width: 480px) {
+  .archive-profile { padding: 1rem 0 2.5rem; }
+  .archive-section { padding: 2.5rem 0; }
+  .archive-section-heading { gap: 1rem; }
+  .archive-stats { gap: .65rem; }
+  .archive-stats dt { font-size: .65rem; }
+  .archive-stats dd { font-size: 2.8rem; }
+  .archive-note-link { grid-template-columns: minmax(0, 1fr) 1.2rem; gap: .5rem; }
+  .archive-note-link > .editorial-label { display: none; }
+  .archive-note-content { padding: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) { .archive-arrow, .archive-note-link, .archive-account-link { transition: none; } }

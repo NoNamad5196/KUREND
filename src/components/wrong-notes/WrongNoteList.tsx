@@ -55,59 +55,60 @@ export function WrongNoteList() {
   const todo = (notes ?? []).filter((n) => !n.userReason).length;
 
   return (
-    <>
-      <PageHeader title="오답노트" description="새내기가 틀린 문항은 자동으로 모입니다. 왜 틀렸는지 먼저 생각해 보고, 다시 가르쳐 보세요." />
+    <div className="wrong-notes-page page-enter">
+      <PageHeader eyebrow="LEARNING ARCHIVE / REVIEW" title="오답노트" description="새내기가 틀린 문항은 자동으로 모입니다. 왜 틀렸는지 먼저 생각해 보고, 다시 가르쳐 보세요." />
       {error && <Card role="alert" className="border-danger text-danger">{error}</Card>}
       {!notes && !error && <p className="py-20 text-center text-muted" role="status">오답노트를 불러오는 중…</p>}
       {notes && notes.length === 0 && (
-        <Card className="flex flex-col items-center gap-3 py-12 text-center">
-          <Mascot state="praise" size={110} />
+        <Card className="wn-empty flex flex-col items-center gap-4 py-16 text-center">
+          <Mascot state="praise" size={170} />
           <h2 className="text-lg font-bold">아직 오답이 없어요</h2>
           <p className="max-w-sm text-sm text-muted">새내기가 시험에서 틀린 문항이 생기면 여기에 자동으로 모입니다.</p>
           <Button onClick={() => router.push("/")}>가르치러 가기</Button>
         </Card>
       )}
       {notes && notes.length > 0 && (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="필터">
-            <button type="button" onClick={() => setMaterialKey(null)} className={clsx("rounded-full border px-3 py-1.5 text-xs font-semibold", !materialKey ? "border-ink bg-ink text-bg" : "border-line bg-surface hover:bg-bg")}>
+        <div className="space-y-8">
+          <div className="wn-filters" role="group" aria-label="필터">
+            <button type="button" onClick={() => setMaterialKey(null)} className={clsx("wn-filter", !materialKey ? "border-ink bg-ink text-bg" : "border-line bg-surface hover:bg-bg")}>
               전체 {notes.length}
             </button>
             {materials.map(([key, m]) => (
-              <button key={key} type="button" onClick={() => setMaterialKey(key)} className={clsx("rounded-full border px-3 py-1.5 text-xs font-semibold", materialKey === key ? "border-ink bg-ink text-bg" : "border-line bg-surface hover:bg-bg")}>
+              <button key={key} type="button" onClick={() => setMaterialKey(key)} className={clsx("wn-filter", materialKey === key ? "border-ink bg-ink text-bg" : "border-line bg-surface hover:bg-bg")}>
                 {m.courseName} · {m.title} {m.count}
               </button>
             ))}
-            <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted">
+            <label className="wn-todo-filter flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted">
               <input id="wn-only-todo" type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} className="accent-[var(--primary)]" />
               이유 안 쓴 것만 ({todo})
             </label>
           </div>
-          <Card className="overflow-hidden !p-0">
+          <div className="wn-list">
             <ul className="wn-stagger divide-y divide-line">
-              {visible.map((n) => (
+              {visible.map((n, index) => (
                 <li key={n.wrongNoteId}>
-                  <Link href={`/wrong-notes/${n.wrongNoteId}`} className="grid gap-2 px-5 py-4 hover:bg-bg sm:grid-cols-[1fr_auto] sm:items-center">
+                  <Link href={`/wrong-notes/${n.wrongNoteId}`} className="wn-list-link">
+                    <span className="wn-list-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Chip tone={n.verdict === "WRONG" ? "red" : "yellow"}>{VERDICT_TEXT[n.verdict]} · {n.score}/{n.maxScore}</Chip>
                         <span className="text-xs text-muted">{n.courseName} · {n.chapterTitle} · {relativeDate(n.createdAt)}</span>
                       </div>
-                      <p className="mt-1.5 line-clamp-2 break-words font-semibold">{n.question}</p>
+                      <p className="mt-3 line-clamp-2 break-words text-xl font-semibold leading-8 tracking-tight">{n.question}</p>
                       {n.missedConcepts.length > 0 && <p className="mt-1 text-xs text-muted">놓친 개념: {n.missedConcepts.join(", ")}</p>}
                     </div>
-                    <div className="flex items-center gap-2 sm:justify-end">
+                    <div className="wn-list-state flex items-center gap-3">
                       {n.userReason ? <Chip tone="green">분석 완료</Chip> : <Chip tone="yellow">이유 쓰기 전</Chip>}
-                      <span className="font-bold text-primary" aria-hidden>→</span>
+                      <span className="wn-list-arrow text-primary" aria-hidden>→</span>
                     </div>
                   </Link>
                 </li>
               ))}
               {visible.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">조건에 맞는 오답노트가 없어요.</li>}
             </ul>
-          </Card>
+          </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

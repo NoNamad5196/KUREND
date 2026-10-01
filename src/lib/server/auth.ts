@@ -9,7 +9,7 @@ import { unauthorized } from "@/lib/server/http";
 export const SESSION_COOKIE = process.env.SESSION_COOKIE || "tb_uid";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30일
 
-export type AuthUser = { userId: string; nickname: string };
+export type AuthUser = { userId: string; nickname: string; onboardingCompletedAt: Date | null };
 
 export function readCookie(req: Request, name: string): string | null {
   const header = req.headers.get("cookie");
@@ -37,9 +37,9 @@ export function getUserIdFromRequest(req: Request): string | null {
 export async function requireUser(req: Request): Promise<AuthUser> {
   const userId = getUserIdFromRequest(req);
   if (!userId) throw unauthorized();
-  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true } });
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
   if (!user) throw unauthorized("세션이 만료되었습니다. 다시 로그인해 주세요.");
-  return { userId: user.id, nickname: user.nickname };
+  return { userId: user.id, nickname: user.nickname, onboardingCompletedAt: user.onboardingCompletedAt };
 }
 
 export function sessionCookieHeader(userId: string): string {

@@ -6,7 +6,7 @@ import {
 } from "./schemas";
 import {
   compactChapter, compactText, paragraphizeSources, rubricElements,
-  uniqueStrings, UNLEARNED_ANSWER,
+  uniqueStrings, UNLEARNED_ANSWER, isUnlearnedAnswer,
 } from "./text";
 import { GENERATE_CHAPTERS_PROMPT } from "./prompts/generate-chapters";
 import { PREPARE_SESSION_PROMPT, OBJECTIVE_EXAM_PROMPT, KU_EXAM_PROMPT, FEMALE_EXAM_PROMPT } from "./prompts/prepare-session";
@@ -17,7 +17,9 @@ import { GRADE_EXAM_PROMPT, OBJECTIVE_GAP_PROMPT } from "./prompts/grade-exam";
 import { acceptedExplanations, nextObjectiveQuestion } from "./turn-state";
 import { createTutorExplain } from "./tutor";
 import { TEACHER_NOTE_PROMPT } from "./prompts/teacher-note";
-import { personaFor } from "./personas";
+import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
+import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, selectedTeachingObjective } from "./teaching-choices";
+import { advanceMastery } from "./mastery";
 
 function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
   const refs = new Set<number>();
@@ -25,7 +27,7 @@ function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
     if (!Number.isInteger(ref) || ref < 1 || refs.has(ref)) throw new Error("사용자 설명 참조 번호가 올바르지 않습니다.");
     refs.add(ref);
     return { ref, content };
-  }).filter(({ content }) => content.trim().length > 0);
+  }).filter(({ content }) => content.trim().length > 0 && !isUnknownTeaching(content));
 }
 
 export type LiveProviderCalls = {
@@ -65,9 +67,14 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const spec = personaFor(persona);
       const format = examFormat ?? spec?.examFormat;
       const instruction = format === "OBJECTIVE" ? OBJECTIVE_EXAM_PROMPT : persona === "KU_HARD" ? KU_EXAM_PROMPT : persona === "FEMALE_NORMAL" ? FEMALE_EXAM_PROMPT : "";
-      return calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}`, JSON.stringify({
+      const prepared = await calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}`, JSON.stringify({
         chapter: compactChapter(chapter), level, persona: spec, examFormat: format,
       }), prepareSessionSchema, { temperature: 0.2, maxOutputTokens: 1_500, timeoutMs: 18_000 });
+      const topic = objectiveTopic(prepared.objectives[0]);
+      return { ...prepared,
+        firstQuestion: persona ? personaQuestion(topic, persona, true) : prepared.firstQuestion,
+        ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, topic) } : {}),
+      };
     },
 
     async *juniorTurn(input) {
@@ -78,62 +85,81 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const analysis = await calls.completeJSON(ANALYZE_TURN_PROMPT, JSON.stringify({
         chapter: compactChapter(input.chapter), objectives: input.objectives,
         taught, currentRef, explanation: input.explanation,
-        ...(input.persona ? { persona: {
+        ...(input.persona ? { character: input.persona, persona: {
           voice: personaFor(input.persona)?.voice, comprehension: personaFor(input.persona)?.comprehension,
           memory: personaFor(input.persona)?.memory, misunderstanding: personaFor(input.persona)?.misunderstanding,
           doubtFrequency: personaFor(input.persona)?.doubtFrequency,
         } } : {}),
       }), analyzeTurnSchema(input.explanation, input.objectives.map((objective) => objective.id), taught),
       { temperature: 0, maxOutputTokens: 1_000, timeoutMs: 10_000 });
+      const unknown = isUnknownTeaching(input.explanation);
+      const selectedObjective = selectedTeachingObjective(input);
       const previousConcepts = uniqueStrings(input.heardConcepts);
-      const needsDoubt = analysis.contradictions.length > 0 && (input.persona !== undefined || input.level === "EASY");
+      const needsDoubt = input.persona !== "MALE_EASY" && analysis.contradictions.length > 0 && (input.persona !== undefined || input.level === "EASY");
       if (needsDoubt) {
         // Only the learner's own words can enter a doubt. Internal "why" and source text never do.
         const claim = compactText(analysis.contradictions[0].claim, 100);
         yield { type: "concepts", heardConcepts: previousConcepts, added: [] };
         yield { type: "doubt", content: input.persona === "KU_HARD"
           ? `잠깐만 선배. “${claim}”라는 건 내가 이해한 게 맞아?`
-          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요, 선배?`
+          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요, 선배님?`
           : `어? “${claim}”라는 설명이 조금 헷갈려. 한 번만 더 설명해줄래?` };
         return;
       }
       // Labels can be Korean paraphrases; their actual evidence must be a
       // validated verbatim quote of this explanation.
-      const mentionedConcepts = uniqueStrings(analysis.concepts.map(({ name }) => name));
+      const mentionedConcepts = unknown ? [] : uniqueStrings([
+        ...analysis.concepts.map(({ name }) => name),
+        ...(selectedObjective ? [objectiveTopic(input.objectives.find((item) => item.id === selectedObjective)!)] : []),
+      ]);
       const added = mentionedConcepts.filter((concept) => !previousConcepts.includes(concept));
       const heardConcepts = uniqueStrings([...previousConcepts, ...added]);
-      const coveredObjectives = uniqueStrings(analysis.coverage.map(({ id }) => id));
+      const coverage = analysis.coverage.filter((item) => !unknown || item.evidence.some((evidence) => evidence.ref !== currentRef));
+      const currentObjectives = unknown ? [] : uniqueStrings([
+        ...coverage.filter((item) => item.evidence.some((evidence) => evidence.ref === currentRef)).map(({ id }) => id),
+        ...(selectedObjective ? [selectedObjective] : []),
+      ]);
+      const progress = advanceMastery(input, currentObjectives, uniqueStrings([...coverage.map(({ id }) => id), ...(selectedObjective ? [selectedObjective] : [])]));
+      const { coveredObjectives } = progress;
       yield { type: "concepts", heardConcepts, added };
       // 반응·다음 질문은 모델이 대화 맥락에 맞춰 쓴다(분석 결과로 범위를 고정). 형식을 벗어나면 템플릿 문장으로 대체.
-      const fallbackReaction = analysis.reactionQuote
+      const fallbackReaction = unknown ? (input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : "괜찮아요. 아직 배우지 않은 걸로 둘게요.") : analysis.reactionQuote
         ? `“${analysis.reactionQuote}”라고 ${input.level === "HARD" ? "받아쓸게." : "설명해 줬구나."}`
         : input.persona ? personaFor(input.persona)!.examples.reaction
           : input.level === "HARD" ? "응, 말해 준 설명을 받아쓸게." : "응응, 말해 준 설명을 기억할게.";
-      const fallbackQuestion = input.persona === "FEMALE_NORMAL" && coveredObjectives.length < input.objectives.length
-        ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배?`
-        : nextObjectiveQuestion(input, coveredObjectives);
+      const nextObjective = input.objectives.find((objective) => !coveredObjectives.includes(objective.id));
+      const fallbackQuestion = input.persona && nextObjective
+        ? personaQuestion(objectiveTopic(nextObjective), input.persona)
+        : normalizePersonaAddress(nextObjectiveQuestion(input, coveredObjectives), input.persona);
       let reactions = [fallbackReaction];
       let question = fallbackQuestion;
       try {
         const responded = await calls.completeJSON(RESPOND_TURN_PROMPT, JSON.stringify({
           level: input.level,
           persona: input.persona ?? null,
+          voice: personaFor(input.persona)?.voice,
           history: input.history.slice(-6).map(({ role, stage, content }) => ({ role, stage, content: compactText(content, 240) })),
           explanation: input.explanation,
           analysis: { heardConcepts, contradictionClaims: [], coveredObjectives },
           objectives: input.objectives.map(({ id, text }) => ({ id, text })),
           nextQuestionHint: fallbackQuestion,
         }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000 });
-        reactions = responded.reactions;
-        question = responded.question;
+        reactions = unknown ? [fallbackReaction] : responded.reactions;
+        question = unknown ? fallbackQuestion : responded.question;
       } catch {
         /* 템플릿 유지 */
       }
-      for (const content of reactions) yield { type: "reaction", content };
-      yield { type: "question", coveredObjectives, content: question };
+      if (input.persona === "KU_HARD" && nextObjective && currentObjectives.includes(nextObjective.id)) question = fallbackQuestion;
+      if (input.persona === "FEMALE_NORMAL" && nextObjective && !/왜|의미|이유/u.test(question)) question = fallbackQuestion;
+      for (const content of reactions) yield { type: "reaction", content: normalizePersonaAddress(content, input.persona).slice(0, 40) };
+      yield { type: "question", coveredObjectives, content: normalizePersonaAddress(
+        input.persona === "MALE_EASY" && nextObjective ? fallbackQuestion : question, input.persona),
+        ...(progress.mastery ? { mastery: progress.mastery } : {}),
+        ...(input.persona === "MALE_EASY" && nextObjective ? { teachingChoices: teachingChoicesFor(input.chapter, objectiveTopic(nextObjective)) } : {}),
+      };
     },
 
-    async *writeExamAnswer({ question, taught, heardConcepts, choices }) {
+    async *writeExamAnswer({ question, taught, heardConcepts, choices, persona }) {
       const messages = taughtMessages(taught);
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
         // This explicit allowlist is a knowledge boundary: never spread a session/chapter/rubric here.
@@ -145,10 +171,10 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       };
       const citedRefs = new Set(response.sentences.map((sentence) => sentence.ref));
       yield { type: "sources", sources: messages.filter((message) => citedRefs.has(message.ref)) };
-      for (const token of response.thought) yield { type: "thought", token, closed: false };
+      for (const token of normalizePersonaAddress(response.thought, persona)) yield { type: "thought", token, closed: false };
       yield { type: "thought", token: "", closed: true };
       const sentences = response.sentences.map((sentence, index) => ({
-        ...sentence, text: `${index === 0 && choices ? `${response.choice} ` : ""}${sentence.quote === null ? UNLEARNED_ANSWER : `“${sentence.quote}”라고 배웠습니다.`}`,
+        ...sentence, text: `${index === 0 && choices ? `${response.choice} ` : ""}${sentence.quote === null ? normalizePersonaAddress(UNLEARNED_ANSWER, persona) : `“${sentence.quote}”라고 배웠습니다.`}`,
       }));
       for (const sentence of sentences) {
         yield {
@@ -178,7 +204,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           const key = question.rubric.match(/^정답 ([①②③④]);근거:/u)?.[1];
           if (!key || !question.choices.some((choice) => choice.startsWith(key))) throw new Error("객관식 정답 번호가 올바르지 않습니다.");
           const selected = answer.answer.match(/^([①②③④])/u)?.[1];
-          const correct = selected === key;
+          const correct = selected === key && !isUnlearnedAnswer(answer.answer);
           yield { type: "grade", qid: question.qid, score: correct ? question.points : 0,
             maxScore: question.points, verdict: correct ? "CORRECT" : "WRONG",
             comment: correct ? "선배에게 배운 내용과 일치하는 보기를 골랐습니다." : "선택한 보기가 자료의 정답과 다릅니다." };

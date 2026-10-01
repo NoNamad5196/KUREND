@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/client/api";
 import type { MeDto, HomeDto } from "@/contracts/types";
+import { onboardingRedirect } from "@/lib/client/auth-routing";
 import { Button } from "./ui";
 
 const links = [
@@ -17,49 +18,78 @@ const links = [
   { href: "/map", label: "지식 지도", icon: "◈" },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+const CurrentUser = createContext<MeDto | null>(null);
+
+export function useCurrentUser() {
+  const user = useContext(CurrentUser);
+  if (!user) throw new Error("인증된 화면에서만 사용자 정보를 읽을 수 있습니다.");
+  return user;
+}
+
+function AuthLoading() {
+  return <div className="auth-loading" role="status"><span className="brand-mark" aria-hidden="true">KUREND</span><span className="auth-loading-line" aria-hidden="true" /><span className="text-xs text-muted">로그인 상태를 확인하는 중…</span></div>;
+}
+
+function AuthenticatedShell({ children, pathname, onboardingMode }: { children: ReactNode; pathname: string; onboardingMode: string | null }) {
   const router = useRouter();
-  const isLogin = pathname === "/login";
   const [user, setUser] = useState<MeDto | null>(null);
   const [stats, setStats] = useState<HomeDto["stats"] | null>(null);
-  const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLogin) return;
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  useEffect(() => {
     let active = true;
     api.get<MeDto>("/auth/me").then((me) => {
       if (!active) return;
+      const redirect = onboardingRedirect(me, pathname, onboardingMode);
+      if (redirect) { router.replace(redirect); return; }
       setUser(me);
-      setReady(true);
-      api.get<HomeDto>("/home").then((home) => { if (active) setStats(home.stats); }).catch(() => {});
+      if (pathname !== "/onboarding") api.get<HomeDto>("/home").then((home) => { if (active) setStats(home.stats); }).catch(() => {});
     }).catch((error: unknown) => {
       if (!active) return;
       if (error instanceof ApiError && error.status === 401) router.replace("/login");
-      else { setAuthError(error instanceof Error ? error.message : "로그인 상태를 확인할 수 없습니다."); setReady(true); }
+      else setAuthError(error instanceof Error ? error.message : "로그인 상태를 확인할 수 없습니다.");
     });
     return () => { active = false; };
-  }, [isLogin, pathname, router]);
+  }, [pathname, onboardingMode, router]);
 
-  if (isLogin) return <>{children}</>;
-  if (!ready) return <div className="grid min-h-screen place-items-center text-muted" role="status">로그인 상태를 확인하는 중…</div>;
   if (authError) return <main className="grid min-h-screen place-items-center p-6"><div className="max-w-md rounded-card border border-line bg-surface p-6 text-center"><h1 className="text-xl font-bold">서비스에 연결할 수 없습니다</h1><p className="mt-2 text-sm text-muted">{authError}</p><Button className="mt-5" onClick={() => window.location.reload()}>다시 시도</Button></div></main>;
+  if (!user) return <AuthLoading />;
+  if (pathname === "/onboarding") return <CurrentUser.Provider value={user}>{children}</CurrentUser.Provider>;
 
-  async function logout() {
-    try { await api.post("/auth/logout"); } finally { router.replace("/login"); router.refresh(); }
-  }
+  return <CurrentUser.Provider value={user}><div className="min-h-screen">
+    <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-5 focus:top-3 focus:z-50 focus:bg-accent focus:p-3">본문으로 이동</a>
+    <header className="site-header"><div className="site-header-inner">
+      <Link href="/" className="brand-mark" aria-label="KUREND 홈" onClick={() => setMenuOpen(false)}>KUREND<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></Link>
+      <nav id="site-navigation" className={clsx("site-nav", menuOpen && "is-open")} aria-label="주 메뉴">{links.map(({ href, label }) => { const active = href === "/" ? pathname === "/" : pathname.startsWith(href); return <Link key={href} href={href} onClick={() => setMenuOpen(false)} aria-current={active ? "page" : undefined}>{label}</Link>; })}</nav>
+      <Link href="/mypage" className="site-profile" onClick={() => setMenuOpen(false)} aria-label={`${user.nickname} 마이페이지`} aria-current={pathname === "/mypage" ? "page" : undefined}>
+        <span className="profile-monogram" aria-hidden="true">{user.nickname.slice(0, 1)}</span><span><span className="site-profile-name">{user.nickname} <span aria-hidden="true">↗</span></span><span className="site-profile-caption">완료 {stats?.completedSessions ?? "–"}회 · 평균 {stats?.averageScore ?? "–"}점</span></span>
+      </Link>
+      <button className="site-menu-button" aria-label="메뉴 열기" aria-expanded={menuOpen} aria-controls="site-navigation" onClick={() => setMenuOpen(!menuOpen)}><span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span></button>
+    </div></header>
+    {menuOpen && <button className="site-menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
+    <main id="main-content" className="site-main min-w-0"><div className="page-enter">{children}</div></main>
+    <footer className="site-footer"><p><strong>KUREND</strong>가르친 만큼, 함께 성장합니다.</p><span className="editorial-label">Teach. Learn. Grow together.</span></footer>
+  </div></CurrentUser.Provider>;
+}
 
-  return <div className="min-h-screen lg:flex">
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-5 py-3 lg:hidden"><Link href="/" className="text-xl font-black tracking-tight text-primary">새내기<span className="ml-1 text-xs font-medium text-muted">KUREND</span></Link><button className="rounded-lg border border-line px-3 py-2" aria-label="메뉴 열기" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>☰</button></header>
-    {menuOpen && <button className="fixed inset-0 z-30 bg-ink/30 lg:hidden" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
-    <aside className={clsx("fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface px-4 py-6 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0", menuOpen ? "translate-x-0" : "-translate-x-full")}>
-      <Link href="/" className="px-3 text-2xl font-black tracking-tight text-primary" onClick={() => setMenuOpen(false)}>새내기<span className="ml-2 align-middle text-xs font-semibold tracking-normal text-muted">KUREND</span></Link>
-      <p className="mt-2 px-3 text-xs leading-5 text-muted">가르친 만큼만 아는 AI에게<br />내 지식을 설명해 보세요.</p>
-      <nav className="mt-9 space-y-1" aria-label="주 메뉴">{links.map(({ href, label, icon }) => { const active = href === "/" ? pathname === "/" : pathname.startsWith(href); return <Link key={href} href={href} onClick={() => setMenuOpen(false)} aria-current={active ? "page" : undefined} className={clsx("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold", active ? "bg-primary-soft text-primary" : "text-ink hover:bg-bg")}><span className="w-5 text-center text-lg" aria-hidden="true">{icon}</span>{label}</Link>; })}</nav>
-      <div className="mt-auto rounded-card bg-bg p-3"><p className="font-semibold">{user?.nickname ?? "선배"}</p><p className="mt-1 text-xs text-muted">완료 {stats?.completedSessions ?? "–"}회 · 평균 {stats?.averageScore ?? "–"}점</p><button className="mt-3 text-xs font-semibold text-muted underline hover:text-ink" onClick={logout}>로그아웃</button></div>
-    </aside>
-    <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-10 lg:py-10"><div className="mx-auto max-w-6xl">{children}</div></main>
-  </div>;
+function RouteGate({ children, pathname }: { children: ReactNode; pathname: string }) {
+  const search = useSearchParams();
+  const onboardingMode = pathname === "/onboarding" ? search.get("mode") : null;
+  // Remount the gate before rendering a new route, including after logout/login.
+  // A previous route's ready state must never expose a protected page briefly.
+  return <AuthenticatedShell key={`${pathname}:${onboardingMode}`} pathname={pathname} onboardingMode={onboardingMode}>{children}</AuthenticatedShell>;
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  if (pathname === "/login") return <>{children}</>;
+  return <Suspense fallback={<AuthLoading />}><RouteGate pathname={pathname}>{children}</RouteGate></Suspense>;
 }

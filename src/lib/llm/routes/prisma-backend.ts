@@ -1,3 +1,4 @@
+import { parseTeachingChoices } from "../teaching-choices";
 /**
  * D's adapter for C's frozen Prisma schema. This file deliberately imports no
  * generated Prisma client: C passes its existing singleton and auth helper.
@@ -36,6 +37,7 @@ interface DbMaterial {
 }
 interface DbMessage {
   id: string;
+  teachingChoicesJson?: string | null;
   role: SessionRecord["messages"][number]["role"];
   stage: SessionRecord["messages"][number]["stage"];
   content: string;
@@ -224,6 +226,7 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
       messages: raw.messages.map((message) => ({
         messageId: message.id, role: message.role, stage: message.stage,
         content: message.content, excluded: message.excluded, createdAt: iso(message.createdAt),
+        ...(parseTeachingChoices(message.teachingChoicesJson) ? { teachingChoices: parseTeachingChoices(message.teachingChoicesJson) } : {}),
       })),
       exam: raw.exam && {
         examId: raw.exam.id, status: raw.exam.status,
@@ -375,7 +378,8 @@ async function persistSessionChildren(tx: PrismaTransaction, current: PrismaSess
     );
     if (!stored) lastMessageTime = createdAt.getTime();
     const data = { sessionId: next.sessionId, role: message.role, stage: message.stage,
-      content: message.content, excluded: message.excluded, createdAt };
+      content: message.content, excluded: message.excluded, createdAt,
+      teachingChoicesJson: message.teachingChoices ? JSON.stringify(message.teachingChoices) : null };
     await tx.message.upsert({ where: { id: message.messageId }, create: { id: message.messageId, ...data }, update: data });
   }
   if (next.exam) {

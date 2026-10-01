@@ -67,7 +67,8 @@ test("Prisma adapter round trip preserves turn order when appended messages shar
     { messageId: "msg_z_user", role: "USER", stage: "ANSWER", content: "이번 설명", excluded: false, createdAt: historicalTime },
     { messageId: "msg_y_reaction", role: "JUNIOR", stage: "REACTION", content: "첫 반응", excluded: false, createdAt: historicalTime },
     { messageId: "msg_x_reaction", role: "JUNIOR", stage: "REACTION", content: "두 번째 반응", excluded: false, createdAt: historicalTime },
-    { messageId: "msg_w_question", role: "JUNIOR", stage: "QUESTION", content: "다음 질문", excluded: false, createdAt: historicalTime },
+    { messageId: "msg_w_question", role: "JUNIOR", stage: "QUESTION", content: "다음 질문", excluded: false, createdAt: historicalTime,
+      teachingChoices: [{ id: "a", text: "자료에서 가져온 설명" }, { id: "b", text: "반대로 가르치는 설명" }] },
   ];
   const committed = await backend.commitSession(previous, {
     ...previous,
@@ -79,6 +80,9 @@ test("Prisma adapter round trip preserves turn order when appended messages shar
   assert.deepEqual(committed.messages.map((message) => message.messageId), expectedIds);
   assert.deepEqual(reloaded.messages.map((message) => message.messageId), expectedIds);
   assert.deepEqual(reloaded.messages.slice(0, 2), previous.messages, "historical timestamps are never rewritten");
+  assert.deepEqual(reloaded.messages.at(-1)?.teachingChoices, appended.at(-1)?.teachingChoices);
+  assert.deepEqual(backend.toSessionDto(reloaded).messages.at(-1)?.teachingChoices, appended.at(-1)?.teachingChoices);
+  assert.ok(messages.get("msg_w_question")?.teachingChoicesJson);
   const times = reloaded.messages.map((message) => Date.parse(message.createdAt));
   for (let index = 2; index < times.length; index += 1) assert.ok(times[index] > times[index - 1], "new messages have unambiguous database ordering");
   assert.deepEqual(reloaded.messages.filter((message) => message.role === "USER").map((message) => message.content), ["이전 설명", "이번 설명"]);
@@ -122,12 +126,17 @@ test("game snapshot, objective choices, exam format and mastery round trip on C'
       ...before,
       status: "EXPLAINING",
       objectives: [{ id: "o1", text: "수요 법칙" }],
+      messages: [{ messageId: `${sessionId}_choice`, role: "JUNIOR", stage: "QUESTION", content: "선배님, 무엇을 알려주실 건가요?",
+        excluded: false, createdAt: new Date().toISOString(), teachingChoices: [{ id: "c1", text: "수요량이 줄어든다." }, { id: "c2", text: "수요량이 늘어난다." }] }],
       exam: {
         examId, status: "READY", answers: [], grades: [],
         questions: [{ qid: "q1", order: 1, points: 34, question: "수요 법칙은?", objectiveRef: "o1", rubric: "2", choices } as never],
       },
       game: { ...game!, mastery: [{ concept: "수요 법칙", exposureCount: 2, mastery: 140 }] },
     } as never);
+    const teachingMessage = await db.message.findUnique({ where: { id: `${sessionId}_choice` } });
+    assert.deepEqual(JSON.parse(teachingMessage?.teachingChoicesJson ?? "null"), committed.messages[0].teachingChoices);
+    assert.deepEqual(backend.toSessionDto(committed).messages[0].teachingChoices, committed.messages[0].teachingChoices);
     const row = await db.examQuestion.findUnique({ where: { id: `${examId}:q1` } });
     assert.deepEqual(JSON.parse(row?.choicesJson ?? "null"), choices);
     assert.equal((await db.exam.findUnique({ where: { id: examId } }))?.format, "OBJECTIVE");

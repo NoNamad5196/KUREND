@@ -13,7 +13,7 @@ import { LifeHearts } from "./LifeHearts";
 import type { JuniorCharacter, LifeResult } from "./types";
 import "./game.css";
 
-const COLORS = ["#F4B942", "#1F6F5B", "#E07A6E", "#8FD0F0", "#F6E6C8", "#C77A12"];
+const COLORS = ["var(--accent)", "var(--primary)", "var(--line)", "var(--muted)", "var(--surface)", "var(--ok)"];
 
 export function Confetti({ count = 60 }: { count?: number }) {
   return (
@@ -71,7 +71,6 @@ export function ResultOverlay({
     <div className="ro-backdrop" role="dialog" aria-modal="true" aria-labelledby="ro-title">
       {kind !== "failed" && <Confetti count={kind === "perfect" ? 90 : 40} />}
       <div className={clsx("ro-card", `ro-${kind}`)}>
-        {kind !== "failed" && <div className="ro-rays" aria-hidden="true" />}
         <div className="ro-card-inner relative px-6 pb-6 pt-8 text-center">
           <div className="mx-auto h-[150px]">
             <JuniorAvatar character={character} size={150} mood={kind === "failed" ? "sad" : "happy"} pose={kind === "perfect" ? "jump" : undefined} enter />

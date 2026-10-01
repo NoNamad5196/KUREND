@@ -1,3 +1,4 @@
+import { parseTeachingChoices } from "@/lib/llm/teaching-choices";
 /**
  * [C 소유] 세션/결과 DTO 변환. D 의 스트리밍 라우트도 import 해서 같은 모양으로 응답한다.
  *
@@ -58,6 +59,7 @@ export function toMessageDto(m: SessionWithRelations["messages"][number]): Messa
     role: m.role as MessageDto["role"],
     stage: m.stage as MessageDto["stage"],
     content: m.content,
+    ...(parseTeachingChoices(m.teachingChoicesJson) ? { teachingChoices: parseTeachingChoices(m.teachingChoicesJson) } : {}),
     createdAt: m.createdAt.toISOString(),
   };
 }

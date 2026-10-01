@@ -43,7 +43,7 @@ export default function GraduationPage() {
   return (
     <>
       <GraduationScene character={state.character} summary={state.summary} albumHref="/album" nextHref={state.materialId ? `/materials/${encodeURIComponent(state.materialId)}/junior` : "/"} />
-      {state.error && !state.summary && <p role="alert" className="fixed inset-x-0 bottom-4 z-[96] mx-auto w-fit rounded-sm bg-danger-soft px-4 py-2 text-sm text-danger shadow-card">{state.error}</p>}
+      {state.error && !state.summary && <p role="alert" className="fixed inset-x-0 bottom-4 z-[96] mx-auto w-fit rounded-sm bg-danger-soft px-4 py-2 text-sm text-danger">{state.error}</p>}
     </>
   );
 }

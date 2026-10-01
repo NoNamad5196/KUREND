@@ -8,7 +8,7 @@ import { Mascot } from "@/components/mascot/Mascot";
 import { Button, EmptyState, toast } from "@/components/session/ui";
 
 export function PageLoading({ text = "학습 기록을 불러오는 중이에요" }: { text?: string }) {
-  return <div className="flex min-h-72 flex-col items-center justify-center gap-4" role="status"><Mascot state="thinking" typing /><p className="text-sm text-muted">{text}</p></div>;
+  return <div className="page-enter flex min-h-[50vh] flex-col items-center justify-center gap-6" role="status"><p className="editorial-label text-muted">A MOMENT TO THINK</p><Mascot state="thinking" size={144} typing /><p className="text-center text-sm leading-6 text-muted">{text}</p></div>;
 }
 export function PageError({ message, retry }: { message: string; retry: () => void }) {
   return <EmptyState title="잠시 멈췄어요" description={message} action={<Button variant="secondary" onClick={retry}>다시 시도</Button>} />;

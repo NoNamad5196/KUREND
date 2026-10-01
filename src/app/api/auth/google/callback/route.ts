@@ -1,4 +1,4 @@
-// GET /api/auth/google/callback?code=&state= → 토큰 교환 → User upsert → 세션 쿠키 → /
+// GET /api/auth/google/callback?code=&state= → 로그인 → 신규 가입만 온보딩, 기존 계정은 홈
 import { db } from "@/lib/server/db";
 import { readCookie, sessionCookieHeader } from "@/lib/server/auth";
 import { exchangeGoogleCode, googleNickname, googleOAuthConfig, googleUserId, OAUTH_STATE_COOKIE, requestOrigin } from "@/lib/server/google-oauth";
@@ -19,8 +19,11 @@ export async function GET(req: Request) {
     const profile = await exchangeGoogleCode(req, code);
     const id = googleUserId(profile.sub);
     const nickname = googleNickname(profile);
+    const existingUser = await db.user.findUnique({ where: { id }, select: { id: true } });
     await db.user.upsert({ where: { id }, create: { id, nickname }, update: { nickname } });
-    const headers = new Headers({ location: `${origin}/` });
+    // 미완료 기록이 있어도 재로그인에서는 온보딩을 자동으로 다시 열지 않는다.
+    const destination = existingUser ? "/" : "/onboarding?mode=signup";
+    const headers = new Headers({ location: `${origin}${destination}` });
     headers.append("set-cookie", sessionCookieHeader(id));
     headers.append("set-cookie", `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
     return new Response(null, { status: 302, headers });

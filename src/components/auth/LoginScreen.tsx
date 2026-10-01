@@ -1,19 +1,9 @@
 "use client";
-/**
- * KUREND 로그인 화면. Google OAuth 는 서버에 GOOGLE_CLIENT_ID/SECRET 이 있을 때만 활성화(/api/auth/google/status).
- * 지금은 체험 계정(/auth/demo-accounts → /auth/demo-login)으로 로그인한다.
- * TODO(A 머지 후): `@/components/session/_api` → `@/lib/client/api`, `@/components/session/ui` → `@/components/shell/ui`.
- */
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { DemoAccountDto } from "@/contracts/types";
-import { Mascot } from "@/components/mascot/Mascot";
-import { api } from "@/components/session/_api";
-import { Card, Chip, Spinner, Toaster, toast } from "@/components/session/ui";
+/** KUREND 로그인 화면. Google OAuth 진입과 콜백 오류 안내를 제공한다. */
+import { useEffect } from "react";
+import { JuniorAvatar } from "@/components/game/JuniorAvatar";
+import { Toaster, toast } from "@/components/session/ui";
 import "./login.css";
-
-const ORBIT = ["수요 법칙", "PCB", "탄력성", "RR 스케줄링", "정상재", "컨텍스트 스위칭"];
-const DEMO_HINT: Record<string, string> = { usr_demo1: "자료 2개 · 완료 세션 1개", usr_demo2: "빈 계정에서 시작", usr_demo3: "빈 계정에서 시작" };
 
 function GoogleMark() {
   return (
@@ -27,16 +17,12 @@ function GoogleMark() {
 }
 
 export function LoginScreen() {
-  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
-  useEffect(() => {
-    api.get<{ enabled: boolean }>("/auth/google/status").then((r) => setGoogleEnabled(r.enabled)).catch(() => setGoogleEnabled(false));
-  }, []);
   useEffect(() => {
     // 정적 프리렌더 페이지라 useSearchParams 대신 브라우저에서 직접 읽는다 (?error= 는 Google 콜백이 붙인다)
     const code = new URLSearchParams(window.location.search).get("error");
     if (!code) return;
     const message: Record<string, string> = {
-      google_unavailable: "Google 로그인이 아직 설정되지 않았어요. 체험 계정으로 둘러보세요.",
+      google_unavailable: "지금은 Google 로그인에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.",
       google_denied: "Google 로그인이 취소됐어요.",
       google_state: "로그인 요청이 만료됐어요. 다시 시도해 주세요.",
       google_failed: "Google 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.",
@@ -44,132 +30,49 @@ export function LoginScreen() {
     toast(message[code] ?? "로그인에 실패했어요.", "error");
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
-  const router = useRouter();
-  const [accounts, setAccounts] = useState<DemoAccountDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .get<DemoAccountDto[]>("/auth/demo-accounts")
-      .then(setAccounts)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "체험 계정을 불러오지 못했습니다."));
-  }, []);
-
-  async function login(userId: string) {
-    setBusy(userId);
-    setError(null);
-    try {
-      await api.post("/auth/demo-login", { userId });
-      router.replace("/");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "로그인에 실패했습니다. 다시 시도해 주세요.");
-      setBusy(null);
-    }
-  }
 
   return (
-    <main className="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-10 lg:grid-cols-[1fr_440px]">
-      {/* 아트 패널 */}
-      <div
-        aria-hidden
-        className="relative hidden min-h-[480px] place-items-center overflow-hidden rounded-[28px] lg:grid"
-        style={{ background: "radial-gradient(circle at 50% 58%, var(--primary-soft), transparent 66%)" }}
-      >
-        <div className="kl-orbit">
-          {ORBIT.map((w, i) => {
-            const deg = (360 / ORBIT.length) * i;
-            return (
-              <span key={w} style={{ transform: `translate(-50%,-50%) rotate(${deg}deg) translate(165px) rotate(${-deg}deg)` }}>
-                <span className="whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-muted shadow-card">{w}</span>
-              </span>
-            );
-          })}
-        </div>
-        <div className="kl-mascot relative">
-          <div className="kl-float">
-            <Mascot state="cheer" size={220} label="환영하는 새내기" />
+    <main className="kl-page page-enter">
+      <header className="kl-header">
+        <span className="kl-wordmark">KUREND<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></span>
+        <span className="editorial-label">A CAMPUS FOR THE WAY YOU LEARN</span>
+      </header>
+      <div className="kl-layout">
+        <section className="kl-story" aria-labelledby="login-title">
+          <p className="editorial-label">LEARN BY TEACHING · KUREND</p>
+          <h1 id="login-title">가르치는 순간,<br /><span>내 공부가 된다.</span></h1>
+          <p className="kl-intro">내가 선배가 되는 새로운 공부.<br />후배에게 설명하며, 배운 내용을 내 지식으로 만들어요.</p>
+          <div className="kl-art" aria-label="함께 공부할 남학생, 여학생, KU 후배">
+            <div className="kl-art-field" aria-hidden="true"><span>YOUR<br />NEXT CHAPTER.</span></div>
+            <span className="kl-art-note">이제, 선배 차례예요.</span>
+            <JuniorAvatar character="MALE_EASY" size={300} className="kl-character kl-character-male" />
+            <JuniorAvatar character="FEMALE_NORMAL" size={280} className="kl-character kl-character-female" />
+            <JuniorAvatar character="KU_HARD" size={190} className="kl-character kl-character-ku" />
+            <span className="kl-art-caption">MEET YOUR JUNIORS <span aria-hidden="true">↗</span></span>
           </div>
-        </div>
-        <p className="absolute bottom-3 left-0 right-0 text-center font-hand text-2xl text-primary">가르친 만큼 아는 새내기</p>
-      </div>
+        </section>
 
-      {/* 로그인 카드 */}
-      <Card className="kl-card space-y-4 p-7 sm:p-8">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-primary text-sm font-black text-primary-ink">K</span>
-          <span className="text-xl font-extrabold tracking-tight">KUREND</span>
-          <span className="ml-auto lg:hidden">
-            <Mascot state="idle" size={56} />
-          </span>
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight [text-wrap:balance]">처음 뵙겠습니다, 선배</h1>
-          <p className="mt-2 leading-7 text-muted">가르친 만큼만 아는 새내기가 선배의 설명을 기다리고 있습니다.</p>
-        </div>
+        <section className="kl-access" aria-labelledby="login-access-title">
+          <div className="kl-access-heading">
+            <p className="editorial-label">LET’S GET STARTED</p>
+            <h2 id="login-access-title">선배, 어서 오세요.</h2>
+            <p>공부한 내용을 AI 후배에게 직접 설명해요.<br />후배는 내가 가르친 내용만으로 시험을 봐요.</p>
+          </div>
 
-        {googleEnabled ? (
-          <a
-            href="/api/auth/google"
-            className="flex h-12 w-full items-center gap-3 rounded-sm border border-line bg-surface px-4 text-[15px] font-semibold transition hover:bg-bg focus-visible:outline-2 focus-visible:outline-primary"
-          >
+          <a href="/api/auth/google" className="kl-google">
             <GoogleMark />
             <span className="whitespace-nowrap">Google로 계속하기</span>
             <span className="ml-auto text-muted" aria-hidden="true">→</span>
           </a>
-        ) : (
-          <button
-            type="button"
-            onClick={() => toast(googleEnabled === null ? "잠시만요, 로그인 설정을 확인하는 중이에요." : "Google 로그인이 아직 설정되지 않았어요. 체험 계정으로 둘러보세요.")}
-            className="flex h-12 w-full items-center gap-3 rounded-sm border border-line bg-surface px-4 text-[15px] font-semibold transition hover:bg-bg focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            <GoogleMark />
-            <span className="whitespace-nowrap">Google로 계속하기</span>
-            <Chip tone="muted" className="ml-auto">
-              {googleEnabled === null ? "확인 중" : "준비 중"}
-            </Chip>
-          </button>
-        )}
-
-        <div className="flex items-center gap-3 text-xs text-muted before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
-          또는 체험 계정으로 둘러보기
-        </div>
-
-        <div className="space-y-2" aria-busy={!accounts && !error}>
-          {!accounts && !error && (
-            <p className="flex items-center gap-2 py-3 text-sm text-muted" role="status">
-              <Spinner /> 체험 계정을 불러오는 중…
-            </p>
-          )}
-          {accounts?.map((a, i) => (
-            <button
-              key={a.userId}
-              type="button"
-              disabled={!!busy}
-              onClick={() => void login(a.userId)}
-              className="kl-demo kurend-rise grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 rounded-sm border border-line bg-surface px-3 py-2.5 text-left hover:border-primary hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-60"
-              style={{ animationDelay: `${0.25 + i * 0.07}s` }}
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-[13px] font-extrabold text-[#8A5A00]">
-                {a.nickname.replace(/\s/g, "").slice(0, 1)}
-                {a.nickname.match(/\d+/)?.[0] ?? ""}
-              </span>
-              <span className="min-w-0">
-                <span className="block font-semibold">{a.nickname}</span>
-                <span className="block truncate text-xs text-muted">{DEMO_HINT[a.userId] ?? "체험 계정"}</span>
-              </span>
-              <span className="kl-go font-extrabold text-primary">{busy === a.userId ? <Spinner /> : "→"}</span>
-            </button>
-          ))}
-          {error && (
-            <p className="rounded-sm bg-danger-soft p-3 text-sm text-danger" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-        <p className="text-xs leading-5 text-muted">{googleEnabled ? <>Google 계정으로 로그인하면 내 자료와 후배 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></> : "학교 계정 연동은 곧 열립니다. 지금은 체험 계정으로 모든 기능을 써 볼 수 있어요."}</p>
-      </Card>
+          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
+        </section>
+      </div>
+      <footer className="kl-footer">
+        <span className="editorial-label">TEACH IT. MAKE IT YOURS.</span>
+        <ol aria-label="KUREND 학습 흐름">
+          {["자료 올리기", "후배 선택", "직접 설명", "후배 시험", "오답 · 다시 가르치기"].map((step, index) => <li key={step}><span className="kl-flow-index">0{index + 1}</span>{step}{index < 4 && <span className="kl-flow-arrow" aria-hidden="true">↗</span>}</li>)}
+        </ol>
+      </footer>
       <Toaster />
     </main>
   );

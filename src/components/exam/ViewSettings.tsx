@@ -51,9 +51,9 @@ export function ViewSettingsMenu({ value, onChange, className }: { value: ExamVi
     document.addEventListener("keydown", escape);
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, [open]);
-  return <div ref={root} className={clsx("relative", className)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+  return <div ref={root} className={clsx("relative ml-auto", className)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
     <Button variant="secondary" className="min-h-11" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>보기 설정 ▾</Button>
-    {open && <fieldset id={id} className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-card border border-line bg-surface p-3 shadow-card">
+    {open && <fieldset id={id} className="absolute right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-sm border border-ink/20 bg-surface p-3">
       <legend className="sr-only">시험 보기 설정</legend>
       {([["showThought", "속마음 보기"], ["instant", "한 번에 보기"], ["autoAdvance", "자동 진행"]] as const).map(([key, label]) => (
         <label key={key} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-sm px-2 text-sm hover:bg-bg">

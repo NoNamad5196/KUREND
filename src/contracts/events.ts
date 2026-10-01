@@ -3,7 +3,7 @@
  * 와이어 포맷: text/event-stream; 첫 줄 ": connected", 이벤트는 "event: <name>\ndata: <JSON>\n\n",
  * 15초마다 ": ping", 오류는 event: error 후 종료, 마지막은 항상 event: done.
  */
-import type { FinalVerdict, GapDto, GradeVerdict, RecallLevel, SessionDto } from "./types";
+import type { FinalVerdict, GapDto, GradeVerdict, RecallLevel, SessionDto, TeachingChoiceDto } from "./types";
 
 export type SseEvent =
   // 6-1 목차 생성 /materials/{id}/generate
@@ -17,7 +17,7 @@ export type SseEvent =
   | { event: "junior.doubt"; data: { messageId: string; content: string } } // ★ 되묻기. 이 턴은 여기서 종료(question 없음)
   | { event: "junior.token"; data: { token: string } } // 문장 단위
   | { event: "junior.message"; data: { messageId: string; stage: "REACTION"; content: string } }
-  | { event: "junior.question"; data: { messageId: string; content: string; coveredObjectives: string[] } }
+  | { event: "junior.question"; data: { messageId: string; content: string; coveredObjectives: string[]; teachingChoices?: TeachingChoiceDto[] } }
   // 6-4 시험 답안 /sessions/{id}/exam/answers
   | { event: "answer.sources"; data: { qid: string; sources: Array<{ ref: number; content: string }> } } // ref = USER 메시지 순번(1-base)
   | { event: "answer.thought"; data: { qid: string; token: string; closed: boolean } } // 글자 단위 속마음

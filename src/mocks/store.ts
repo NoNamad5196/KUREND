@@ -94,7 +94,7 @@ export type MaterialRec = {
   createdAt: string;
 };
 type Store = {
-  users: DemoAccountDto[];
+  users: (DemoAccountDto & { onboardingCompletedAt: string | null })[];
   materials: Map<string, MaterialRec>;
   sources: Map<string, SourceRec>;
   chapters: Map<string, ChapterRec>;
@@ -106,9 +106,9 @@ type Store = {
 function seed(): Store {
   const s: Store = {
     users: [
-      { userId: "usr_demo1", nickname: "체험 1" },
-      { userId: "usr_demo2", nickname: "체험 2" },
-      { userId: "usr_demo3", nickname: "체험 3" },
+      { userId: "usr_demo1", nickname: "체험 1", onboardingCompletedAt: "2026-09-28T09:00:00.000Z" },
+      { userId: "usr_demo2", nickname: "체험 2", onboardingCompletedAt: null },
+      { userId: "usr_demo3", nickname: "체험 3", onboardingCompletedAt: null },
     ],
     materials: new Map(),
     sources: new Map(),

@@ -67,7 +67,7 @@ export function SourceDrawer({
       idx >= 0 ? (
         <>
           {data.text.slice(0, idx)}
-          <mark ref={markRef} className="kurend-mark rounded bg-accent-soft px-0.5 text-ink ring-2 ring-accent/60">
+          <mark ref={markRef} className="kurend-mark border-b border-primary bg-accent-soft px-0.5 text-ink">
             {highlight}
           </mark>
           {data.text.slice(idx + (highlight?.length ?? 0))}

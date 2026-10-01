@@ -3,9 +3,12 @@ import { z } from "zod";
 import {
   ExplanationRequestSchema, ExamAnswerRequestSchema, SessionSchema,
   TutorRequestSchema, TUTOR_PRESET_REQUEST, finalVerdictFor,
-  type AnswerSentenceDto, type GapDto,
+  type AnswerSentenceDto, type GapDto, TeachingChoicesSchema,
 } from "@/contracts/types";
 import type { SseEvent } from "@/contracts/events";
+import { objectiveTopic, teachingChoicesFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
+import { normalizePersonaAddress, personaQuestion } from "@/lib/llm/personas";
+import type { ConceptMasteryDto } from "@/contracts/game";
 import type { Llm, TaughtMsg } from "@/lib/llm";
 import { createSse } from "@/lib/server/sse";
 import {
@@ -194,7 +197,24 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
       const release = acquire(`session:${id}`);
       return stream(request, release, async (send) => {
         if (session.status === "EXPLAINING") {
-          send("ready", { session: safeSessionDto(backend, session) });
+          let resumed = session;
+          const last = session.messages.at(-1);
+          if (session.game?.character === "MALE_EASY" && session.phase === "QUESTION"
+            && last?.role === "JUNIOR" && last.stage === "QUESTION" && !last.teachingChoices
+            && !session.objectives.every((objective) => session.game!.mastery.some((item) => item.concept === objectiveTopic(objective) && item.mastery >= 100))) {
+            const objective = matchQuestionObjective(session.objectives, last.content)
+              ?? session.objectives.find((item) => !session.heardConcepts.includes(objectiveTopic(item)));
+            if (objective) {
+              const topic = objectiveTopic(objective);
+              const teachingChoices = teachingChoicesFor(session.chapter, topic);
+              if (teachingChoices.length) resumed = await saveSession(request, session, { ...session,
+                messages: session.messages.map((item) => item.messageId === last.messageId ? {
+                  ...item, content: personaQuestion(topic, "MALE_EASY"), teachingChoices,
+                } : item),
+              });
+            }
+          }
+          send("ready", { session: safeSessionDto(backend, resumed) });
           return;
         }
         const started = Date.now();
@@ -210,7 +230,11 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           || (session.game?.examFormat === "OBJECTIVE" && prepared.questions.some((item) =>
             item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric)))) modelFailure();
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
-        const firstQuestion = message("JUNIOR", "QUESTION", prepared.firstQuestion);
+        const firstQuestion = message("JUNIOR", "QUESTION", normalizePersonaAddress(prepared.firstQuestion, session.game?.character));
+        if (session.game?.character === "MALE_EASY") {
+          const choices = prepared.firstTeachingChoices ?? teachingChoicesFor(session.chapter, objectiveTopic(prepared.objectives[0]));
+          if (choices.length) firstQuestion.teachingChoices = TeachingChoicesSchema.parse(choices);
+        }
         send("progress", { step: "GREETING", message: "새내기가 선배의 설명을 기다리고 있어요.", elapsedMs: Date.now() - started });
         const saved = await saveSession(request, session, {
           ...session, status: "EXPLAINING", phase: "QUESTION", error: null,
@@ -239,10 +263,10 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         let concepts: { heardConcepts: string[]; added: string[] } | undefined;
         let doubt: MessageRecord | undefined;
         const reactions: MessageRecord[] = [];
-        let question: { record: MessageRecord; coveredObjectives: string[] } | undefined;
+        let question: { record: MessageRecord; coveredObjectives: string[]; mastery?: ConceptMasteryDto[] } | undefined;
         for await (const event of llm.juniorTurn({
           chapter: session.chapter, level: session.juniorLevel, persona: session.game?.character, objectives: session.objectives,
-          heardConcepts: session.heardConcepts, history, explanation: body.content,
+          heardConcepts: session.heardConcepts, history, explanation: body.content, mastery: session.game?.mastery,
         })) {
           checkActive(request);
           if (event.type === "concepts") {
@@ -261,7 +285,9 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           } else if (event.type === "question") {
             if (!concepts || doubt || !reactions.length || question || !event.content.trim()
               || event.coveredObjectives.some((ref) => !session.objectives.some((objective) => objective.id === ref))) modelFailure();
-            question = { record: message("JUNIOR", "QUESTION", event.content), coveredObjectives: event.coveredObjectives };
+            const record = message("JUNIOR", "QUESTION", normalizePersonaAddress(event.content, session.game?.character));
+            if (session.game?.character === "MALE_EASY" && event.teachingChoices?.length) record.teachingChoices = TeachingChoicesSchema.parse(event.teachingChoices);
+            question = { record, coveredObjectives: event.coveredObjectives, mastery: event.mastery };
           }
         }
         if (!concepts || (!doubt && (!reactions.length || !question))) modelFailure();
@@ -270,11 +296,14 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const juniorMessages = doubt ? [doubt] : [...reactions, question!.record];
         await saveSession(request, session, {
           ...session, heardConcepts: concepts.heardConcepts, error: null, messages: [...session.messages, ...juniorMessages],
+          ...(session.game && question?.mastery ? { game: { ...session.game, mastery: question.mastery } } : {}),
         });
         if (doubt) send("junior.doubt", { messageId: doubt.messageId, content: doubt.content });
         else {
           for (const reaction of reactions) send("junior.message", { messageId: reaction.messageId, stage: "REACTION", content: reaction.content });
-          send("junior.question", { messageId: question!.record.messageId, content: question!.record.content, coveredObjectives: question!.coveredObjectives });
+          send("junior.question", { messageId: question!.record.messageId, content: question!.record.content, coveredObjectives: question!.coveredObjectives,
+            ...(question!.record.teachingChoices ? { teachingChoices: question!.record.teachingChoices } : {}),
+          });
         }
       });
     },

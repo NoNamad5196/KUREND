@@ -7,32 +7,32 @@ import type { ReactNode } from "react";
 import { Button, Drawer, Spinner } from "@/components/session/ui";
 import type { TeacherNote } from "./types";
 
-function Section({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
+function Section({ title, index, children }: { title: string; index: string; children: ReactNode }) {
   return (
-    <section className="rounded-card border border-line bg-bg/60 p-4">
-      <h3 className="flex items-center gap-2 text-sm font-black">
-        <span aria-hidden="true">{icon}</span>
+    <section className="border-t border-line py-5 first:border-t-0 first:pt-0 last:pb-0">
+      <h3 className="flex items-baseline gap-3 text-sm font-semibold text-primary">
+        <span aria-hidden="true" className="font-mono text-[10px] font-normal text-muted">{index}</span>
         {title}
       </h3>
-      <div className="mt-2 text-[15px] leading-7">{children}</div>
+      <div className="mt-3 text-[15px] leading-7">{children}</div>
     </section>
   );
 }
 
 export function TeacherNoteBody({ note }: { note: TeacherNote }) {
   return (
-    <div className="space-y-3">
-      <Section title="이번에 가르쳐야 할 것" icon="📌">
+    <div className="text-ink [overflow-wrap:anywhere]">
+      <Section title="이번에 가르쳐야 할 것" index="01">
         <ol className="list-decimal space-y-1 pl-5">{note.mustTeach.map((t) => <li key={t}>{t}</li>)}</ol>
       </Section>
-      <Section title="이것만은 알고 가기" icon="✅">
+      <Section title="이것만은 알고 가기" index="02">
         <ul className="list-disc space-y-1 pl-5">{note.keyTakeaways.map((t) => <li key={t}>{t}</li>)}</ul>
       </Section>
-      <Section title="헷갈리기 쉬운 부분" icon="⚠️">
+      <Section title="헷갈리기 쉬운 부분" index="03">
         <ul className="space-y-1">{note.confusing.map((t) => <li key={t}>{t}</li>)}</ul>
       </Section>
-      <Section title="후배가 물어볼 수 있는 질문" icon="💬">
-        <ul className="space-y-2">{note.likelyQuestions.map((t) => <li key={t} className="rounded-sm bg-accent-soft px-3 py-1.5 text-sm">“{t}”</li>)}</ul>
+      <Section title="후배가 물어볼 수 있는 질문" index="04">
+        <ul className="space-y-3">{note.likelyQuestions.map((t) => <li key={t} className="border-l border-primary pl-3 text-sm">“{t}”</li>)}</ul>
       </Section>
     </div>
   );

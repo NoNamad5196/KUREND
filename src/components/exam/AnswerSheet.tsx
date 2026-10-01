@@ -15,26 +15,25 @@ export function AnswerSheet({ courseName, title = "2026학년도 KUREND 학력�
   instant?: boolean; typingSpeedMs?: number; onTypingDone?: (qid: string) => void; className?: string;
 }) {
   return (
-    <section aria-label="새내기 답안지" className={clsx("min-w-0 rounded-card border border-paper-rule bg-paper p-5 text-paper-ink shadow-card sm:p-8", className)}>
-      <header className="border-b-2 border-paper-rule pb-5">
-        <p className="mb-2 text-center text-xs tracking-widest text-muted">가르친 만큼, 기억한 만큼</p>
-        <h2 className="text-balance text-center text-xl font-bold sm:text-2xl">{title}</h2>
-        <dl className="mt-5 grid grid-cols-2 divide-x divide-paper-rule border border-paper-rule text-sm sm:grid-cols-3">
-          <div className="p-3"><dt className="text-xs text-muted">성명</dt><dd className="mt-1 font-semibold">새내기</dd></div>
-          <div className="min-w-0 p-3"><dt className="text-xs text-muted">과목</dt><dd className="mt-1 break-words font-semibold">{courseName}</dd></div>
-          <div className="col-span-2 border-t border-paper-rule p-3 sm:col-span-1 sm:border-t-0"><dt className="text-xs text-muted">배점</dt><dd className="mt-1 font-semibold tabular-nums">100점</dd></div>
+    <section aria-label="새내기 답안지" className={clsx("min-w-0 rounded-sm border border-paper-rule bg-paper p-5 text-paper-ink sm:p-8 lg:p-10", className)}>
+      <header className="border-b border-paper-rule pb-6">
+        <p className="editorial-label mb-3 text-muted">KUREND EXAM · 가르친 만큼, 기억한 만큼</p>
+        <h2 className="text-balance text-lg font-semibold tracking-tight sm:text-xl">{title}</h2>
+        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+          <div><dt className="text-[11px] text-muted">성명</dt><dd className="mt-1.5 font-medium">새내기</dd></div>
+          <div className="min-w-0"><dt className="text-[11px] text-muted">과목</dt><dd className="mt-1.5 break-words font-medium">{courseName}</dd></div>
+          <div><dt className="text-[11px] text-muted">배점</dt><dd className="mt-1.5 font-medium tabular-nums">100점</dd></div>
         </dl>
       </header>
       <div className="divide-y divide-paper-rule">
         {items.map((item) => (
-          <article key={item.qid} className="py-6" aria-label={`${item.order}번 문항`}>
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-7 sm:text-base">
-                <span className="mr-2 tabular-nums">{item.order}.</span><span className="mr-2 text-muted">[{item.points}점]</span>{item.question}
-              </h3>
+          <article key={item.qid} className="py-8 sm:py-10" aria-label={`${item.order}번 문항`}>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="editorial-label flex items-baseline gap-3 text-muted"><span className="text-3xl font-medium tracking-tighter text-ink tabular-nums">{String(item.order).padStart(2, "0")}</span><span>{item.points} POINTS</span></p>
               {item.badge}
             </div>
-            {item.choices && item.choices.length > 0 && <Choices choices={item.choices} answer={item.status === "done" || item.qid !== activeQid ? item.text : undefined} className="mb-4" />}
+            <h3 className="mb-7 break-words text-xl font-semibold leading-relaxed tracking-tight sm:text-2xl">{item.question}</h3>
+            {item.choices && item.choices.length > 0 && <Choices choices={item.choices} answer={item.status === "done" || item.qid !== activeQid ? item.text : undefined} className="mb-7" />}
             <div className={clsx(item.choices?.length ? "min-h-20" : "min-h-36 break-words whitespace-pre-wrap px-2 font-hand text-xl leading-9 sm:text-2xl", item.unlearned && "underline decoration-danger decoration-2 underline-offset-4")}
               style={{ backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 35px, var(--paper-rule) 35px, var(--paper-rule) 36px)" }}>
               {item.qid === activeQid && item.status === "writing" ? (
@@ -42,7 +41,7 @@ export function AnswerSheet({ courseName, title = "2026학년도 KUREND 학력�
               ) : item.text || <span className="font-sans text-sm text-muted">{item.status === "writing" ? "답을 떠올리고 있어요…" : "아직 작성하지 않았어요"}</span>}
             </div>
             {item.unlearned && <Chip tone="danger" className="mt-3">못 들은 부분</Chip>}
-            {item.extra && <div className="mt-4">{item.extra}</div>}
+            {item.extra && <div className="mt-6 border-t border-paper-rule pt-5">{item.extra}</div>}
           </article>
         ))}
       </div>

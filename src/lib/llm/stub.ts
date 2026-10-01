@@ -6,7 +6,11 @@ import economicsDemo from "../../../fixtures/demo.economics.json";
 import osTeacherNotes from "./fixtures/teacher-notes.os.json";
 import econTeacherNotes from "./fixtures/teacher-notes.econ.json";
 import type { ChapterText, Llm, TaughtMsg } from "./types";
-import { personaFor } from "./personas";
+import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
+import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, selectedTeachingObjective } from "./teaching-choices";
+import { advanceMastery } from "./mastery";
+import { isUnlearnedAnswer } from "./text";
+import { acceptedExplanations } from "./turn-state";
 
 type Yielded<T> = T extends AsyncIterable<infer E> ? E : never;
 type TurnEvent = Yielded<ReturnType<Llm["juniorTurn"]>>;
@@ -91,7 +95,7 @@ function splitSentences(text: string): string[] {
 function selectedSources(question: string, taught: TaughtMsg[]): TaughtMsg[] {
   const topic = topicFor(question);
   const candidates = taught.filter((message) =>
-    Number.isInteger(message.ref) && message.ref > 0 && message.content.trim().length > 0 &&
+    Number.isInteger(message.ref) && message.ref > 0 && message.content.trim().length > 0 && !isUnknownTeaching(message.content) &&
     (topic ? relevantTo(topic, message.content) : genericRelevant(question, message.content)),
   );
   // A later correction supersedes an earlier statement about the same topic.
@@ -134,12 +138,6 @@ function covered(chapter: ChapterText, objectives: { id: string; text: string }[
     const topic = chapterTopic(chapter, index);
     return messages.some((content) => topic ? relevantTo(topic, content) : genericRelevant(objective.text, content));
   }).map((objective) => objective.id);
-}
-
-function objectiveTopic(objective: { text: string }): string {
-  // Prepared objectives define the turn order. Imported/seeded chapters may
-  // list their points in another order, so do not relabel them by point index.
-  return objective.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "").trim() || objective.text;
 }
 
 function plainTitle(text: string, fallback: string): string {
@@ -195,6 +193,29 @@ function withObjectiveChoices<T extends { questions: { qid: string; order: numbe
   }) };
 }
 
+/** Compare only exam options to USER evidence; position is never an answer key. */
+function chooseTaughtOption(choices: string[], sources: TaughtMsg[]): string {
+  if (!sources.length) return choices[0].slice(0, 1);
+  const taught = sources.map((source) => source.content).join(" ");
+  const negative = /맞지 않|성립하지 않|발생하지 않|아무 영향을 주지 않/u;
+  const increase = /가격.{0,15}(오르|올라|상승|높아).{0,20}수요량.{0,12}(늘|증가|많)/u;
+  const decrease = /가격.{0,15}(오르|올라|상승|높아).{0,20}수요량.{0,12}(줄|감소|적)/u;
+  const priceClauses = (text: string) => text.split(/[,;]|(?=가격)/u);
+  const rejects = [...taught.matchAll(/“([^”]+)”라는 설명은 맞지 않다/gu)].map((match) => match[1]);
+  const ranked = choices.map((option, index) => {
+    const content = option.replace(/^[①②③④]\s*/u, "");
+    const words = keywords(content);
+    let score = words.filter((word) => taught.includes(word)).length / Math.max(1, words.length);
+    if (taught.includes(content)) score += 2;
+    if (negative.test(taught) !== negative.test(content)) score -= 3;
+    if ((priceClauses(taught).some((clause) => increase.test(clause)) && priceClauses(content).some((clause) => decrease.test(clause)))
+      || (priceClauses(taught).some((clause) => decrease.test(clause)) && priceClauses(content).some((clause) => increase.test(clause)))) score -= 4;
+    if (rejects.some((claim) => claim.includes(content.replace(/[.!?]+$/u, "")))) score -= 10;
+    return { index, score };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
+  return choices[ranked[0].index].slice(0, 1);
+}
+
 export const stubLlm: Llm = {
   async generateTeacherNote({ chapter }) {
     await pause();
@@ -247,8 +268,12 @@ export const stubLlm: Llm = {
     const fixture = demoFor(chapter);
     if (fixture) {
       const output = structuredClone(fixture.prepare);
-      if (level === "HARD") output.firstQuestion = `${objectiveTopic(output.objectives[0])}부터 말해 줘. 받아쓸게.`;
-      return format === "OBJECTIVE" ? withObjectiveChoices(output, chapter) : output;
+      if (persona) output.firstQuestion = personaQuestion(objectiveTopic(output.objectives[0]), persona, true);
+      else if (level === "HARD") output.firstQuestion = `${objectiveTopic(output.objectives[0])}부터 말해 줘. 받아쓸게.`;
+      return { ...(format === "OBJECTIVE" ? withObjectiveChoices(output, chapter) : output),
+        ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, objectiveTopic(output.objectives[0])) } : {}),
+        ...(persona === "KU_HARD" ? { questions: output.questions.map((question, index) => index === 2 ? { ...question, question: `${question.question} 자료에 나온 이유나 비교도 함께 설명하세요.` } : question) } : {}),
+      };
     }
     const points = [...chapter.points.slice(0, 3)];
     while (points.length < 3) points.push(points.length === 0 ? chapter.title : points.length === 1 ? "핵심 내용" : "개념 사이의 연결");
@@ -259,14 +284,16 @@ export const stubLlm: Llm = {
         question: `${point}의 의미와 자료에서 제시한 근거를 설명하세요.`,
         objectiveRef: `o${index + 1}`, rubric: `${point}의 의미;자료 본문의 관련 근거`,
       })),
-      firstQuestion: level === "EASY" ? `선배, ${points[0]}부터 알려줄래?` : `${points[0]}부터 말해 줘. 받아쓸게.`,
+      firstQuestion: persona ? personaQuestion(points[0], persona, true) : level === "EASY" ? `선배, ${points[0]}부터 알려줄래?` : `${points[0]}부터 말해 줘. 받아쓸게.`,
     };
-    return format === "OBJECTIVE" ? withObjectiveChoices(prepared, chapter) : prepared;
+    return { ...(format === "OBJECTIVE" ? withObjectiveChoices(prepared, chapter) : prepared),
+      ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, points[0]) } : {}),
+    };
   },
 
   async *juniorTurn(input): AsyncGenerator<TurnEvent> {
     const { chapter, level, objectives, heardConcepts, history, explanation } = input;
-    const wrong = input.persona ? contradiction(chapter, explanation) : level === "EASY" ? contradiction(chapter, explanation) : undefined;
+    const wrong = input.persona === "MALE_EASY" ? undefined : input.persona ? contradiction(chapter, explanation) : level === "EASY" ? contradiction(chapter, explanation) : undefined;
     if (wrong) {
       yield { type: "concepts", heardConcepts: [...heardConcepts], added: [] };
       await pause();
@@ -277,25 +304,30 @@ export const stubLlm: Llm = {
         : doubt?.content ?? "어? 방금 설명을 한 번만 더 확인해줄래?" };
       return;
     }
-    const current = covered(chapter, objectives, [explanation]);
+    const selectedObjective = selectedTeachingObjective(input);
+    const current = isUnknownTeaching(explanation) ? [] : selectedObjective ? [selectedObjective] : covered(chapter, objectives, [explanation]);
     const observed = objectives.flatMap((objective) => current.includes(objective.id) ? [objectiveTopic(objective)] : []);
     const added = [...new Set(observed)].filter((concept) => !heardConcepts.includes(concept));
     const combined = [...new Set([...heardConcepts, ...added])];
     yield { type: "concepts", heardConcepts: combined, added };
     await pause();
-    yield { type: "reaction", content: input.persona ? personaFor(input.persona)!.examples.reaction : level === "HARD" ? "응, 설명한 대로 받아쓸게." : "응응, 지금 설명해 준 내용을 기억할게." };
-    const accepted = history.filter((message) => message.role === "USER" && (level === "HARD" || !contradiction(chapter, message.content))).map((message) => message.content);
-    const coveredObjectives = covered(chapter, objectives, [...accepted, explanation]);
+    yield { type: "reaction", content: isUnknownTeaching(explanation) ? (input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : "괜찮아요. 아직 배우지 않은 걸로 둘게요.") : input.persona === "KU_HARD" ? `“${explanation.slice(0, 18)}”라고 이해하면 될까?` : input.persona ? personaFor(input.persona)!.examples.reaction : level === "HARD" ? "응, 설명한 대로 받아쓸게." : "응응, 지금 설명해 준 내용을 기억할게." };
+    const accepted = acceptedExplanations(history).filter((message) => !isUnknownTeaching(message.content)).map((message) => message.content);
+    const progress = advanceMastery(input, current, [...new Set([...covered(chapter, objectives, [...accepted, ...(!selectedObjective && current.length ? [explanation] : [])]), ...current])]);
+    const { coveredObjectives } = progress;
     const next = objectives.findIndex((objective) => !coveredObjectives.includes(objective.id));
     await pause();
     yield {
       type: "question",
-      content: next < 0 ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : input.persona === "FEMALE_NORMAL" ? `${objectiveTopic(objectives[next])}은 왜 그런가요, 선배?` : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`,
+      content: normalizePersonaAddress(next < 0 ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : input.persona
+        ? personaQuestion(objectiveTopic(objectives[next]), input.persona) : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`, input.persona),
       coveredObjectives,
+      ...(progress.mastery ? { mastery: progress.mastery } : {}),
+      ...(input.persona === "MALE_EASY" && next >= 0 ? { teachingChoices: teachingChoicesFor(chapter, objectiveTopic(objectives[next])) } : {}),
     };
   },
 
-  async *writeExamAnswer({ question, taught, choices }): AsyncGenerator<AnswerEvent> {
+  async *writeExamAnswer({ question, taught, choices, persona }): AsyncGenerator<AnswerEvent> {
     // Do not consult chapter text, prepared rubrics, or golden answers here.
     const sources = selectedSources(question, taught);
     yield { type: "sources", sources };
@@ -312,12 +344,11 @@ export const stubLlm: Llm = {
         text: `“${sentence}”라고 배웠습니다.`, ref: source.ref, level: "STRONG" as const, unlearned: false,
       }));
     });
-    const conflictsWithTaught = choices && sources.some(({ content }) => contradiction({ title: "", points: [], text: choices[1] }, content));
-    const choice = choices ? (sources.length && !conflictsWithTaught ? "②" : "①") : "";
+    const choice = choices ? chooseTaughtOption(choices, sources) : "";
     if (!parts.length) {
       await pause();
-      yield { type: "sentence", text: `${choice}${choice ? " " : ""}${unknownAnswer}`, ref: null, level: "NONE", unlearned: true };
-      yield { type: "final", answer: `${choice}${choice ? " " : ""}${unknownAnswer}` };
+      yield { type: "sentence", text: `${choice}${choice ? " " : ""}${normalizePersonaAddress(unknownAnswer, persona)}`, ref: null, level: "NONE", unlearned: true };
+      yield { type: "final", answer: `${choice}${choice ? " " : ""}${normalizePersonaAddress(unknownAnswer, persona)}` };
       return;
     }
     if (choice) parts[0].text = `${choice} ${parts[0].text}`;
@@ -334,7 +365,7 @@ export const stubLlm: Llm = {
       if (question.choices) {
         const key = question.rubric.match(/^정답 ([①②③④]);근거:/u)?.[1];
         if (!key || question.choices.length !== 4 || new Set(question.choices).size !== 4) throw new Error("객관식 형식이 올바르지 않습니다.");
-        const correct = answer.startsWith(key);
+        const correct = answer.startsWith(key) && !isUnlearnedAnswer(answer);
         await pause();
         yield { type: "grade", qid: question.qid, score: correct ? question.points : 0, maxScore: question.points,
           verdict: correct ? "CORRECT" : "WRONG", comment: correct ? "자료의 정답 보기를 선택했습니다." : "자료의 정답 보기와 다릅니다." };

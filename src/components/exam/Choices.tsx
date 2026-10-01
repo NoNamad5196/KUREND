@@ -21,7 +21,7 @@ export function pickedChoiceIndex(answer: string | undefined, choices: string[])
 export function Choices({ choices, answer, correctIndex, className }: { choices: string[]; answer?: string; correctIndex?: number; className?: string }) {
   const picked = pickedChoiceIndex(answer, choices);
   return (
-    <ol className={clsx("space-y-1.5 font-sans text-sm sm:text-[15px]", className)} aria-label="보기">
+    <ol className={clsx("space-y-2 font-sans text-sm sm:text-[15px]", className)} aria-label="보기">
       {choices.map((choice, i) => {
         const isPicked = i === picked;
         const isCorrect = correctIndex === i;
@@ -29,16 +29,16 @@ export function Choices({ choices, answer, correctIndex, className }: { choices:
           <li
             key={i}
             className={clsx(
-              "flex items-start gap-2 rounded-sm border px-3 py-2 leading-6 transition",
+              "grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-sm border px-4 py-4 leading-6 transition-colors sm:grid-cols-[1.5rem_minmax(0,1fr)_auto]",
               isPicked && isCorrect !== false && correctIndex === undefined && "border-primary bg-primary-soft font-semibold",
-              isPicked && correctIndex !== undefined && (isCorrect ? "border-ok bg-[#E6F2E7] font-semibold" : "border-danger bg-danger-soft font-semibold line-through decoration-danger/60"),
-              !isPicked && isCorrect && "border-ok/60 bg-[#E6F2E7]/60",
-              !isPicked && !isCorrect && "border-paper-rule bg-surface/60",
+              isPicked && correctIndex !== undefined && (isCorrect ? "border-ok bg-ok-soft font-semibold" : "border-danger bg-danger-soft font-semibold line-through decoration-danger/60"),
+              !isPicked && isCorrect && "border-ok/60 bg-ok-soft/60",
+              !isPicked && !isCorrect && "border-paper-rule bg-surface/40",
             )}
           >
             <span className="shrink-0 font-bold">{CIRCLED[i] ?? `${i + 1}.`}</span>
             <span className="min-w-0 break-words">{stripChoiceMark(choice)}</span>
-            {isPicked && <span className="ml-auto shrink-0 text-xs text-muted">새내기 선택</span>}
+            {isPicked && <span className="col-start-2 text-xs font-medium text-muted sm:col-start-3">새내기 선택</span>}
           </li>
         );
       })}

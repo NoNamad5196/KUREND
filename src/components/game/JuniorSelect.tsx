@@ -1,20 +1,18 @@
 "use client";
-/**
- * [③] 후배 선택 — "이번에는 어떤 후배를 졸업시켜볼까요?" 카드 3장. onSelect(character) 로 Run 생성은 페이지가 담당.
- */
+/** 후배 선택 포스터. Run 생성과 이동은 기존 onSelect 콜백을 사용한다. */
 import clsx from "clsx";
 import { useState } from "react";
-import { Button, Card } from "@/components/session/ui";
-import { CHARACTER_META, DIFFICULTY_TONE } from "./characters";
+import { Button } from "@/components/session/ui";
+import { CHARACTER_META } from "./characters";
 import { JuniorAvatar } from "./JuniorAvatar";
 import { CHARACTERS, JUNIOR_CHARACTERS, type JuniorCharacter } from "./types";
 import "./game.css";
+import "./editorial.css";
 
 function Stars({ value }: { value: number }) {
   return (
-    <span aria-label={`${value} / 5`} className="tracking-tight text-accent">
-      {"★".repeat(value)}
-      <span className="text-line">{"★".repeat(5 - value)}</span>
+    <span aria-label={`${value} / 5`} className="poster-trait-rating">
+      {Array.from({ length: 5 }, (_, index) => <i key={index} className={index < value ? "is-filled" : undefined} aria-hidden="true" />)}
     </span>
   );
 }
@@ -23,7 +21,7 @@ export function JuniorSelect({
   onSelect,
   busy,
   title = "이번에는 어떤 후배를 졸업시켜볼까요?",
-  subtitle = "후배마다 이해 방식·되묻기·시험 형식·합격선이 다릅니다. 선택한 후배는 졸업하거나 떠날 때까지 함께합니다.",
+  subtitle = "후배를 고르면 가르치는 방식도 달라져요. 선택한 후배는 졸업하거나 떠날 때까지 함께합니다.",
 }: {
   onSelect: (character: JuniorCharacter) => void | Promise<void>;
   busy?: JuniorCharacter | null;
@@ -32,48 +30,48 @@ export function JuniorSelect({
 }) {
   const [hover, setHover] = useState<JuniorCharacter | null>(null);
   return (
-    <section aria-labelledby="junior-select-heading" className="space-y-6">
-      <div className="text-center">
-        <h1 id="junior-select-heading" className="text-2xl font-black tracking-tight sm:text-3xl">{title}</h1>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-muted">{subtitle}</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
+    <section aria-labelledby="junior-select-heading" className="junior-selection page-enter">
+      <header className="junior-selection-heading">
+        <div><p className="editorial-label">MEET YOUR JUNIOR / 03 CHARACTERS</p><h1 id="junior-select-heading">{title}</h1></div>
+        <p>{subtitle}</p>
+      </header>
+      <div className="junior-posters">
         {JUNIOR_CHARACTERS.map((key, i) => {
           const meta = CHARACTER_META[key];
           const rule = CHARACTERS[key];
-          const tone = DIFFICULTY_TONE[meta.difficulty];
           const active = hover === key;
           return (
-            <Card
+            <article
               key={key}
-              className={clsx("js-card flex flex-col items-center p-5 text-center", busy === key && "js-selected")}
-              style={{ animationDelay: `${i * 120}ms` }}
+              className={clsx("junior-poster", `junior-poster-${key.toLowerCase()}`, busy === key && "is-selected", active && "is-active")}
+              style={{ animationDelay: `${i * 90}ms` }}
               onMouseEnter={() => setHover(key)}
               onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(key)}
+              onBlur={() => setHover(null)}
             >
-              <div className="relative mt-1 h-[170px]">
-                <JuniorAvatar character={key} size={170} mood={active ? "happy" : "idle"} enter label={meta.name} />
+              <div className="junior-poster-topline"><span>0{i + 1}</span><span>{meta.difficulty}</span><span aria-hidden="true">↗</span></div>
+              <div className="junior-poster-visual">
+                <span className="junior-poster-shape" aria-hidden="true" />
+                <h2>{meta.name}</h2>
+                <JuniorAvatar character={key} size={key === "KU_HARD" ? 240 : 290} pose="still" label={meta.name} />
+                <span className="junior-poster-visual-caption">{meta.examLabel}</span>
               </div>
-              <h2 className="mt-3 text-xl font-black">{meta.name}</h2>
-              <span className={clsx("mt-1 rounded-full border px-2.5 py-0.5 text-xs font-black tracking-widest", tone.chip)}>{meta.difficulty}</span>
-              <p className="mt-3 text-sm font-semibold leading-6">
-                {meta.intro[0]}
-                <br />
-                {meta.intro[1]}
-              </p>
-              <dl className="mt-4 w-full space-y-1 text-xs text-muted">
-                {(Object.entries(meta.traits) as [string, number][]).map(([k, v]) => (
-                  <div key={k} className="flex items-center justify-between">
-                    <dt>{k}</dt>
-                    <dd><Stars value={v} /></dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-4 text-xs text-muted">{meta.examLabel} · 합격 {rule.passScore}점</p>
-              <Button className="mt-4 w-full" loading={busy === key} disabled={!!busy && busy !== key} onClick={() => void onSelect(key)}>
-                선택하기
-              </Button>
-            </Card>
+              <div className="junior-poster-copy">
+                <h3>{meta.teachLabel}</h3>
+                <p className="junior-poster-quote">“{meta.exampleLine}”</p>
+                <p className="junior-poster-intro">{meta.intro[0]}<br />{meta.intro[1]}</p>
+                <dl className="junior-poster-traits">
+                  {(Object.entries(meta.traits) as [string, number][]).map(([k, v]) => (
+                    <div key={k}><dt>{k}</dt><dd><Stars value={v} /></dd></div>
+                  ))}
+                </dl>
+                <div className="junior-poster-exam"><span>{meta.examLabel}</span><span>합격 <b>{rule.passScore}</b>점</span></div>
+                <Button className="junior-poster-button w-full" loading={busy === key} disabled={!!busy && busy !== key} onClick={() => void onSelect(key)}>
+                  선택하기 <span aria-hidden="true">↗</span>
+                </Button>
+              </div>
+            </article>
           );
         })}
       </div>

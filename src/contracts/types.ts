@@ -76,7 +76,7 @@ export function stageLabelFor(status: SessionStatus): string {
 export const DemoAccountSchema = z.object({ userId: z.string(), nickname: z.string() });
 export type DemoAccountDto = z.infer<typeof DemoAccountSchema>;
 
-export const MeSchema = z.object({ userId: z.string(), nickname: z.string(), streakDays: z.number().int() });
+export const MeSchema = z.object({ userId: z.string(), nickname: z.string(), streakDays: z.number().int(), onboardingCompleted: z.boolean() });
 export type MeDto = z.infer<typeof MeSchema>;
 
 /* ───────── §5-3 홈 ───────── */
@@ -198,11 +198,17 @@ export type MaterialDto = z.infer<typeof MaterialSchema>;
 export const ObjectiveSchema = z.object({ id: z.string(), text: z.string() });
 export type ObjectiveDto = z.infer<typeof ObjectiveSchema>;
 
+/** Choices describe what the user teaches; they never include exam answer keys. */
+export const TeachingChoiceSchema = z.object({ id: z.string().min(1), text: z.string().min(1).max(2000) });
+export const TeachingChoicesSchema = z.array(TeachingChoiceSchema).min(2).max(4);
+export type TeachingChoiceDto = z.infer<typeof TeachingChoiceSchema>;
+
 export const MessageSchema = z.object({
   messageId: z.string(),
   role: z.enum(MESSAGE_ROLES),
   stage: z.enum(MESSAGE_STAGES),
   content: z.string(),
+  teachingChoices: TeachingChoicesSchema.optional(),
   createdAt: z.string(),
 });
 export type MessageDto = z.infer<typeof MessageSchema>;
