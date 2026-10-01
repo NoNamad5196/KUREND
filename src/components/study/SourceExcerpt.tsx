@@ -46,6 +46,56 @@ function splitByQuery(text: string, query: string): { segments: Segment[]; count
   return { segments, count, capped };
 }
 
+type LineKind = "h1" | "h2" | "quote" | "bullet" | "blank" | "text";
+
+/**
+ * 마크다운 원문을 읽기 좋은 줄로 바꾼다 — #·>·- 같은 기호와 **·` 강조 표시를 지우고 줄 종류만 남긴다.
+ * 검색은 이렇게 정리된 글자 위에서 이뤄지므로 화면에 보이는 그대로 찾아진다.
+ */
+function readableSource(raw: string): { text: string; kinds: LineKind[] } {
+  const lines: string[] = [];
+  const kinds: LineKind[] = [];
+  for (const line of raw.replace(/\r\n?/g, "\n").split("\n")) {
+    if (/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line)) continue; // 표 구분선
+    let body = line;
+    let kind: LineKind = "text";
+    const heading = /^\s*(#{1,6})\s+(.*)$/.exec(body);
+    if (heading) { body = heading[2]; kind = heading[1].length <= 2 ? "h1" : "h2"; }
+    else if (/^\s*>\s?/.test(body)) { body = body.replace(/^\s*(?:>\s?)+/, ""); kind = "quote"; }
+    else if (/^\s*[-*+•]\s+/.test(body)) { body = body.replace(/^\s*(?:[-*+•])\s+/, ""); kind = "bullet"; }
+    else if (/^\s*\|.*\|\s*$/.test(body)) body = body.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim()).join("  ·  ");
+    body = body.replace(/\*\*|__|`/g, "").trimEnd();
+    if (!body.trim()) kind = "blank";
+    if (kind === "blank" && kinds.at(-1) === "blank") continue;
+    lines.push(body);
+    kinds.push(kind);
+  }
+  while (kinds.at(-1) === "blank") { kinds.pop(); lines.pop(); }
+  return { text: lines.join("\n"), kinds };
+}
+
+/** 검색 조각을 줄 단위로 다시 나눈다(여러 줄에 걸친 일치는 같은 data-match 로 이어진다). */
+function segmentsByLine(segments: Segment[]): Segment[][] {
+  const rows: Segment[][] = [[]];
+  for (const segment of segments) {
+    const parts = segment.text.split("\n");
+    parts.forEach((part, i) => {
+      if (i > 0) rows.push([]);
+      if (part) rows[rows.length - 1].push({ text: part, match: segment.match });
+    });
+  }
+  return rows;
+}
+
+const LINE_CLASS: Record<LineKind, string> = {
+  h1: "mt-5 first:mt-0 text-lg font-bold tracking-tight text-ink",
+  h2: "mt-4 first:mt-0 font-bold text-ink",
+  quote: "border-l-2 border-primary/40 pl-3 text-muted",
+  bullet: "relative pl-4 before:absolute before:left-0 before:text-primary before:content-['•']",
+  blank: "h-3",
+  text: "",
+};
+
 function SearchIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
@@ -92,10 +142,12 @@ export function SourceExcerpt({
     };
   }, [sourceId, startOffset, endOffset, attempt]);
 
+  const readable = useMemo(() => (text ? readableSource(text) : null), [text]);
   const { segments, count, capped } = useMemo(
-    () => (text ? splitByQuery(text, deferredQuery) : { segments: [] as Segment[], count: 0, capped: false }),
-    [text, deferredQuery],
+    () => (readable ? splitByQuery(readable.text, deferredQuery) : { segments: [] as Segment[], count: 0, capped: false }),
+    [readable, deferredQuery],
   );
+  const rows = useMemo(() => segmentsByLine(segments), [segments]);
   const searching = deferredQuery.trim().length > 0;
   const activeIndex = count === 0 ? -1 : cursor.query === deferredQuery ? Math.min(cursor.index, count - 1) : 0;
 
@@ -195,23 +247,30 @@ export function SourceExcerpt({
             </p>
           )
         ) : text ? (
-          <div className="whitespace-pre-wrap text-[15px] leading-8 text-ink [overflow-wrap:anywhere]">
-            {segments.map((segment, i) =>
-              segment.match === null ? (
-                <Fragment key={i}>{segment.text}</Fragment>
-              ) : (
-                <mark
-                  key={i}
-                  data-match={segment.match}
-                  className={clsx(
-                    "rounded-[3px] px-0.5 text-ink",
-                    segment.match === activeIndex ? "bg-accent ring-2 ring-accent/60" : "bg-accent-soft ring-1 ring-accent/50",
+          <div className="text-[15px] leading-8 text-ink [overflow-wrap:anywhere]">
+            {rows.map((row, r) => {
+              const kind = readable?.kinds[r] ?? "text";
+              return (
+                <div key={r} className={clsx("whitespace-pre-wrap", LINE_CLASS[kind])}>
+                  {row.map((segment, i) =>
+                    segment.match === null ? (
+                      <Fragment key={i}>{segment.text}</Fragment>
+                    ) : (
+                      <mark
+                        key={i}
+                        data-match={segment.match}
+                        className={clsx(
+                          "rounded-[3px] px-0.5 text-ink",
+                          segment.match === activeIndex ? "bg-accent ring-2 ring-accent/60" : "bg-accent-soft ring-1 ring-accent/50",
+                        )}
+                      >
+                        {segment.text}
+                      </mark>
+                    ),
                   )}
-                >
-                  {segment.text}
-                </mark>
-              ),
-            )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="py-6 text-sm text-muted">이 목차에 해당하는 원문이 비어 있어요.</p>

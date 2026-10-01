@@ -38,7 +38,7 @@ export function UnlockedBadge({ achievement, index }: { achievement: Achievement
 export function LockedRow({ achievement }: { achievement: Achievement }) {
   const { icon, title, description, unlockedHint, progress, goal } = achievement;
   return (
-    <li className="flex items-start gap-3 px-4 py-4 sm:px-5">
+    <li className="flex items-start gap-4 py-5">
       <span aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-bg text-2xl leading-none opacity-60 grayscale">{icon}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
@@ -46,7 +46,7 @@ export function LockedRow({ achievement }: { achievement: Achievement }) {
           <span className="shrink-0 text-xs font-bold tabular-nums text-muted">{progress} / {goal}</span>
         </div>
         <p className="mt-0.5 text-xs text-muted">{description}</p>
-        <ProgressBar value={progress} goal={goal} label={`${title} 진행도`} className="mt-2" />
+        <ProgressBar value={progress} goal={goal} label={`${title} 진행도`} track="surface" className="mt-2" />
         <p className="mt-1.5 text-[11px] text-muted">💡 {unlockedHint}</p>
       </div>
     </li>
