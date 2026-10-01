@@ -1,0 +1,153 @@
+/* KU 황소 마스코트 — 상태별 포즈/모션. React(Mascot.tsx)와 프로토타입이 같은 CSS 를 쓴다. */
+.ku-mascot {
+  --ku-body: #F5B94A;
+  --ku-cream: #F8E8C8;
+  --ku-horn: #F3E7D3;
+  --ku-line: #7A5A2E;
+  --ku-tuft: #8B5E34;
+  --ku-green: #1F5C3B;
+  --ku-green-dark: #163F2A;
+  --ku-accent: #F4B942;
+  display: inline-block;
+  position: relative;
+  line-height: 0;
+}
+.ku-mascot svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.ku-mascot .ku-all { transform-origin: 120px 254px; }
+.ku-mascot .ku-head { transform-origin: 120px 160px; }
+.ku-mascot .ku-body { transform-origin: 120px 234px; }
+.ku-mascot .ku-tail { transform-origin: 166px 212px; }
+.ku-mascot .ku-ear-l { transform-origin: 60px 100px; }
+.ku-mascot .ku-ear-r { transform-origin: 180px 100px; }
+.ku-mascot .ku-arm-l { transform-origin: 66px 172px; }
+.ku-mascot .ku-arm-r { transform-origin: 174px 172px; }
+.ku-mascot .ku-lid { transform-origin: 50% 0; transform: scaleY(0); }
+.ku-mascot .ku-pupil { transform-origin: 120px 98px; }
+.ku-mascot .ku-brow-l { transform-origin: 94px 78px; }
+.ku-mascot .ku-brow-r { transform-origin: 146px 78px; }
+.ku-mascot .ku-blush { opacity: 0; transition: opacity .3s; }
+.ku-mascot .ku-mouth, .ku-mascot .ku-eye-happy, .ku-mascot .ku-extra, .ku-mascot .ku-pencil { display: none; }
+.ku-mascot .ku-mouth-smile { display: block; }
+.ku-mascot .ku-shadow { transform-origin: 120px 256px; }
+
+/* ── idle: 숨쉬기 · 깜빡임 · 꼬리 · 귀 ── */
+.ku-mascot .ku-body { animation: ku-breathe 3.2s ease-in-out infinite; }
+.ku-mascot .ku-head { animation: ku-bob 3.2s ease-in-out infinite; }
+.ku-mascot .ku-lid { animation: ku-blink 4.6s ease-in-out infinite; }
+.ku-mascot .ku-eye-r .ku-lid { animation-delay: .02s; }
+.ku-mascot .ku-tail { animation: ku-swish 2.4s ease-in-out infinite; }
+.ku-mascot .ku-ear-l { animation: ku-ear 5s ease-in-out infinite; }
+.ku-mascot .ku-ear-r { animation: ku-ear 5s ease-in-out infinite reverse; animation-delay: 1.3s; }
+
+/* ── thinking ── */
+.ku-mascot.ku-state-thinking .ku-pupil { animation: ku-look 2.2s ease-in-out infinite; }
+.ku-mascot.ku-state-thinking .ku-brow-l { transform: translateY(2px) rotate(6deg); }
+.ku-mascot.ku-state-thinking .ku-brow-r { transform: translateY(2px) rotate(-6deg); }
+.ku-mascot.ku-state-thinking .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-thinking .ku-mouth-wavy { display: block; }
+.ku-mascot.ku-state-thinking .ku-extra-think { display: block; }
+.ku-mascot.ku-state-thinking .ku-dot { animation: ku-dot 1.4s ease-in-out infinite; transform-origin: center; }
+.ku-mascot.ku-state-thinking .ku-dot-2 { animation-delay: .2s; }
+.ku-mascot.ku-state-thinking .ku-dot-3 { animation-delay: .4s; }
+.ku-mascot.ku-state-thinking .ku-head { animation: ku-bob 3.2s ease-in-out infinite, ku-tilt-think 4s ease-in-out infinite; }
+
+/* ── doubt: 갸웃 · 눈썹 · 물음표 · 땀 ── */
+.ku-mascot.ku-state-doubt .ku-head { animation: ku-tilt-doubt 1.6s ease-in-out infinite; }
+.ku-mascot.ku-state-doubt .ku-brow-l { transform: translateY(-7px) rotate(-14deg); }
+.ku-mascot.ku-state-doubt .ku-brow-r { transform: translateY(1px) rotate(4deg); }
+.ku-mascot.ku-state-doubt .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-doubt .ku-mouth-o { display: block; }
+.ku-mascot.ku-state-doubt .ku-pupil { transform: translateX(3px); }
+.ku-mascot.ku-state-doubt .ku-extra-doubt { display: block; }
+.ku-mascot.ku-state-doubt .ku-extra-doubt text { transform-origin: 196px 52px; animation: ku-pop 1.4s ease-in-out infinite; }
+.ku-mascot.ku-state-doubt .ku-sweat { transform-origin: 48px 72px; animation: ku-sweat 1.6s ease-in infinite; }
+.ku-mascot.ku-state-doubt .ku-ear-l { animation: none; transform: rotate(-16deg); }
+.ku-mascot.ku-state-doubt .ku-ear-r { animation: none; transform: rotate(16deg); }
+.ku-mascot.ku-state-doubt .ku-tail { animation: ku-swish-fast .6s ease-in-out infinite; }
+
+/* ── writing: 연필 · 팔 · 시선 아래 ── */
+.ku-mascot.ku-state-writing .ku-pencil { display: block; }
+.ku-mascot.ku-state-writing .ku-arm-r { animation: ku-write .5s ease-in-out infinite; }
+.ku-mascot.ku-state-writing .ku-pupil { transform: translate(2px, 4px); }
+.ku-mascot.ku-state-writing .ku-head { animation: none; transform: rotate(5deg) translateY(2px); }
+.ku-mascot.ku-state-writing .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-writing .ku-mouth-wavy { display: block; }
+.ku-mascot.ku-state-writing .ku-brow-l, .ku-mascot.ku-state-writing .ku-brow-r { transform: translateY(3px); }
+
+/* ── praise: 눈웃음 · 끄덕 · 반짝 ── */
+.ku-mascot.ku-state-praise .ku-pupil, .ku-mascot.ku-state-praise .ku-lid { display: none; }
+.ku-mascot.ku-state-praise .ku-eye-happy { display: block; }
+.ku-mascot.ku-state-praise .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-praise .ku-mouth-big { display: block; }
+.ku-mascot.ku-state-praise .ku-blush { opacity: .6; }
+.ku-mascot.ku-state-praise .ku-head { animation: ku-nod 1.2s ease-in-out infinite; }
+.ku-mascot.ku-state-praise .ku-extra-praise { display: block; }
+.ku-mascot.ku-state-praise .ku-star { transform-box: fill-box; transform-origin: center; animation: ku-twinkle 1.6s ease-in-out infinite; }
+.ku-mascot.ku-state-praise .ku-star-2 { animation-delay: .5s; }
+.ku-mascot.ku-state-praise .ku-star-3 { animation-delay: 1s; }
+.ku-mascot.ku-state-praise .ku-arm-l { animation: ku-clap-l .6s ease-in-out infinite; }
+.ku-mascot.ku-state-praise .ku-arm-r { animation: ku-clap-r .6s ease-in-out infinite; }
+
+/* ── cheer: 점프 · 만세 · 컨페티 ── */
+.ku-mascot.ku-state-cheer .ku-all { animation: ku-jump 1.1s cubic-bezier(.3,.9,.4,1) infinite; }
+.ku-mascot.ku-state-cheer .ku-shadow { animation: ku-shadow 1.1s ease-in-out infinite; }
+.ku-mascot.ku-state-cheer .ku-arm-l { animation: none; transform: rotate(150deg) translate(-4px, 6px); }
+.ku-mascot.ku-state-cheer .ku-arm-r { animation: none; transform: rotate(-150deg) translate(4px, 6px); }
+.ku-mascot.ku-state-cheer .ku-pupil, .ku-mascot.ku-state-cheer .ku-lid { display: none; }
+.ku-mascot.ku-state-cheer .ku-eye-happy { display: block; }
+.ku-mascot.ku-state-cheer .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-cheer .ku-mouth-open { display: block; }
+.ku-mascot.ku-state-cheer .ku-blush { opacity: .7; }
+.ku-mascot.ku-state-cheer .ku-extra-cheer { display: block; }
+.ku-mascot.ku-state-cheer .ku-conf { transform-box: fill-box; transform-origin: center; animation: ku-confetti 1.8s ease-in infinite; }
+.ku-mascot.ku-state-cheer .ku-conf-2 { animation-delay: .25s; } .ku-mascot.ku-state-cheer .ku-conf-3 { animation-delay: .5s; }
+.ku-mascot.ku-state-cheer .ku-conf-4 { animation-delay: .1s; } .ku-mascot.ku-state-cheer .ku-conf-5 { animation-delay: .7s; }
+.ku-mascot.ku-state-cheer .ku-conf-6 { animation-delay: .35s; } .ku-mascot.ku-state-cheer .ku-conf-7 { animation-delay: .9s; }
+.ku-mascot.ku-state-cheer .ku-conf-8 { animation-delay: .6s; }
+.ku-mascot.ku-state-cheer .ku-ear-l { animation: ku-ear-flap .55s ease-in-out infinite; }
+.ku-mascot.ku-state-cheer .ku-ear-r { animation: ku-ear-flap .55s ease-in-out infinite reverse; }
+
+/* ── encourage: 좌우 흔들 · 손 흔들기 · 하트 ── */
+.ku-mascot.ku-state-encourage .ku-all { animation: ku-sway 2.4s ease-in-out infinite; }
+.ku-mascot.ku-state-encourage .ku-arm-r { animation: ku-wave .7s ease-in-out infinite; transform: rotate(-130deg); }
+.ku-mascot.ku-state-encourage .ku-mouth-smile { display: none; }
+.ku-mascot.ku-state-encourage .ku-mouth-big { display: block; }
+.ku-mascot.ku-state-encourage .ku-blush { opacity: .5; }
+.ku-mascot.ku-state-encourage .ku-extra-encourage { display: block; }
+.ku-mascot.ku-state-encourage .ku-heart { transform-box: fill-box; transform-origin: center; animation: ku-float 2s ease-in-out infinite; }
+
+/* ── keyframes ── */
+@keyframes ku-breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.025) scaleX(1.01); } }
+@keyframes ku-bob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-1deg); } }
+@keyframes ku-blink { 0%,92%,100% { transform: scaleY(0); } 95%,97% { transform: scaleY(1); } }
+@keyframes ku-swish { 0%,100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
+@keyframes ku-swish-fast { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(14deg); } }
+@keyframes ku-ear { 0%,80%,100% { transform: rotate(0); } 85% { transform: rotate(-10deg); } 90% { transform: rotate(6deg); } }
+@keyframes ku-ear-flap { 0%,100% { transform: rotate(-12deg); } 50% { transform: rotate(10deg); } }
+@keyframes ku-look { 0%,100% { transform: translateX(-5px); } 45%,55% { transform: translateX(5px); } }
+@keyframes ku-tilt-think { 0%,100% { transform: rotate(0); } 50% { transform: rotate(4deg) translateY(-1px); } }
+@keyframes ku-tilt-doubt { 0%,100% { transform: rotate(-10deg); } 50% { transform: rotate(-13deg) translateY(-2px); } }
+@keyframes ku-pop { 0%,100% { transform: scale(1) rotate(-6deg); } 50% { transform: scale(1.25) rotate(8deg); } }
+@keyframes ku-sweat { 0% { transform: translateY(-6px) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(14px) scale(1); opacity: 0; } }
+@keyframes ku-dot { 0%,100% { transform: translateY(0) scale(1); opacity: .6; } 50% { transform: translateY(-6px) scale(1.15); opacity: 1; } }
+@keyframes ku-write { 0%,100% { transform: rotate(-28deg) translateY(0); } 50% { transform: rotate(-36deg) translateY(3px); } }
+@keyframes ku-nod { 0%,100% { transform: rotate(0) translateY(0); } 50% { transform: rotate(3deg) translateY(4px); } }
+@keyframes ku-twinkle { 0%,100% { transform: scale(.6) rotate(0); opacity: .4; } 50% { transform: scale(1.2) rotate(25deg); opacity: 1; } }
+@keyframes ku-clap-l { 0%,100% { transform: rotate(40deg); } 50% { transform: rotate(60deg) translateX(6px); } }
+@keyframes ku-clap-r { 0%,100% { transform: rotate(-40deg); } 50% { transform: rotate(-60deg) translateX(-6px); } }
+@keyframes ku-jump { 0%,100% { transform: translateY(0) scale(1,1); } 15% { transform: translateY(2px) scale(1.06,.92); } 45% { transform: translateY(-34px) scale(.96,1.06); } 75% { transform: translateY(0) scale(1.04,.95); } }
+@keyframes ku-shadow { 0%,100% { transform: scaleX(1); opacity: 1; } 45% { transform: scaleX(.7); opacity: .5; } }
+@keyframes ku-confetti { 0% { transform: translateY(-10px) rotate(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(70px) rotate(300deg); opacity: 0; } }
+@keyframes ku-sway { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes ku-wave { 0%,100% { transform: rotate(-120deg); } 50% { transform: rotate(-145deg); } }
+@keyframes ku-float { 0%,100% { transform: translateY(0) scale(1); opacity: .9; } 50% { transform: translateY(-10px) scale(1.15); opacity: 1; } }
+
+/* 타이핑 인디케이터 (말풍선 점 3개) */
+.ku-typing { position: absolute; right: -6px; top: 8%; display: flex; gap: 4px; padding: 6px 8px; border-radius: 999px; background: var(--surface, #fff); border: 1px solid var(--line, #E3DFD5); box-shadow: 0 2px 6px rgba(30,35,48,.08); }
+.ku-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted, #6B7280); animation: ku-dot 1.2s ease-in-out infinite; }
+.ku-typing i:nth-child(2) { animation-delay: .15s; }
+.ku-typing i:nth-child(3) { animation-delay: .3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ku-mascot *, .ku-mascot { animation: none !important; }
+}
