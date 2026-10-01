@@ -1,6 +1,6 @@
 /**
- * [B 로컬 복사본] A의 `src/lib/client/api.ts`와 동일 시그니처.
- * TODO(B): A의 api.ts가 main에 머지되면 이 파일을 지우고 `@/lib/client/api`로 import 교체.
+ * [B 로컬 복사본] A의 `src/lib/client/api.ts`(feat/a-shell)와 바이트 단위로 같은 구현.
+ * TODO(B): A 브랜치가 머지되면 이 파일을 지우고 import 를 `@/lib/client/api` 로 교체.
  */
 import type { SessionDto, SessionPhase, SessionStatus } from "@/contracts/types";
 
@@ -88,14 +88,18 @@ export async function sse(
     while ((i = buf.indexOf("\n\n")) >= 0) {
       const chunk = buf.slice(0, i);
       buf = buf.slice(i + 2);
-      if (chunk.startsWith(":")) continue;
+      if (!chunk.trim() || chunk.trim().startsWith(":")) continue;
       let name = "message";
       let data = "";
       for (const line of chunk.split("\n")) {
         if (line.startsWith("event:")) name = line.slice(6).trim();
         else if (line.startsWith("data:")) data += line.slice(5).trim();
       }
-      onEvent(name, data ? JSON.parse(data) : {});
+      const payload = data ? JSON.parse(data) : {};
+      onEvent(name, payload);
+      if (name === "error") {
+        throw new ApiError(payload.code || "LLM_FAILED", payload.message || "스트리밍 중 오류가 발생했습니다.", 502);
+      }
     }
   }
 }

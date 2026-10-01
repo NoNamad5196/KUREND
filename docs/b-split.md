@@ -3,6 +3,16 @@
 > B(세션 화면 전부)를 두 사람이 나눈다. **B1 = 기존 B 세션(Claude)**, **B2 = 신규 팀원**. 아래 분담표의 디렉터리만 각자 수정한다.
 > 서비스명은 **KUREND**, AI 캐릭터 이름은 "새내기". 설계서 §3·§5·§6 계약은 FROZEN.
 
+
+## 현재 상태 (B1, 2026-10-01 15:40)
+- ✅ 푸시됨: mock API 전체(`/api/mock/**`, `src/mocks/**`), `Mascot`(KU 황소), `SpeechBubble`, `StepperHeader`, `ObjectivesPanel`, `SourceDrawer`, `SourcePeekButton`, `TypingText`, `session.css`(모션 클래스), `/session/[id]/prepare`, `/session/[id]/teach`, `/login`(KUREND 로그인 UI).
+- ✅ 검증: typecheck·lint·build 통과, curl 로 준비→되물음→설명→시험 답안→채점→튜터→되짚기→완료 전체 루프 확인, Playwright E2E(1280×800·390×844).
+- B2 는 바로 `exam → result → review → complete` 화면을 mock 위에서 만들면 된다. 완료 화면은 `/session/sess_done/complete` 로 바로 확인 가능.
+- 시험 화면을 처음부터 보려면: `/session/<새 id>/prepare` → 설명 1~2번 → [그만 가르치고 시험 보기] → `/exam`.
+- 모션 클래스(session.css): `kurend-pop`(팝 등장), `kurend-rise`(아래서 올라옴), `kurend-doubt`(흔들림+글로우), `kurend-stagger`(자식 순차 등장), `kurend-mark`(하이라이트 깜빡), `kurend-float`, `kurend-sheen`.
+- **마스코트 변경**: 학사모 캐릭터 → **KU 황소**(초록 KU 반다나). `import { Mascot } from "@/components/mascot/Mascot"` 그대로 쓰면 된다. 상태별 소품: doubt `?`+땀, thinking 말줄임 점, writing 연필, praise 반짝이+박수, cheer 점프+컨페티, encourage 하트+손 흔들기.
+- `/login` 은 A 의 영역이지만 요청에 따라 B1 이 `components/auth/LoginScreen` 을 만들었다. A 브랜치 머지 시 `src/app/login/page.tsx` 는 `<LoginScreen />` 한 줄 버전을 유지한다(Google OAuth 는 추후).
+
 ## 분담표
 
 | 항목 | B1 (기존 세션) | B2 (신규 팀원) |
@@ -143,7 +153,7 @@ HARD 는 반응 1문장만, 말투 "…라고. 받아썼어."
 // src/components/mascot/Mascot.tsx
 export type MascotState = "idle"|"thinking"|"doubt"|"writing"|"praise"|"cheer"|"encourage";
 export function Mascot(props: { state?: MascotState; size?: number /* px, 기본 120 */; typing?: boolean /* "…" 인디케이터 */; className?: string; label?: string /* aria-label */ }): JSX.Element
-// 학사모 쓴 둥근 캐릭터 인라인 SVG. 눈·입(+손/연필)만 상태별 교체. CSS Module(Mascot.module.css) keyframes: idle 숨쉬기, thinking 눈 좌우, doubt 고개 갸웃(회전), writing 손 흔들림, cheer 점프, praise 끄덕임, encourage 살짝 흔들. 병아리/달걀 모티프 금지.
+// ✅ 구현됨: KU 황소 캐릭터 인라인 SVG(mascot-svg.ts) + mascot.css 상태별 모션. size 는 가로 px(세로는 ×1.125).
 
 // src/components/session/SpeechBubble.tsx
 export function SpeechBubble(props: { speaker?: string /* 예 "새내기 · 질문" */; tone?: "default"|"doubt"|"user"|"muted"|"paper"; size?: "md"|"lg"; tail?: "left"|"top"|"bottom"|"none"; className?: string; children: React.ReactNode }): JSX.Element
