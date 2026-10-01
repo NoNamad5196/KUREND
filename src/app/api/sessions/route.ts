@@ -6,6 +6,8 @@ import { db } from "@/lib/server/db";
 import { invalidState, json, notFound, parseJson, withApi } from "@/lib/server/http";
 import { newId } from "@/lib/server/ids";
 import { sessionListInclude, toSessionListItem } from "@/lib/server/session-dto";
+import { levelFor, type JuniorCharacter } from "@/contracts/game";
+import { findActiveRun } from "@/lib/server/run-access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,13 @@ export const POST = withApi(async (req) => {
 
   const chapter = await db.chapter.findFirst({
     where: { id: body.chapterId, material: { userId: user.userId } },
-    select: { id: true, material: { select: { status: true } } },
+    select: { id: true, material: { select: { id: true, status: true } } },
   });
   if (!chapter) throw notFound("목차를 찾을 수 없습니다.");
   if (chapter.material.status !== "READY") throw invalidState("목차 생성이 끝난 자료에서만 세션을 만들 수 있습니다.");
 
+  // [게임 확장] 이 자료에 ACTIVE Run 이 있으면 연결하고 난이도는 후배 캐릭터로 강제(body.juniorLevel 무시). 없으면 연습 모드.
+  const run = await findActiveRun(user.userId, chapter.material.id);
   const session = await db.session.create({
     data: {
       id: newId("sess"),
@@ -27,7 +31,8 @@ export const POST = withApi(async (req) => {
       chapterId: chapter.id,
       status: "PREPARING",
       phase: "QUESTION",
-      juniorLevel: body.juniorLevel ?? "EASY",
+      juniorLevel: run ? levelFor(run.character as JuniorCharacter) : (body.juniorLevel ?? "EASY"),
+      runId: run?.id ?? null,
     },
     select: { id: true },
   });

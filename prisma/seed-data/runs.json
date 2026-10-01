@@ -1,0 +1,54 @@
+{
+  "_comment": "[① 게임 코어] 데모 Run 시드. history 는 과거 시험 기록(LifeEvent). chapterIndex 는 materials.json 챕터 순서(0부터). sessionId 가 'completed' 면 sessions.json 의 완료 세션, 그 외는 이미 지워진 과거 세션을 뜻하는 합성 id.",
+  "runs": [
+    {
+      "key": "demo1-os",
+      "userId": "usr_demo1",
+      "materialSlug": "os-scheduling",
+      "character": "KU_HARD",
+      "maxLives": 3,
+      "startedDaysAgo": 5,
+      "linkSeedSessions": true,
+      "history": [
+        { "chapterIndex": 0, "score": 72, "daysAgo": 5 },
+        { "chapterIndex": 0, "score": 86, "daysAgo": 4 },
+        { "chapterIndex": 1, "score": 82, "daysAgo": 3 },
+        { "chapterIndex": 2, "score": 94, "daysAgo": 1, "sessionId": "completed" },
+        { "chapterIndex": 4, "score": 88, "daysAgo": 1 }
+      ]
+    },
+    {
+      "key": "demo2-econ",
+      "userId": "usr_demo2",
+      "materialSlug": "econ-supply-demand",
+      "character": "KU_HARD",
+      "maxLives": 3,
+      "startedDaysAgo": 2,
+      "history": [
+        { "chapterIndex": 1, "score": 64, "daysAgo": 2 },
+        { "chapterIndex": 1, "score": 71, "daysAgo": 1 }
+      ]
+    },
+    {
+      "key": "demo3-os",
+      "userId": "usr_demo3",
+      "materialSlug": "os-scheduling",
+      "character": "KU_HARD",
+      "maxLives": 3,
+      "startedDaysAgo": 9,
+      "history": [
+        { "chapterIndex": 0, "score": 92, "daysAgo": 9 },
+        { "chapterIndex": 1, "score": 85, "daysAgo": 8 },
+        { "chapterIndex": 2, "score": 76, "daysAgo": 7 },
+        { "chapterIndex": 2, "score": 100, "daysAgo": 6 },
+        { "chapterIndex": 3, "score": 88, "daysAgo": 4 },
+        { "chapterIndex": 4, "score": 81, "daysAgo": 2 },
+        { "chapterIndex": 5, "score": 90, "daysAgo": 1 }
+      ]
+    }
+  ],
+  "extraMaterials": [
+    { "userId": "usr_demo2", "materialSlug": "econ-supply-demand" },
+    { "userId": "usr_demo3", "materialSlug": "os-scheduling" }
+  ]
+}

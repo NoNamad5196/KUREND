@@ -2,7 +2,7 @@
 import type { OkResponse } from "@/contracts/types";
 import { PatchSessionRequestSchema } from "@/contracts/types";
 import { db } from "@/lib/server/db";
-import { json, parseJson, withApi } from "@/lib/server/http";
+import { invalidState, json, parseJson, withApi } from "@/lib/server/http";
 import { assertStatus, loadOwnedSession } from "@/lib/server/session-access";
 import { sessionInclude, toSessionDto } from "@/lib/server/session-dto";
 
@@ -17,6 +17,7 @@ export const PATCH = withApi<{ id: string }>(async (req, { params }) => {
   const { session } = await loadOwnedSession(req, params.id);
   const body = await parseJson(req, PatchSessionRequestSchema);
   assertStatus(session, ["EXPLAINING"], "난이도 변경");
+  if (session.runId) throw invalidState("후배와 함께하는 세션은 난이도가 후배에 맞춰 고정됩니다.");
   const updated = await db.session.update({
     where: { id: session.id },
     data: { juniorLevel: body.juniorLevel },
