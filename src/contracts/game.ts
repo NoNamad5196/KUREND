@@ -198,6 +198,7 @@ export const WrongNoteSchema = z.object({
   score: z.number().int(),
   maxScore: z.number().int(),
   verdict: z.enum(["CORRECT", "PARTIAL", "WRONG"]),
+  /** 선배가 쓴 이유. 자동 저장 직후에는 "" */
   userReason: z.string(),
   aiDiagnosis: z.string(),
   aiComparison: z.string().nullable(),
@@ -255,9 +256,14 @@ export type ApplyLifeRequest = z.infer<typeof ApplyLifeRequestSchema>;
 export const TeacherNoteRequestSchema = z.object({ chapterId: z.string() });
 export type TeacherNoteRequest = z.infer<typeof TeacherNoteRequestSchema>;
 
+/** 틀린 문항은 채점 후 자동으로 저장된다(userReason ""). 이 요청은 수동 생성/이유 채우기용. */
 export const CreateWrongNoteRequestSchema = z.object({
   sessionId: z.string(),
   qid: z.string(),
-  userReason: z.string().trim().min(1).max(1000),
+  userReason: z.string().trim().max(1000).optional(),
 });
 export type CreateWrongNoteRequest = z.infer<typeof CreateWrongNoteRequestSchema>;
+
+/** PATCH /wrong-notes/{id}: 선배가 쓴 이유 저장 → AI 비교(aiComparison) 생성 */
+export const UpdateWrongNoteRequestSchema = z.object({ userReason: z.string().trim().min(1).max(1000) });
+export type UpdateWrongNoteRequest = z.infer<typeof UpdateWrongNoteRequestSchema>;

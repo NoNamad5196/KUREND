@@ -1,6 +1,7 @@
 # KUREND 게임 API (① 게임 코어)
 
 > 타입·zod 정본은 `src/contracts/game.ts`. 클라이언트는 `src/lib/client/game-api.ts`(③).
+> 화면: 오답노트 목록 `/wrong-notes`, 상세 `/wrong-notes/[id]` (사이드바 "오답노트"), 결과 화면에 저장 안내·문항별 링크.
 > base `/api`, 인증 쿠키 `tb_uid`. 오류 형식은 기존과 같다: `{ "error": { "code", "message" } }`.
 
 ## 0. 룰 요약
@@ -110,12 +111,18 @@
 있으면 캐시를 돌려주고, 없으면 ② `llm.generateTeacherNote` 로 1회 생성·저장한다. ② 연결 전에는 502 `LLM_FAILED`("강의노트 생성 기능이 아직 연결되지 않았습니다.").
 다른 자료의 챕터 404 `NOT_FOUND`.
 
-### 오답노트 (P1)
+### 오답노트 (P1) — 틀린 문항은 **자동 저장**
 
-#### `POST /wrong-notes` `{ sessionId, qid, userReason }` → `WrongNoteDto` (201)
-- 사용자가 **먼저** 이유를 쓰고, 저장되면 AI 분석이 함께 돌아온다(화면은 저장 후에 분석을 공개).
-- 같은 (세션, 문항) 재요청은 처음 노트를 **200** 으로 돌려준다(덮어쓰지 않음).
-- 오류: 채점 전 세션·맞힌 문항 409 `INVALID_STATE`, 없는 문항 404 `NOT_FOUND`, 이유 공백 400 `VALIDATION`.
+- 채점이 끝난 세션의 WRONG/PARTIAL 문항은 오답노트에 자동으로 들어간다(이유 `""`, `aiComparison: null`, 진단은 그 문항의 놓친 곳에서 즉시).
+- 자동 저장 시점: `GET /sessions/{id}/result`, `POST /runs/{id}/life`(판정 직전), `GET /wrong-notes`(빠진 것 백필). 모두 멱등.
+- 화면 흐름: 결과 화면에 "틀린 문항 n개 저장됨" → 오답노트 상세에서 선배가 **먼저 이유를 쓰면** AI 분석(비교·진단·놓친 개념·자료 문장)이 열린다 → [다시 가르치기].
+
+#### `PATCH /wrong-notes/{id}` `{ userReason }` → `WrongNoteDto`
+이유를 저장하고 `aiComparison` 을 만든다(② `llm.diagnoseWrongNote`, 없거나 실패하면 템플릿). 다시 보내면 이유와 비교가 갱신된다. 공백 400 `VALIDATION`.
+
+#### `POST /wrong-notes` `{ sessionId, qid, userReason? }` → `WrongNoteDto`
+수동 생성용(대부분 필요 없음). 없으면 201 로 만들고, 있으면 200 으로 기존 노트를 돌려준다. `userReason` 이 오면 비어 있을 때만 채운다.
+- 오류: 채점 전 세션·맞힌 문항 409 `INVALID_STATE`, 없는 문항 404 `NOT_FOUND`.
 ```json
 { "wrongNoteId": "wn_x", "sessionId": "sess_x", "runId": "run_x", "qid": "q1",
   "courseName": "경제학원론", "materialTitle": "수요와 공급", "chapterId": "chp_x", "chapterTitle": "수요의 이해",
@@ -123,12 +130,10 @@
   "score": 0, "maxScore": 34, "verdict": "WRONG",
   "userReason": "수요 법칙을 반대로 설명했다",
   "aiDiagnosis": "수요 법칙 방향이 반대. 새내기 답안은 …",
-  "aiComparison": "맞아요. 선배가 짚은 대로 수요 법칙을(를) 새내기에게 가르치지 않은 것이 원인이에요. …",
+  "aiComparison": "맞아요. 선배가 짚은 수요 법칙 부분이 바로 새내기가 놓친 곳이에요. …",
   "evidenceQuote": "가격이 오르면 수요량도 늘어.", "sourceExcerpt": "가격이 오르면 수요량이 줄어든다.",
   "missedConcepts": ["수요 법칙"], "createdAt": "…" }
 ```
-- `aiDiagnosis` 는 그 문항의 놓친 곳(Gap)에서 바로 만든다(대기 없음). `choices` 는 객관식일 때만.
-- `aiComparison` 은 ② `llm.diagnoseWrongNote` 가 있으면 그 결과, 없거나 실패하면 템플릿 문구.
 
 #### `GET /wrong-notes?materialId=` → `{ notes: WrongNoteDto[] }` (최신순, `materialId` 생략 시 전체)
 #### `GET /wrong-notes/{id}` → `WrongNoteDto`
@@ -158,5 +163,5 @@
 
 ```bash
 pnpm db:reset && pnpm dev            # 다른 터미널 (db:reset 뒤에는 dev 서버를 재시작)
-pnpm tsx scripts/smoke-api.ts        # 245 체크 (기존 + 게임 96개)
+pnpm tsx scripts/smoke-api.ts        # 249 체크 (기존 + 게임 100개)
 ```
