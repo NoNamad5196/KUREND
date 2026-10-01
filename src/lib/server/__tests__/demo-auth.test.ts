@@ -10,6 +10,7 @@ test("demo authentication stays local and health checks disclose no account data
   const databaseUrl = `file:${join(directory, "auth.db")}`;
   const previousUrl = process.env.DATABASE_URL;
   const previousMode = process.env.NODE_ENV;
+  const previousSecret = process.env.SESSION_SECRET;
   const client = createClient({ url: databaseUrl });
   let disconnect: (() => Promise<void>) | undefined;
   try {
@@ -39,23 +40,32 @@ test("demo authentication stays local and health checks disclose no account data
       ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     });
 
-    await t.test("production and unset environments reject both real and mock demo endpoints", async () => {
+    await t.test("production and unset environments expose exactly one public demo account and no mock endpoints", async () => {
+      process.env.SESSION_SECRET = "demo-auth-test-secret";
       for (const mode of ["production", undefined]) {
         if (mode === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
         else Reflect.set(process.env, "NODE_ENV", mode);
-        for (const accounts of [realAccounts, mockAccounts]) {
-          const response = await accounts(request(), context);
-          assert.equal(response.status, 404);
-          assert.equal((await response.json()).error.code, "NOT_FOUND");
+        const listed = await realAccounts(request(), context);
+        assert.equal(listed.status, 200);
+        assert.deepEqual(await listed.json(), [{ userId: "usr_demo1", nickname: "usr_demo1" }]);
+        const entered = await realLogin(request({ userId: "usr_demo1" }), context);
+        assert.equal(entered.status, 200);
+        const cookies = entered.headers.getSetCookie();
+        assert.ok(cookies.some((cookie) => new RegExp(`^${SESSION_COOKIE}=v1\\.usr_demo1\\.`).test(cookie)), "운영 체험 로그인도 서명된 세션 쿠키를 받는다");
+        for (const body of [{ userId: "usr_demo2" }, { userId: "usr_demo3" }, { userId: "usr_google_person" }, {}]) {
+          const response = await realLogin(request(body), context);
+          assert.equal(response.status, "userId" in body ? 404 : 400, JSON.stringify(body));
+          assert.equal(response.headers.get("set-cookie"), null);
         }
-        for (const login of [realLogin, mockLogin]) {
-          for (const body of [{ userId: "usr_demo1" }, { userId: "usr_google_person" }, {}]) {
-            const response = await login(request(body), context);
-            assert.equal(response.status, 404);
-            assert.equal(response.headers.get("set-cookie"), null);
-          }
+        const mockListed = await mockAccounts(request(), context);
+        assert.equal(mockListed.status, 404);
+        for (const body of [{ userId: "usr_demo1" }, { userId: "usr_google_person" }, {}]) {
+          const response = await mockLogin(request(body), context);
+          assert.equal(response.status, 404);
+          assert.equal(response.headers.get("set-cookie"), null);
         }
       }
+      Reflect.deleteProperty(process.env, "SESSION_SECRET");
     });
 
     await t.test("development and test expose only three seeded accounts and reject Google account login", async () => {
@@ -105,6 +115,8 @@ test("demo authentication stays local and health checks disclose no account data
     else process.env.DATABASE_URL = previousUrl;
     if (previousMode === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
     else Reflect.set(process.env, "NODE_ENV", previousMode);
+    if (previousSecret === undefined) Reflect.deleteProperty(process.env, "SESSION_SECRET");
+    else process.env.SESSION_SECRET = previousSecret;
     rmSync(directory, { recursive: true, force: true });
   }
 });

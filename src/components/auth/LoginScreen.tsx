@@ -1,9 +1,14 @@
 "use client";
 /** KUREND 로그인 화면. Google OAuth 진입과 콜백 오류 안내를 제공한다. */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/client/api";
 import { JuniorAvatar } from "@/components/game/JuniorAvatar";
 import { Toaster, toast } from "@/components/session/ui";
 import "./login.css";
+
+/** 운영에서도 열려 있는 시연용 체험 계정(src/lib/server/demo-auth.ts 의 PUBLIC_DEMO_USER_ID 와 같다) */
+const DEMO_USER_ID = "usr_demo1";
 
 function GoogleMark() {
   return (
@@ -17,6 +22,20 @@ function GoogleMark() {
 }
 
 export function LoginScreen() {
+  const router = useRouter();
+  const [demoBusy, setDemoBusy] = useState(false);
+  async function enterDemo() {
+    if (demoBusy) return;
+    setDemoBusy(true);
+    try {
+      await api.post("/auth/demo-login", { userId: DEMO_USER_ID });
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error && error.message ? error.message : "체험 계정에 들어가지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
+      setDemoBusy(false);
+    }
+  }
   useEffect(() => {
     // 정적 프리렌더 페이지라 useSearchParams 대신 브라우저에서 직접 읽는다 (?error= 는 Google 콜백이 붙인다)
     const code = new URLSearchParams(window.location.search).get("error");
@@ -64,7 +83,12 @@ export function LoginScreen() {
             <span className="whitespace-nowrap">Google로 계속하기</span>
             <span className="ml-auto text-muted" aria-hidden="true">→</span>
           </a>
-          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
+          <button type="button" className="kl-demo" onClick={() => void enterDemo()} disabled={demoBusy} aria-busy={demoBusy}>
+            <span className="kl-demo-mark" aria-hidden="true">체</span>
+            <span>{demoBusy ? "체험 계정으로 들어가는 중…" : "체험 계정으로 둘러보기"}</span>
+            <span className="ml-auto text-muted" aria-hidden="true">→</span>
+          </button>
+          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. 체험 계정은 누구나 쓰는 공용 계정이라 기록이 섞이거나 지워질 수 있어요. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
         </section>
       </div>
       <footer className="kl-footer">

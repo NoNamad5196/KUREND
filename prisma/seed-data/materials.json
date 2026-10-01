@@ -1,5 +1,293 @@
 [
   {
+    "slug": "jeongcheogi-theory",
+    "file": "jeongcheogi-theory.md",
+    "courseName": "정보처리기사",
+    "title": "정보처리기사 실기 핵심 요약 (이론편)",
+    "fileName": "정보처리기사_실기_핵심요약노트_이론편.pdf",
+    "sourceKind": "PDF",
+    "examDateOffsetDays": 14,
+    "demo1": true,
+    "chapters": [
+      {
+        "title": "개발 모형과 프로젝트 계획",
+        "points": [
+          "소프트웨어 개발 모형",
+          "생명 주기와 설계",
+          "개발 비용 산정",
+          "프로젝트 계획 기법"
+        ],
+        "startOffset": 0,
+        "endOffset": 1917
+      },
+      {
+        "title": "요구사항 분석과 모델링",
+        "points": [
+          "일정 산정과 XP",
+          "요구사항 개발 과정",
+          "UML과 객체지향 분석",
+          "정형·비정형 명세"
+        ],
+        "startOffset": 1917,
+        "endOffset": 5774
+      },
+      {
+        "title": "소프트웨어 설계와 모듈",
+        "points": [
+          "설계 원리와 패턴",
+          "사용자 인터페이스",
+          "응집도와 결합도",
+          "프레임워크와 API"
+        ],
+        "startOffset": 5774,
+        "endOffset": 9517
+      },
+      {
+        "title": "객체지향과 디자인 패턴",
+        "points": [
+          "객체지향 주요 개념",
+          "객체지향 설계 원칙",
+          "생성·구조 패턴",
+          "행위 패턴"
+        ],
+        "startOffset": 9517,
+        "endOffset": 12284
+      },
+      {
+        "title": "테스트 원리와 검증 기법",
+        "points": [
+          "테스트 기본 원리",
+          "테스트 분류 기준",
+          "화이트·블랙박스",
+          "요구사항 검증"
+        ],
+        "startOffset": 12284,
+        "endOffset": 15312
+      },
+      {
+        "title": "테스트 단계와 품질 관리",
+        "points": [
+          "개발 단계별 테스트",
+          "테스트 하네스",
+          "성능과 코드 품질",
+          "형상 관리와 성숙도"
+        ],
+        "startOffset": 15312,
+        "endOffset": 18618
+      },
+      {
+        "title": "데이터베이스 구조와 설계",
+        "points": [
+          "릴레이션과 스키마",
+          "데이터 언어와 독립성",
+          "데이터베이스 설계",
+          "개체·속성·관계"
+        ],
+        "startOffset": 18618,
+        "endOffset": 20591
+      },
+      {
+        "title": "키와 정규화·트랜잭션",
+        "points": [
+          "키와 무결성",
+          "접근 통제와 뷰",
+          "정규화와 함수 종속",
+          "트랜잭션 특성"
+        ],
+        "startOffset": 20591,
+        "endOffset": 23749
+      },
+      {
+        "title": "알고리즘과 관계 연산",
+        "points": [
+          "검색과 시간 복잡도",
+          "설계 기법과 정렬",
+          "데이터베이스 운영",
+          "관계 대수와 해석"
+        ],
+        "startOffset": 23749,
+        "endOffset": 26600
+      },
+      {
+        "title": "회복과 병행·분산 제어",
+        "points": [
+          "데이터 회복 기법",
+          "로킹과 병행 제어",
+          "분산 데이터베이스",
+          "분산 투명성"
+        ],
+        "startOffset": 26600,
+        "endOffset": 28101
+      },
+      {
+        "title": "운영체제와 기억장치 관리",
+        "points": [
+          "메모리 종류와 특성",
+          "운영체제 종류",
+          "기억장치 관리 전략",
+          "페이지 교체와 분할"
+        ],
+        "startOffset": 28101,
+        "endOffset": 31209
+      },
+      {
+        "title": "프로세스와 자원 관리",
+        "points": [
+          "선점·비선점 스케줄링",
+          "교착 상태와 해결",
+          "프로세스와 스레드",
+          "스래싱과 지역성"
+        ],
+        "startOffset": 31209,
+        "endOffset": 33945
+      }
+    ]
+  },
+  {
+    "slug": "jeongcheogi-chochigi",
+    "file": "jeongcheogi-chochigi.md",
+    "courseName": "정보처리기사",
+    "title": "정보처리기사 핵심 요약 초치기 2026",
+    "fileName": "정보처리기사_핵심요약_초치기_2026.pdf",
+    "sourceKind": "PDF",
+    "examDateOffsetDays": 14,
+    "demo1": true,
+    "chapters": [
+      {
+        "title": "개발 모형과 요구사항 모델링",
+        "points": [
+          "개발 모형과 애자일",
+          "요구사항 개발",
+          "사용자 인터페이스",
+          "UML과 다이어그램"
+        ],
+        "startOffset": 0,
+        "endOffset": 3168
+      },
+      {
+        "title": "객체지향 설계와 모듈",
+        "points": [
+          "아키텍처 패턴",
+          "객체지향 분석",
+          "객체지향 설계 원칙",
+          "응집도와 결합도"
+        ],
+        "startOffset": 3168,
+        "endOffset": 6693
+      },
+      {
+        "title": "디자인 패턴과 재사용",
+        "points": [
+          "생성·구조·행위 패턴",
+          "효과적인 모듈 설계",
+          "소프트웨어 재사용",
+          "미들웨어와 검증"
+        ],
+        "startOffset": 6693,
+        "endOffset": 9282
+      },
+      {
+        "title": "자료 구조와 정렬 및 검색",
+        "points": [
+          "스택과 그래프",
+          "트리 운행법",
+          "수식 표기법 변환",
+          "정렬·검색·해싱"
+        ],
+        "startOffset": 9282,
+        "endOffset": 13177
+      },
+      {
+        "title": "배포 관리와 소프트웨어 테스트",
+        "points": [
+          "DRM과 패키징",
+          "빌드와 형상 관리",
+          "단위·통합·인수 테스트",
+          "코드 품질과 검증 도구"
+        ],
+        "startOffset": 13177,
+        "endOffset": 16829
+      },
+      {
+        "title": "시스템 연계와 데이터 모델",
+        "points": [
+          "EAI와 데이터 교환",
+          "데이터베이스 설계",
+          "릴레이션과 키",
+          "무결성과 관계 연산"
+        ],
+        "startOffset": 16829,
+        "endOffset": 20035
+      },
+      {
+        "title": "정규화와 데이터베이스 관리",
+        "points": [
+          "정규화와 함수 종속",
+          "트랜잭션의 특성",
+          "인덱스와 뷰",
+          "보안과 분산 저장"
+        ],
+        "startOffset": 20035,
+        "endOffset": 23946
+      },
+      {
+        "title": "SQL과 프로그래밍 자료형",
+        "points": [
+          "데이터 정의와 제어",
+          "데이터 조작과 검색",
+          "그룹 함수와 집합 연산",
+          "자료형과 변수"
+        ],
+        "startOffset": 23946,
+        "endOffset": 27472
+      },
+      {
+        "title": "연산자와 제어문 및 포인터",
+        "points": [
+          "연산자와 우선순위",
+          "서식 문자열과 출력",
+          "조건문과 반복문",
+          "배열과 포인터"
+        ],
+        "startOffset": 27472,
+        "endOffset": 31343
+      },
+      {
+        "title": "파이썬과 스크립트 언어",
+        "points": [
+          "입출력과 형변환",
+          "리스트와 딕셔너리",
+          "반복문과 클래스",
+          "스크립트와 라이브러리"
+        ],
+        "startOffset": 31343,
+        "endOffset": 35038
+      },
+      {
+        "title": "운영체제와 프로세스 관리",
+        "points": [
+          "유닉스 커널과 쉘",
+          "기억장치와 페이지 교체",
+          "프로세스와 스케줄링",
+          "유닉스 명령어와 IPv4"
+        ],
+        "startOffset": 35038,
+        "endOffset": 36990
+      },
+      {
+        "title": "네트워크와 개발 방법론",
+        "points": [
+          "IPv6와 OSI 계층",
+          "네트워크 장비",
+          "TCP/IP 프로토콜",
+          "개발 방법론과 재사용"
+        ],
+        "startOffset": 36990,
+        "endOffset": 38971
+      }
+    ]
+  },
+  {
     "slug": "os-scheduling",
     "file": "os-scheduling.md",
     "courseName": "운영체제",
@@ -70,7 +358,8 @@
         "startPara": 63,
         "endPara": 73
       }
-    ]
+    ],
+    "demo1": false
   },
   {
     "slug": "econ-supply-demand",
@@ -130,6 +419,7 @@
         "startPara": 37,
         "endPara": 49
       }
-    ]
+    ],
+    "demo1": false
   }
 ]

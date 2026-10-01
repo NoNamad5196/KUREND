@@ -2,19 +2,107 @@
   "_comment": "[① 게임 코어] 데모 Run 시드. history 는 과거 시험 기록(LifeEvent). chapterIndex 는 materials.json 챕터 순서(0부터). sessionId 가 'completed' 면 sessions.json 의 완료 세션, 그 외는 이미 지워진 과거 세션을 뜻하는 합성 id. historySessions:true 면 그 합성 id 로 실제 완료 세션(선배 설명 + 채점)을 만든다(졸업시험이 가르친 설명을 옮겨 담을 수 있게).",
   "runs": [
     {
-      "key": "demo1-os",
+      "key": "demo1-theory",
       "userId": "usr_demo1",
-      "materialSlug": "os-scheduling",
+      "materialSlug": "jeongcheogi-theory",
+      "character": "MALE_EASY",
+      "maxLives": 3,
+      "startedDaysAgo": 13,
+      "historySessions": true,
+      "_scenario": "졸업 성공: 모든 챕터 통과, 졸업시험만 남음",
+      "history": [
+        {
+          "chapterIndex": 0,
+          "score": 88,
+          "daysAgo": 12
+        },
+        {
+          "chapterIndex": 1,
+          "score": 92,
+          "daysAgo": 11
+        },
+        {
+          "chapterIndex": 2,
+          "score": 76,
+          "daysAgo": 10
+        },
+        {
+          "chapterIndex": 3,
+          "score": 100,
+          "daysAgo": 9
+        },
+        {
+          "chapterIndex": 4,
+          "score": 84,
+          "daysAgo": 8
+        },
+        {
+          "chapterIndex": 5,
+          "score": 90,
+          "daysAgo": 7
+        },
+        {
+          "chapterIndex": 6,
+          "score": 72,
+          "daysAgo": 6
+        },
+        {
+          "chapterIndex": 7,
+          "score": 95,
+          "daysAgo": 5
+        },
+        {
+          "chapterIndex": 8,
+          "score": 81,
+          "daysAgo": 4
+        },
+        {
+          "chapterIndex": 9,
+          "score": 88,
+          "daysAgo": 3
+        },
+        {
+          "chapterIndex": 10,
+          "score": 93,
+          "daysAgo": 2
+        },
+        {
+          "chapterIndex": 11,
+          "score": 86,
+          "daysAgo": 1
+        }
+      ]
+    },
+    {
+      "key": "demo1-chochigi",
+      "userId": "usr_demo1",
+      "materialSlug": "jeongcheogi-chochigi",
       "character": "KU_HARD",
       "maxLives": 3,
-      "startedDaysAgo": 5,
-      "linkSeedSessions": true,
+      "startedDaysAgo": 4,
+      "historySessions": true,
+      "_scenario": "졸업 실패: LIFE 1개 남음(3번째 챕터 두 번 불합격). 한 번 더 떨어지면 GAME OVER",
       "history": [
-        { "chapterIndex": 0, "score": 72, "daysAgo": 5 },
-        { "chapterIndex": 0, "score": 86, "daysAgo": 4 },
-        { "chapterIndex": 1, "score": 82, "daysAgo": 3 },
-        { "chapterIndex": 2, "score": 94, "daysAgo": 1, "sessionId": "completed" },
-        { "chapterIndex": 4, "score": 88, "daysAgo": 1 }
+        {
+          "chapterIndex": 0,
+          "score": 88,
+          "daysAgo": 4
+        },
+        {
+          "chapterIndex": 1,
+          "score": 84,
+          "daysAgo": 3
+        },
+        {
+          "chapterIndex": 2,
+          "score": 62,
+          "daysAgo": 2
+        },
+        {
+          "chapterIndex": 2,
+          "score": 71,
+          "daysAgo": 1
+        }
       ]
     },
     {
@@ -25,8 +113,16 @@
       "maxLives": 3,
       "startedDaysAgo": 2,
       "history": [
-        { "chapterIndex": 1, "score": 64, "daysAgo": 2 },
-        { "chapterIndex": 1, "score": 71, "daysAgo": 1 }
+        {
+          "chapterIndex": 1,
+          "score": 64,
+          "daysAgo": 2
+        },
+        {
+          "chapterIndex": 1,
+          "score": 71,
+          "daysAgo": 1
+        }
       ]
     },
     {
@@ -38,18 +134,52 @@
       "startedDaysAgo": 9,
       "historySessions": true,
       "history": [
-        { "chapterIndex": 0, "score": 92, "daysAgo": 9 },
-        { "chapterIndex": 1, "score": 85, "daysAgo": 8 },
-        { "chapterIndex": 2, "score": 76, "daysAgo": 7 },
-        { "chapterIndex": 2, "score": 100, "daysAgo": 6 },
-        { "chapterIndex": 3, "score": 88, "daysAgo": 4 },
-        { "chapterIndex": 4, "score": 81, "daysAgo": 2 },
-        { "chapterIndex": 5, "score": 90, "daysAgo": 1 }
+        {
+          "chapterIndex": 0,
+          "score": 92,
+          "daysAgo": 9
+        },
+        {
+          "chapterIndex": 1,
+          "score": 85,
+          "daysAgo": 8
+        },
+        {
+          "chapterIndex": 2,
+          "score": 76,
+          "daysAgo": 7
+        },
+        {
+          "chapterIndex": 2,
+          "score": 100,
+          "daysAgo": 6
+        },
+        {
+          "chapterIndex": 3,
+          "score": 88,
+          "daysAgo": 4
+        },
+        {
+          "chapterIndex": 4,
+          "score": 81,
+          "daysAgo": 2
+        },
+        {
+          "chapterIndex": 5,
+          "score": 90,
+          "daysAgo": 1
+        }
       ]
     }
   ],
   "extraMaterials": [
-    { "userId": "usr_demo2", "materialSlug": "econ-supply-demand" },
-    { "userId": "usr_demo3", "materialSlug": "os-scheduling" }
+    {
+      "userId": "usr_demo2",
+      "materialSlug": "econ-supply-demand"
+    },
+    {
+      "userId": "usr_demo3",
+      "materialSlug": "os-scheduling"
+    }
   ]
 }

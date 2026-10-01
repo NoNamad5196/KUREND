@@ -48,13 +48,17 @@ async function score(taught: string, persona: JuniorCharacter): Promise<number> 
   return grades.reduce((sum, event) => sum + event.score, 0);
 }
 
-test("character contracts and all eleven seeded teacher notes agree", async () => {
+test("character contracts and every seeded material's teacher notes agree", async () => {
   for (const character of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     assert.equal(PERSONAS[character].passScore, CHARACTERS[character].passScore);
     assert.equal(PERSONAS[character].examFormat, CHARACTERS[character].examFormat);
   }
-  const titles = materials.flatMap((material) => material.chapters.map((item) => item.title));
-  assert.deepEqual(new Set([...Object.keys(osNotes), ...Object.keys(econNotes)]), new Set(titles));
+  // 자료마다 강의노트 fixture(teacher-notes.<slug>.json, 예전 이름 os/econ 허용)가 챕터 제목과 1:1 로 맞아야 시드가 빠짐없이 적재된다.
+  const legacy: Record<string, Record<string, unknown>> = { "os-scheduling": osNotes, "econ-supply-demand": econNotes };
+  for (const material of materials) {
+    const notes = legacy[material.slug] ?? JSON.parse(readFileSync(new URL(`../fixtures/teacher-notes.${material.slug}.json`, import.meta.url), "utf8")) as Record<string, unknown>;
+    assert.deepEqual(new Set(Object.keys(notes)), new Set(material.chapters.map((item) => item.title)), material.slug);
+  }
   const note = await stubLlm.generateTeacherNote({ chapter });
   assert.deepEqual(note, econNotes["수요의 이해"]);
   teacherNoteSchema.parse(note);

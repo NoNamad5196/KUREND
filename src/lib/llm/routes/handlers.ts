@@ -347,7 +347,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         let finalAnswer: string | undefined;
         let sourcesSent = false;
         for await (const event of llm.writeExamAnswer({ question: question.question, taught, heardConcepts: session.heardConcepts,
-          persona: session.game?.character, choices: question.choices })) {
+          persona: session.game?.character, choices: question.choices, chapter: session.chapter })) {
           checkActive(request);
           if (finalAnswer !== undefined) modelFailure();
           if (event.type === "sources") {

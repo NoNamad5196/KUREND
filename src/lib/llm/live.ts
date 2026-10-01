@@ -82,12 +82,27 @@ function precision(answer: string, quote: string): number {
   for (const g of a) if (q.has(g)) hit += 1;
   return hit / a.size;
 }
-/** 시험 답안 문장: 모델이 다듬은 답안체 문장을 쓰되, 근거에서 벗어나거나 대화체면 근거 원문을 다듬어 쓴다 */
-function answerSentence(quote: string, answer?: string | null): string {
+/**
+ * 답안이 빌려 쓸 수 있는 자료 문장: 선배의 근거(quote)와 같은 개념을 말하는 자료 문장만(겹침 상위 3개).
+ * 자료 전체를 허용하면 선배가 설명하지 않은 사실까지 답안에 들어오므로, 근거와 겹치는 문장으로 제한한다.
+ */
+function relatedSourceSentences(quote: string, chapter?: Parameters<typeof compactChapter>[0]): string[] {
+  if (!chapter) return [];
+  return chapter.text.split(/(?<=[.!?。])\s+|\n+/u).map((s) => plainText(s)).filter((s) => s.length >= 8)
+    .map((sentence) => ({ sentence, score: overlap(quote, sentence) }))
+    .filter((item) => item.score >= 0.2)
+    .sort((a, b) => b.score - a.score).slice(0, 3).map((item) => item.sentence);
+}
+/**
+ * 시험 답안 문장: 모델이 다듬은 답안체 문장을 쓰되, 선배의 근거(quote)와 그 근거에 해당하는 자료 문장 안에서만 허용한다.
+ * 근거보다 내용이 늘었거나(새 어구 40% 이상·길이 1.6배 초과) 대화체면 근거 원문을 답안체로 다듬어 쓴다.
+ */
+function answerSentence(quote: string, answer?: string | null, chapter?: Parameters<typeof compactChapter>[0]): string {
   const candidate = plainText(answer ?? "");
-  const usable = candidate.length > 0 && candidate.length <= quote.length * 1.6 + 20
+  const allowed = [quote, ...relatedSourceSentences(quote, chapter)].join(" ");
+  const usable = candidate.length > 0 && candidate.length <= quote.length * 1.6 + 40
     && !/선배|배웠|알려주|가르쳐 주/u.test(candidate) && isAnswerStyle(candidate)
-    && precision(candidate, quote) >= 0.55;
+    && precision(candidate, allowed) >= 0.6;
   const text = usable ? candidate : plainText(quote)
     .replace(/^[“"']|[”"']$/gu, "")
     .replace(/^(?:선배님?|음+|아+|어+|그러니까|그니까|즉|자|일단)\s*[,，]?\s+/u, "")
@@ -225,12 +240,14 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       };
     },
 
-    async *writeExamAnswer({ question, taught, heardConcepts, choices, persona }) {
+    async *writeExamAnswer({ question, taught, heardConcepts, choices, persona, chapter }) {
       const messages = taughtMessages(taught);
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
-        // This explicit allowlist is a knowledge boundary: never spread a session/chapter/rubric here.
+        // Knowledge boundary: taught decides what the junior knows. The chapter is only a wording reference
+        // (never the rubric or answer key), and the server rejects answers that grow beyond the cited basis.
         question, taught: messages, heardConcepts: uniqueStrings(heardConcepts), choices,
-      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 900 })
+        ...(chapter ? { chapter: compactChapter(chapter) } : {}),
+      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 1_200 })
         .catch(async () => {
           const fallback = fallbackExamAnswer(question, messages, choices);
           if (!choices?.length) return fallback;
@@ -255,7 +272,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const sentences = (choices
         ? [{ ...response.sentences[0], text: response.unlearned || response.sentences[0].quote === null ? `${response.choice} ${UNLEARNED_ANSWER}` : picked ?? `${response.choice}` }]
         : response.sentences.map((sentence) => ({
-          ...sentence, text: sentence.quote === null ? UNLEARNED_ANSWER : answerSentence(sentence.quote, "answer" in sentence ? sentence.answer : null),
+          ...sentence, text: sentence.quote === null ? UNLEARNED_ANSWER : answerSentence(sentence.quote, "answer" in sentence ? sentence.answer : null, chapter),
         })));
       for (const sentence of sentences) {
         yield {
