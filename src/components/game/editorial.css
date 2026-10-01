@@ -263,6 +263,13 @@
 .today-task:hover .today-task-cta > span { transform: translate(2px, -2px); }
 @media (max-width: 640px) {
   .today-tasks { margin-bottom: 52px; }
+  /* 돌아온 선배(가르치는 후배가 있음): 휴대폰 첫 화면에 후배 카드를 먼저, 문구는 작게 */
+  .editorial-home-hero:has(.editorial-home-partner) { gap: 22px; padding-bottom: 44px; }
+  .editorial-home-hero:has(.editorial-home-partner) .editorial-home-partner { order: -1; }
+  .editorial-home-hero:has(.editorial-home-partner) .editorial-home-intro { padding-top: 0; }
+  .editorial-home-hero:has(.editorial-home-partner) .editorial-home-intro h1 { margin-top: 14px; font-size: 34px; }
+  .editorial-home-hero:has(.editorial-home-partner) .editorial-home-description { margin: 14px 0 18px; }
+  .editorial-home-hero:has(.editorial-home-partner) .editorial-home-notation { display: none; }
   .editorial-section-heading:has(.today-tasks-line) { flex-direction: column; align-items: flex-start; }
   .today-task { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding-left: 10px; }
   .today-task-index { display: none; }
