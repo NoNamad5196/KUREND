@@ -3,7 +3,9 @@
  * [③] GRADUATION 연출 — 캠퍼스 졸업식. 캐릭터가 학사모·가운·졸업장 차림으로 폴짝, 모자 던지기, 컨페티.
  * "GRADUATION / 드디어 졸업이다! / 축하해~" 뒤에 졸업 결과 카드가 올라온다.
  */
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/session/ui";
 import { TypingText, usePrefersReducedMotion } from "@/components/session/TypingText";
 import { CHARACTER_META } from "../characters";
 import { GraduationSummary } from "../GraduationSummary";
@@ -32,7 +34,7 @@ export function GraduationScene({
   useEffect(() => {
     const t1 = window.setTimeout(() => setLine(1), reduced ? 200 : 1800);
     const t2 = window.setTimeout(() => setToss(true), reduced ? 200 : 1200);
-    const t3 = window.setTimeout(() => setShowSummary(true), reduced ? 300 : 4200);
+    const t3 = window.setTimeout(() => setShowSummary(true), reduced ? 300 : 3000);
     return () => { window.clearTimeout(t1); window.clearTimeout(t2); window.clearTimeout(t3); };
   }, [reduced]);
   // 모자 던지기 반복
@@ -59,9 +61,20 @@ export function GraduationScene({
           <JuniorAvatar character={character} mood="graduate" size={230} toss={toss} />
         </div>
       </div>
-      {showSummary && summary && (
+      {!showSummary && (
+        <button type="button" className="sc-skip underline" onClick={() => setShowSummary(true)}>결과 보기</button>
+      )}
+      {showSummary && (
         <div className="sc-actions" style={{ bottom: "3%" }}>
-          <GraduationSummary summary={summary} nextHref={nextHref} albumHref={albumHref} />
+          {summary ? (
+            <GraduationSummary summary={summary} nextHref={nextHref} albumHref={albumHref} />
+          ) : (
+            <div className="flex w-full max-w-md flex-col gap-2 rounded-card border border-line bg-surface p-5 text-center shadow-card">
+              <p className="text-lg font-black">{meta.name}가 졸업했습니다!</p>
+              <p className="text-sm text-muted">졸업 기록을 불러오지 못했지만, 새로운 후배를 만날 수 있어요.</p>
+              <Link href={nextHref}><Button className="w-full">새로운 후배 만나기</Button></Link>
+            </div>
+          )}
         </div>
       )}
     </CampusScene>

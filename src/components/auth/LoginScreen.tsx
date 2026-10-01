@@ -1,10 +1,10 @@
 "use client";
 /**
- * KUREND 로그인 화면. Google OAuth 는 나중에 연결한다(버튼만 노출, 누르면 안내 토스트).
+ * KUREND 로그인 화면. Google OAuth 는 서버에 GOOGLE_CLIENT_ID/SECRET 이 있을 때만 활성화(/api/auth/google/status).
  * 지금은 체험 계정(/auth/demo-accounts → /auth/demo-login)으로 로그인한다.
  * TODO(A 머지 후): `@/components/session/_api` → `@/lib/client/api`, `@/components/session/ui` → `@/components/shell/ui`.
  */
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DemoAccountDto } from "@/contracts/types";
 import { Mascot } from "@/components/mascot/Mascot";
@@ -27,6 +27,22 @@ function GoogleMark() {
 }
 
 export function LoginScreen() {
+  const search = useSearchParams();
+  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.get<{ enabled: boolean }>("/auth/google/status").then((r) => setGoogleEnabled(r.enabled)).catch(() => setGoogleEnabled(false));
+  }, []);
+  useEffect(() => {
+    const code = search.get("error");
+    if (!code) return;
+    const message: Record<string, string> = {
+      google_unavailable: "Google 로그인이 아직 설정되지 않았어요. 체험 계정으로 둘러보세요.",
+      google_denied: "Google 로그인이 취소됐어요.",
+      google_state: "로그인 요청이 만료됐어요. 다시 시도해 주세요.",
+      google_failed: "Google 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.",
+    };
+    toast(message[code] ?? "로그인에 실패했어요.", "error");
+  }, [search]);
   const router = useRouter();
   const [accounts, setAccounts] = useState<DemoAccountDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,17 +108,28 @@ export function LoginScreen() {
           <p className="mt-2 leading-7 text-muted">가르친 만큼만 아는 새내기가 선배의 설명을 기다리고 있습니다.</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => toast("Google 로그인은 곧 열립니다. 지금은 체험 계정으로 둘러보세요.")}
-          className="flex h-12 w-full items-center gap-3 rounded-sm border border-line bg-surface px-4 text-[15px] font-semibold transition hover:bg-bg focus-visible:outline-2 focus-visible:outline-primary"
-        >
-          <GoogleMark />
-          <span className="whitespace-nowrap">Google로 계속하기</span>
-          <Chip tone="muted" className="ml-auto">
-            준비 중
-          </Chip>
-        </button>
+        {googleEnabled ? (
+          <a
+            href="/api/auth/google"
+            className="flex h-12 w-full items-center gap-3 rounded-sm border border-line bg-surface px-4 text-[15px] font-semibold transition hover:bg-bg focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <GoogleMark />
+            <span className="whitespace-nowrap">Google로 계속하기</span>
+            <span className="ml-auto text-muted" aria-hidden="true">→</span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => toast(googleEnabled === null ? "잠시만요, 로그인 설정을 확인하는 중이에요." : "Google 로그인이 아직 설정되지 않았어요. 체험 계정으로 둘러보세요.")}
+            className="flex h-12 w-full items-center gap-3 rounded-sm border border-line bg-surface px-4 text-[15px] font-semibold transition hover:bg-bg focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <GoogleMark />
+            <span className="whitespace-nowrap">Google로 계속하기</span>
+            <Chip tone="muted" className="ml-auto">
+              {googleEnabled === null ? "확인 중" : "준비 중"}
+            </Chip>
+          </button>
+        )}
 
         <div className="flex items-center gap-3 text-xs text-muted before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
           또는 체험 계정으로 둘러보기
@@ -140,7 +167,7 @@ export function LoginScreen() {
             </p>
           )}
         </div>
-        <p className="text-xs leading-5 text-muted">학교 계정 연동은 곧 열립니다. 지금은 체험 계정으로 모든 기능을 써 볼 수 있어요.</p>
+        <p className="text-xs leading-5 text-muted">{googleEnabled ? <>Google 계정으로 로그인하면 내 자료와 후배 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></> : "학교 계정 연동은 곧 열립니다. 지금은 체험 계정으로 모든 기능을 써 볼 수 있어요."}</p>
       </Card>
       <Toaster />
     </main>

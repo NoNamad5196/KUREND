@@ -16,7 +16,7 @@ function Stat({ label, value, unit }: { label: string; value: string | number; u
   );
 }
 
-export function GraduationSummary({ summary, albumHref = "/album", nextHref }: { summary: Summary; albumHref?: string; nextHref: string }) {
+export function GraduationSummary({ summary, albumHref, nextHref }: { summary: Summary; albumHref?: string; nextHref: string }) {
   const meta = CHARACTER_META[summary.character];
   return (
     <Card className="w-full max-w-md p-5 text-center">
@@ -35,8 +35,8 @@ export function GraduationSummary({ summary, albumHref = "/album", nextHref }: {
         <LifeHearts lives={summary.finalLives} maxLives={summary.maxLives} size={22} animate={false} />
       </div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-        <Link href={albumHref} className="flex-1"><Button variant="secondary" className="w-full">졸업 기록 보기</Button></Link>
-        <Link href={nextHref} className="flex-1"><Button className="w-full">새로운 후배 만나기</Button></Link>
+        {albumHref && <Link href={albumHref} className="flex-1"><Button variant="secondary" className="w-full">졸업 기록 보기</Button></Link>}
+        <Link href={nextHref} className="flex-1"><Button className="w-full">새로운 후배 만나기 →</Button></Link>
       </div>
     </Card>
   );

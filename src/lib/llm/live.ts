@@ -2,7 +2,7 @@ import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./provider";
 import {
   analyzeTurnSchema, chaptersSchema, examAnswerSchema,
-  gradeExamSchema, prepareSessionSchema, teacherNoteSchema, objectiveGapSchema,
+  gradeExamSchema, prepareSessionSchema, respondTurnSchema, teacherNoteSchema, objectiveGapSchema,
 } from "./schemas";
 import {
   compactChapter, compactText, paragraphizeSources, rubricElements,
@@ -11,6 +11,7 @@ import {
 import { GENERATE_CHAPTERS_PROMPT } from "./prompts/generate-chapters";
 import { PREPARE_SESSION_PROMPT, OBJECTIVE_EXAM_PROMPT, KU_EXAM_PROMPT, FEMALE_EXAM_PROMPT } from "./prompts/prepare-session";
 import { ANALYZE_TURN_PROMPT } from "./prompts/analyze-turn";
+import { RESPOND_TURN_PROMPT } from "./prompts/respond-turn";
 import { WRITE_EXAM_ANSWER_PROMPT, OBJECTIVE_ANSWER_PROMPT } from "./prompts/write-exam-answer";
 import { GRADE_EXAM_PROMPT, OBJECTIVE_GAP_PROMPT } from "./prompts/grade-exam";
 import { acceptedExplanations, nextObjectiveQuestion } from "./turn-state";
@@ -103,17 +104,33 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const heardConcepts = uniqueStrings([...previousConcepts, ...added]);
       const coveredObjectives = uniqueStrings(analysis.coverage.map(({ id }) => id));
       yield { type: "concepts", heardConcepts, added };
-      const reaction = analysis.reactionQuote
+      // 반응·다음 질문은 모델이 대화 맥락에 맞춰 쓴다(분석 결과로 범위를 고정). 형식을 벗어나면 템플릿 문장으로 대체.
+      const fallbackReaction = analysis.reactionQuote
         ? `“${analysis.reactionQuote}”라고 ${input.level === "HARD" ? "받아쓸게." : "설명해 줬구나."}`
         : input.persona ? personaFor(input.persona)!.examples.reaction
           : input.level === "HARD" ? "응, 말해 준 설명을 받아쓸게." : "응응, 말해 준 설명을 기억할게.";
-      yield { type: "reaction", content: reaction };
-      yield {
-        type: "question", coveredObjectives,
-        content: input.persona === "FEMALE_NORMAL" && coveredObjectives.length < input.objectives.length
-          ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배?`
-          : nextObjectiveQuestion(input, coveredObjectives),
-      };
+      const fallbackQuestion = input.persona === "FEMALE_NORMAL" && coveredObjectives.length < input.objectives.length
+        ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배?`
+        : nextObjectiveQuestion(input, coveredObjectives);
+      let reactions = [fallbackReaction];
+      let question = fallbackQuestion;
+      try {
+        const responded = await calls.completeJSON(RESPOND_TURN_PROMPT, JSON.stringify({
+          level: input.level,
+          persona: input.persona ?? null,
+          history: input.history.slice(-6).map(({ role, stage, content }) => ({ role, stage, content: compactText(content, 240) })),
+          explanation: input.explanation,
+          analysis: { heardConcepts, contradictionClaims: [], coveredObjectives },
+          objectives: input.objectives.map(({ id, text }) => ({ id, text })),
+          nextQuestionHint: fallbackQuestion,
+        }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000 });
+        reactions = responded.reactions;
+        question = responded.question;
+      } catch {
+        /* 템플릿 유지 */
+      }
+      for (const content of reactions) yield { type: "reaction", content };
+      yield { type: "question", coveredObjectives, content: question };
     },
 
     async *writeExamAnswer({ question, taught, heardConcepts, choices }) {
