@@ -29,7 +29,11 @@ import { z } from "zod";
 import {
   ApplyLifeResponseSchema,
   CurrentRunResponseSchema,
+  AlbumResponseSchema,
   GraduateResponseSchema,
+  ReteachResponseSchema,
+  WrongNoteListResponseSchema,
+  WrongNoteSchema,
   TeacherNoteListResponseSchema,
   RunSchema,
   SessionGameSchema,
@@ -548,6 +552,50 @@ async function gameSmoke() {
   ok("연습 세션 game: run null, passScore null, DESCRIPTIVE", gp?.run === null && gp.passScore === null && gp.examFormat === "DESCRIPTIVE", gp);
   expectError("life: 남의 Run", await call("POST", `/runs/${r1!.runId}/life`, { sessionId: clear }), 404, "NO_RUN");
 
+  console.log("\n[game: 오답노트]");
+  // 실패 세션(55점)에 채점 기록을 붙인다: q1 PARTIAL + 놓친 곳, q2 CORRECT
+  const wnExam = newId("exam");
+  await db.exam.create({
+    data: {
+      id: wnExam, sessionId: fail, status: "GRADED", format: "OBJECTIVE",
+      questions: { create: [
+        { id: examItemId(wnExam, "q1"), qid: "q1", order: 1, points: 34, question: "수요 법칙은?", objectiveRef: "o1", rubric: "2", choicesJson: JSON.stringify(["①", "②", "③", "④"]) },
+        { id: examItemId(wnExam, "q2"), qid: "q2", order: 2, points: 33, question: "수요의 변화는?", objectiveRef: "o2", rubric: "r" },
+      ] },
+      answers: { create: [
+        { id: examItemId(wnExam, "q1"), qid: "q1", answer: "① 가격이 오르면 수요량도 늘어납니다.", sentencesJson: "[]" },
+        { id: examItemId(wnExam, "q2"), qid: "q2", answer: "곡선이 이동합니다.", sentencesJson: "[]" },
+      ] },
+      grades: { create: [
+        { id: examItemId(wnExam, "q1"), qid: "q1", score: 0, maxScore: 34, verdict: "WRONG", comment: "수요 법칙 방향이 반대입니다." },
+        { id: examItemId(wnExam, "q2"), qid: "q2", score: 33, maxScore: 33, verdict: "CORRECT", comment: "정확합니다." },
+      ] },
+    },
+  });
+  await db.message.create({ data: { id: newId("msg"), sessionId: fail, role: "USER", stage: "ANSWER", content: "가격이 오르면 수요량도 늘어." } });
+  await db.gap.create({ data: { id: newId("gap"), sessionId: fail, qid: "q1", title: "수요 법칙 방향이 반대", diagnosis: "새내기 답안은 가격과 수요량이 같은 방향이라고 썼습니다.", evidenceQuote: "가격이 오르면 수요량도 늘어.", conceptsJson: JSON.stringify(["수요 법칙"]), sourceExcerpt: "가격이 오르면 수요량이 줄어든다." } });
+  expectError("오답노트: 맞힌 문항", await call("POST", "/wrong-notes", { sessionId: fail, qid: "q2", userReason: "?" }), 409, "INVALID_STATE");
+  expectError("오답노트: 없는 문항", await call("POST", "/wrong-notes", { sessionId: fail, qid: "q9", userReason: "?" }), 404, "NOT_FOUND");
+  expectError("오답노트: 이유 비어 있음", await call("POST", "/wrong-notes", { sessionId: fail, qid: "q1", userReason: "  " }), 400, "VALIDATION");
+  expectError("오답노트: 채점 전 세션", await call("POST", "/wrong-notes", { sessionId: s1.sessionId, qid: "q1", userReason: "x" }), 409, "INVALID_STATE");
+  const wnRes = await call("POST", "/wrong-notes", { sessionId: fail, qid: "q1", userReason: "수요 법칙을 반대로 설명했다" });
+  ok("POST /wrong-notes 201", wnRes.status === 201, wnRes);
+  const wn = validate("POST /wrong-notes 응답", WrongNoteSchema, wnRes.data);
+  ok("오답노트: 보기·답·점수·진단·근거·놓친 개념·비교", wn?.choices?.length === 4 && wn.verdict === "WRONG" && wn.score === 0 && wn.maxScore === 34 && wn.runId === run.runId && wn.aiDiagnosis.includes("수요 법칙 방향이 반대") && wn.evidenceQuote === "가격이 오르면 수요량도 늘어." && wn.missedConcepts.join() === "수요 법칙" && !!wn.aiComparison?.includes("수요 법칙"), wn);
+  const wnAgain = await call("POST", "/wrong-notes", { sessionId: fail, qid: "q1", userReason: "다른 이유" });
+  ok("같은 문항 재작성 → 기존 노트 200", wnAgain.status === 200 && (wnAgain.data as { wrongNoteId: string }).wrongNoteId === wn?.wrongNoteId && (wnAgain.data as { userReason: string }).userReason === "수요 법칙을 반대로 설명했다", wnAgain);
+  const wnList = validate("GET /wrong-notes?materialId=", WrongNoteListResponseSchema, (await call("GET", `/wrong-notes?materialId=${econId}`)).data);
+  ok("목록에 1개", wnList?.notes.length === 1 && wnList.notes[0].wrongNoteId === wn?.wrongNoteId, wnList);
+  const wnOther = validate("GET /wrong-notes?materialId=운영체제", WrongNoteListResponseSchema, (await call("GET", `/wrong-notes?materialId=${osId}`)).data);
+  ok("다른 자료 필터 → 0개", wnOther?.notes.length === 0, wnOther);
+  validate("GET /wrong-notes/{id}", WrongNoteSchema, (await call("GET", `/wrong-notes/${wn?.wrongNoteId}`)).data);
+  expectError("GET /wrong-notes/없는id", await call("GET", "/wrong-notes/wn_nope"), 404, "NOT_FOUND");
+  const rt = await call("POST", `/wrong-notes/${wn?.wrongNoteId}/reteach`);
+  const rtDto = validate("POST /wrong-notes/{id}/reteach", ReteachResponseSchema, rt.data);
+  created.sessions.push(rtDto!.sessionId);
+  const rtRow = await db.session.findUnique({ where: { id: rtDto!.sessionId } });
+  ok("다시 가르치기: 같은 챕터·Run 연결·집중 개념 저장", rt.status === 201 && rtRow?.chapterId === ch[0].chapterId && rtRow.runId === run.runId && rtRow.status === "PREPARING" && JSON.parse(rtRow.focusConceptsJson ?? "[]").join() === "수요 법칙" && rtDto?.focusConcepts.join() === "수요 법칙", rtRow);
+
   console.log("\n[game: 졸업]");
   expectError("graduate: 미통과 챕터 있음", await call("POST", `/runs/${run.runId}/graduate`), 409, "NOT_READY");
   let last = null as z.infer<typeof ApplyLifeResponseSchema> | null;
@@ -560,12 +608,14 @@ async function gameSmoke() {
   const gradRes = validate("POST /runs/{id}/graduate", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data);
   const grad = gradRes?.summary;
   ok("graduate 응답 run = GRADUATED", gradRes?.run.status === "GRADUATED" && gradRes.run.runId === run.runId, gradRes?.run);
-  ok("졸업 요약: 챕터 5, 시험 7, PERFECT 2, 최종 ♥5/5", grad?.chapters === 5 && grad.exams === 7 && grad.perfectCount === 2 && grad.finalLives === 5 && grad.maxLives === 5 && grad.character === "MALE_EASY" && grad.days >= 1, grad);
+  ok("졸업 요약: 챕터 5, 시험 7, PERFECT 2, 오답노트 1, 최종 ♥5/5", grad?.chapters === 5 && grad.exams === 7 && grad.perfectCount === 2 && grad.wrongNoteCount === 1 && grad.finalLives === 5 && grad.maxLives === 5 && grad.character === "MALE_EASY" && grad.days >= 1, grad);
   ok("졸업 요약 평균 = 시험 점수 평균", grad?.averageScore === Math.round((55 + 100 + 100 + 60 + 75 * 3) / 7), grad?.averageScore);
   const grad2 = validate("graduate 재호출", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data)?.summary;
   ok("재호출 = 같은 요약", grad2?.graduatedAt === grad?.graduatedAt);
   const runGrad = validate("GET /runs/{id} (졸업)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
   ok("Run GRADUATED, endedAt, next null", runGrad?.status === "GRADUATED" && !!runGrad.endedAt && runGrad.next === null && !runGrad.canGraduate, runGrad);
+  const album1 = validate("GET /runs/album (체험1)", AlbumResponseSchema, (await call("GET", "/runs/album")).data);
+  ok("앨범: 졸업생 1 (남학생·경제학원론)", album1?.graduated.length === 1 && album1.graduated[0].runId === run.runId && album1.graduated[0].character === "MALE_EASY" && album1.graduated[0].summary?.chapters === 5, album1);
   const curAfter = validate("current (졸업 후)", CurrentRunResponseSchema, (await call("GET", `/runs/current?materialId=${econId}`)).data);
   ok("졸업 후 그 자료 current = null", curAfter?.run === null);
   const after = await gradedSession(ch[0].chapterId, 40);
@@ -598,6 +648,8 @@ async function gameSmoke() {
   ok("새 후배는 진행도 0부터, 여학생 합격선 70", reborn.status === 201 && rebornRun?.progress.cleared === 0 && rebornRun.passScore === 70 && rebornRun.lives === 3, rebornRun);
   const matKeep = await db.chapter.count({ where: { materialId: r2!.materialId } });
   ok("게임오버 후 자료·챕터 유지", matKeep === 5);
+  const album2 = validate("GET /runs/album (체험2)", AlbumResponseSchema, (await call("GET", "/runs/album")).data);
+  ok("앨범: 떠나간 후배 1 (KU, 요약 포함), 졸업생 0", album2?.departed.length === 1 && album2.departed[0].runId === r2!.runId && album2.departed[0].summary?.finalLives === 0 && album2.graduated.length === 0, album2);
 
   /* 정리: 시드 상태로 되돌린다 */
   await db.session.deleteMany({ where: { id: { in: [...created.sessions, kuSess.sessionId, kuSess2.sessionId] } } });

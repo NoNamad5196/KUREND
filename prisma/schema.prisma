@@ -66,30 +66,31 @@ model Chapter {
 }
 
 model Session {
-  id             String         @id // sess_
-  userId         String
-  user           User           @relation(fields: [userId], references: [id])
-  chapterId      String
-  chapter        Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  status         String         @default("PREPARING") // PREPARING | EXPLAINING | EXAM_IN_PROGRESS | EVALUATING | RESULT_READY | REVIEWING | COMPLETED | FAILED
-  phase          String         @default("QUESTION") // QUESTION | EXAM_READY (EXPLAINING 내부 단계)
-  juniorLevel    String         @default("EASY") // EASY | HARD
-  objectivesJson String         @default("[]") // [{id:"o1", text}]
-  heardJson      String         @default("[]") // string[] 들은 개념
-  score          Int?
-  finalVerdict   String? // NEEDS_WORK | MOSTLY | STABLE
-  error          String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  completedAt    DateTime?
-  runId          String? // [게임 확장 additive] 연결된 후배 Run (null = 연습 모드)
-  run            JuniorRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
-  kind           String         @default("CHAPTER") // [게임 확장 additive] CHAPTER | FINAL(P1 졸업시험)
-  wrongNotes     WrongNote[]
-  messages       Message[]
-  exam           Exam?
-  gaps           Gap[]
-  tutorMessages  TutorMessage[]
+  id                String         @id // sess_
+  userId            String
+  user              User           @relation(fields: [userId], references: [id])
+  chapterId         String
+  chapter           Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  status            String         @default("PREPARING") // PREPARING | EXPLAINING | EXAM_IN_PROGRESS | EVALUATING | RESULT_READY | REVIEWING | COMPLETED | FAILED
+  phase             String         @default("QUESTION") // QUESTION | EXAM_READY (EXPLAINING 내부 단계)
+  juniorLevel       String         @default("EASY") // EASY | HARD
+  objectivesJson    String         @default("[]") // [{id:"o1", text}]
+  heardJson         String         @default("[]") // string[] 들은 개념
+  score             Int?
+  finalVerdict      String? // NEEDS_WORK | MOSTLY | STABLE
+  error             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  completedAt       DateTime?
+  runId             String? // [게임 확장 additive] 연결된 후배 Run (null = 연습 모드)
+  run               JuniorRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
+  kind              String         @default("CHAPTER") // [게임 확장 additive] CHAPTER | FINAL(P1 졸업시험)
+  focusConceptsJson String? // [게임 확장 additive P1] 오답노트 "다시 가르치기" 집중 개념 string[] JSON (② prepare 가 읽음)
+  wrongNotes        WrongNote[]
+  messages          Message[]
+  exam              Exam?
+  gaps              Gap[]
+  tutorMessages     TutorMessage[]
 }
 
 model Message {
