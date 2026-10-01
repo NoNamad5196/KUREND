@@ -17,5 +17,21 @@ chapter.text에 있는 내용만 묻고 외부 지식, 계산 문제, 자료에 
 - 모든 자연어 출력은 한국어입니다.`;
 
 export const OBJECTIVE_EXAM_PROMPT = `\n이번 후배의 시험은 객관식 4지선다입니다. 각 questions 항목에 choices:["① …","② …","③ …","④ …"]를 넣으세요. 네 보기는 서로 달라야 하며 자료에 근거한 정답은 하나만 있어야 합니다. rubric은 "정답 ②;근거: 자료의 사실" 형식의 두 요소로 작성하세요. 질문과 보기는 사용자가 본문을 가르쳤는지 확인해야 하며 답을 노출하지 마세요.`;
-export const KU_EXAM_PROMPT = `\nKU의 문항 세 개 중 하나는 이유·비교·응용을 물어야 합니다. 단, chapter.text에 있는 사실만 정답 근거로 요구하세요. 애매한 설명을 한 번 듣고 완전히 이해한 것으로 가정하지 마세요.`;
+export const KU_EXAM_PROMPT = `\nKU의 문항 중 셋에 하나 이상은 이유·비교·응용을 물어야 합니다. 단, chapter.text에 있는 사실만 정답 근거로 요구하세요. 애매한 설명을 한 번 듣고 완전히 이해한 것으로 가정하지 마세요.`;
 export const FEMALE_EXAM_PROMPT = `\n여학생은 개념의 의미와 이유를 자기 말로 설명하는 서술형 문항을 냅니다.`;
+
+/**
+ * 문항 수·형식에 맞춘 출제 지시. 목표 3개는 그대로, 문항은 count 개(배점 합 100, 목표 o1→o2→o3 반복).
+ * format: DESCRIPTIVE(서술형) · OBJECTIVE(전부 4지선다) · MIXED(졸업시험: 앞 절반 객관식 + 나머지 서술형)
+ */
+export function examPlanPrompt(count: number, plan: number[], objectiveIndexes: number[], kind: "CHAPTER" | "FINAL" = "CHAPTER"): string {
+  const lines = plan.map((points, i) => `q${i + 1}: 배점 ${points}, objectiveRef o${(i % 3) + 1}, ${objectiveIndexes.includes(i) ? "객관식(choices 4개, rubric \"정답 ②;근거: …\")" : "서술형(choices 없음)"}`);
+  return `
+[이번 시험 구성 — 위 예시 구조보다 이 지시가 우선합니다]
+- questions 는 정확히 ${count}개입니다(위 예시의 "정확히 3개"는 objectives 에만 적용). qid 는 q1~q${count}, order 는 1~${count}, 배점 합계 100.
+${lines.map((l) => `- ${l}`).join("\n")}
+- 같은 목표를 여러 문항이 맡으면 서로 다른 측면(정의, 이유, 비교, 예시 적용, 조건 구분)을 물어 중복 질문을 피하세요. 모든 정답 근거는 chapter.text 안에 있어야 합니다.
+- 문항 수가 많을수록 난이도를 고르게 섞으세요: 앞쪽은 개념 확인, 뒤쪽은 이유·비교·적용.${kind === "FINAL" ? `
+- 이것은 졸업시험입니다. chapter.text 는 자료 전체이고 chapter.points 는 각 챕터 제목입니다. 문항이 여러 챕터에 고르게 퍼지도록 출제하세요.` : ""}${objectiveIndexes.length ? `
+- 객관식 문항은 choices:["① …","② …","③ …","④ …"] 4개, 서로 다르고 자료 근거 정답은 하나, rubric 은 "정답 ②;근거: 자료의 사실" 형식입니다.` : ""}`;
+}

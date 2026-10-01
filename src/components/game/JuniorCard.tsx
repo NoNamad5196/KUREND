@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { Button, Card, ProgressBar } from "@/components/session/ui";
 import { CharacterBadge } from "./CharacterBadge";
+import { FinalExamAction, finalStageText, inFinalStage } from "./FinalExamAction";
 import { CHARACTER_META } from "./characters";
 import { JuniorAvatar } from "./JuniorAvatar";
 import { LifeHearts } from "./LifeHearts";
@@ -45,14 +46,14 @@ export function JuniorCard({ run, continueHref, meetHref = "/new" }: { run: RunS
             <span className="shrink-0 font-bold tabular-nums">{run.progress.cleared} / {run.progress.total} Chapter</span>
           </div>
           <p className="mt-2 text-sm text-muted">
-            {run.canGraduate ? "모든 챕터를 통과했어요 — 졸업할 수 있습니다!" : run.next ? <>다음 수업 <span className="font-semibold text-ink">{run.next.title}</span></> : "다음 수업이 없습니다"}
+            {inFinalStage(run) ? finalStageText(run) : run.next ? <>다음 수업 <span className="font-semibold text-ink">{run.next.title}</span></> : "다음 수업이 없습니다"}
           </p>
         </div>
         <div className="flex sm:flex-col sm:items-stretch">
           {ended ? (
             <Link href={`/materials/${run.materialId}/junior`} className="w-full"><Button className="w-full">새 후배 만나기</Button></Link>
-          ) : run.canGraduate ? (
-            <Link href={`/runs/${run.runId}/graduation`} className="w-full"><Button className="w-full">졸업하기 🎓</Button></Link>
+          ) : inFinalStage(run) ? (
+            <FinalExamAction run={run} className="w-full" />
           ) : (
             <Link href={href} className="w-full"><Button className="w-full">계속 가르치기 →</Button></Link>
           )}

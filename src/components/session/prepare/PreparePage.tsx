@@ -34,7 +34,8 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   const [ready, setReady] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const { run } = useSessionGame(sessionId);
+  const { run, game } = useSessionGame(sessionId);
+  const isFinal = game?.kind === "FINAL";
   const abortRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
 
@@ -194,12 +195,12 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
         {run ? (
           <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-bold">이번 수업의 후배</h2>
+              <h2 className="text-base font-bold">{isFinal ? "졸업시험 — 자료 전체에서 출제" : "이번 수업의 후배"}</h2>
               <LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} />
             </div>
             <div className="mt-3 flex items-center gap-3">
               <CharacterBadge character={run.character} />
-              <p className="text-sm text-muted">합격 {run.passScore}점 · {run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}</p>
+              <p className="text-sm text-muted">합격 {run.passScore}점 · {isFinal ? "졸업시험 · 객관식+서술형" : run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"} {game?.questionCount ?? ""}문항</p>
             </div>
             <p className="mt-3 text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 후배는 졸업하거나 떠날 때까지 바뀌지 않습니다.</p>
             <p className="mt-2 text-xs text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>

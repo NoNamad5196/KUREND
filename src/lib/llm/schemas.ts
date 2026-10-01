@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { objectiveRefFor, pointsPlan } from "@/contracts/game";
 import type { SourceParagraph } from "./text";
 import { UNLEARNED_ANSWER } from "./text";
 import type { TaughtMsg } from "./types";
@@ -35,29 +36,42 @@ export function chaptersSchema(paragraphs: SourceParagraph[], minChapters: numbe
   });
 }
 
-export const prepareSessionSchema = z.object({
-  objectives: z.array(z.object({ id: z.enum(["o1", "o2", "o3"]), text: nonempty.max(200) })).length(3),
-  questions: z.array(z.object({
-    qid: z.enum(["q1", "q2", "q3"]), order: z.number().int().min(1).max(3),
-    points: z.number().int(), question: nonempty.max(500),
-    objectiveRef: z.enum(["o1", "o2", "o3"]),
-    rubric: nonempty.refine((value) => {
-      const items = value.split(";").filter((item) => item.trim());
-      return items.length >= 2 && items.length <= 3;
-    }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
-    choices: z.array(nonempty.max(200)).length(4).refine((items) => new Set(items).size === 4, "보기는 서로 다른 4개여야 합니다.").optional(),
-  })).length(3),
-  firstQuestion: nonempty.max(200),
-}).superRefine((result, ctx) => {
-  result.objectives.forEach((objective, index) => {
-    if (objective.id !== `o${index + 1}`) ctx.addIssue({ code: "custom", path: ["objectives", index, "id"], message: "목표 ID는 순서대로 o1, o2, o3입니다." });
+/**
+ * 출제 결과 검증. 목표는 항상 3개(o1~o3), 문항은 count 개(q1~qN, 배점은 pointsPlan(count) 그대로 — 합계 100),
+ * 문항 i 는 목표 o((i%3)+1) 을 평가한다. objectiveIndexes 의 문항은 4지선다 보기가 필수, 나머지는 서술형.
+ */
+export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[]) {
+  const plan = pointsPlan(count);
+  return z.object({
+    objectives: z.array(z.object({ id: z.enum(["o1", "o2", "o3"]), text: nonempty.max(200) })).length(3),
+    questions: z.array(z.object({
+      qid: z.string().regex(/^q([1-9]|1[0-9]|20)$/u), order: z.number().int().min(1).max(count),
+      points: z.number().int(), question: nonempty.max(500),
+      objectiveRef: z.enum(["o1", "o2", "o3"]),
+      rubric: nonempty.refine((value) => {
+        const items = value.split(";").filter((item) => item.trim());
+        return items.length >= 2 && items.length <= 3;
+      }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
+      choices: z.array(nonempty.max(200)).length(4).refine((items) => new Set(items).size === 4, "보기는 서로 다른 4개여야 합니다.").optional(),
+    })).length(count),
+    firstQuestion: nonempty.max(200),
+  }).superRefine((result, ctx) => {
+    result.objectives.forEach((objective, index) => {
+      if (objective.id !== `o${index + 1}`) ctx.addIssue({ code: "custom", path: ["objectives", index, "id"], message: "목표 ID는 순서대로 o1, o2, o3입니다." });
+    });
+    result.questions.forEach((question, index) => {
+      if (question.qid !== `q${index + 1}` || question.order !== index + 1 || question.objectiveRef !== objectiveRefFor(index) || question.points !== plan[index]) {
+        ctx.addIssue({ code: "custom", path: ["questions", index], message: `문항은 q1~q${count}, 순서 1~${count}, 목표 o1→o2→o3 반복, 배점 ${plan.join("/")}이어야 합니다.` });
+      }
+      if (!objectiveIndexes) return; // 형식 미지정(기존 호환): 보기는 선택
+      const mustChoose = objectiveIndexes.includes(index);
+      if (mustChoose && !question.choices) ctx.addIssue({ code: "custom", path: ["questions", index, "choices"], message: `${index + 1}번은 객관식(보기 4개)이어야 합니다.` });
+      if (!mustChoose && question.choices) ctx.addIssue({ code: "custom", path: ["questions", index, "choices"], message: `${index + 1}번은 서술형이어야 합니다(보기 없음).` });
+    });
   });
-  result.questions.forEach((question, index) => {
-    if (question.qid !== `q${index + 1}` || question.order !== index + 1 || question.objectiveRef !== `o${index + 1}` || question.points !== (index === 0 ? 34 : 33)) {
-      ctx.addIssue({ code: "custom", path: ["questions", index], message: "문항은 q1~q3, 순서 1~3, 목표 o1~o3, 배점 34/33/33이어야 합니다." });
-    }
-  });
-});
+}
+/** 기존 호출 호환: 3문항, 보기 유무는 검사하지 않음 */
+export const prepareSessionSchema = prepareSessionSchemaFor(3);
 
 export const teacherNoteSchema = z.object({
   mustTeach: z.array(nonempty.max(200)).min(2).max(8),
