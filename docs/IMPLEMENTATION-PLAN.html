@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>새내기(TeachBack Campus) 구현 설계서</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--bg:#F6F5F0;--surface:#fff;--ink:#1E2330;--muted:#6B7280;--line:#E3DFD5;--primary:#1F6F5B;--primary-soft:#E3F1EC;--accent:#F4B942;--accent-soft:#FFF4D6;--code:#F3F1EA}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard Variable",Pretendard,-apple-system,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:15px;line-height:1.65}
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+nav{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line);background:var(--surface)}
+nav .brand{font-weight:800;font-size:18px;color:var(--primary);margin-bottom:6px}
+nav .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+nav ul{list-style:none;padding:0;margin:0}nav li{margin:2px 0}
+nav a{color:var(--ink);text-decoration:none;font-size:13px;display:block;padding:4px 8px;border-radius:8px}
+nav a:hover{background:var(--primary-soft)}nav ul ul a{padding-left:20px;color:var(--muted);font-size:12px}
+main{padding:40px 56px 120px;max-width:1100px}
+h1{font-size:30px;margin:0 0 8px;letter-spacing:-.02em}h2{font-size:22px;margin:48px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+h3{font-size:17px;margin:28px 0 10px;color:var(--primary)}h4{font-size:15px;margin:20px 0 8px}
+blockquote{margin:0 0 20px;padding:12px 16px;background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;color:#5B4A12}
+blockquote p{margin:4px 0}
+table{border-collapse:collapse;width:100%;margin:12px 0 20px;font-size:13.5px;background:var(--surface);border-radius:10px;overflow:hidden;box-shadow:0 1px 0 var(--line)}
+th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}th{background:var(--primary-soft);font-weight:700}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"D2Coding",monospace;font-size:12.5px;background:var(--code);padding:1px 5px;border-radius:5px}
+pre{background:#1E2330;color:#F3F1EA;padding:14px 16px;border-radius:12px;overflow:auto;font-size:12.5px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+ul,ol{padding-left:22px}li{margin:3px 0}
+strong{font-weight:700}
+.frozen{display:inline-block;background:#FBE9E7;color:#C0392B;font-size:11px;padding:1px 6px;border-radius:6px;margin-left:6px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:24px 18px}}
+@media print{nav{display:none}.layout{grid-template-columns:1fr}main{padding:0}pre{white-space:pre-wrap}}
+</style></head>
+<body><div class="layout"><nav><div class="brand">새내기 · 구현 설계서</div><div class="sub">teachback-campus · 4인 병렬 · 2026-10-01</div><div class="toc">
+<ul>
+<li><a href="#0">0. 한 장 요약</a></li>
+<li><a href="#1">1. 작업 분리 원칙 (충돌 방지)</a><ul>
+<li><a href="#1-1">1-1. 디렉터리 소유권 (다른 사람 영역은 절대 수정 금지)</a></li>
+<li><a href="#1-2">1-2. 공유 파일 규칙</a></li>
+<li><a href="#1-3-git">1-3. Git 워크플로</a></li>
+<li><a href="#1-4-t">1-4. 통합 체크포인트 (T = 킥오프 시각)</a></li>
+</ul>
+</li>
+<li><a href="#2">2. 기술 스택 &amp; 프로젝트 설정</a><ul>
+<li><a href="#2-1">2-1. 선택 이유</a></li>
+<li><a href="#2-2-a-t0">2-2. 스켈레톤 명령 (A가 T+0에 실행)</a></li>
+<li><a href="#2-3-id">2-3. ID 규칙</a></li>
+</ul>
+</li>
+<li><a href="#3-db-c-frozen">3. 도메인 &amp; DB 스키마 (C 소유, FROZEN)</a><ul>
+<li><a href="#3-1-c-prismaseedts">3-1. 시드 (C) — prisma/seed.ts</a></li>
+</ul>
+</li>
+<li><a href="#4">4. 세션 상태 머신 (전원 공통)</a></li>
+<li><a href="#5-api-frozen-base-api-json-tb_uid">5. API 계약 (FROZEN) — base /api, 모든 응답 JSON, 인증은 쿠키 tb_uid</a><ul>
+<li><a href="#5-1">5-1. 공통</a></li>
+<li><a href="#5-2-c">5-2. 인증 [C]</a></li>
+<li><a href="#5-3-c">5-3. 홈 [C]</a></li>
+<li><a href="#5-4-c-d">5-4. 자료 [C], 목차 생성 [D]</a></li>
+<li><a href="#5-5-crud-c">5-5. 세션 — CRUD/전이 [C]</a></li>
+<li><a href="#5-6-llm-d-sse-6">5-6. 세션 — LLM 스트리밍 [D] (모두 SSE, §6 이벤트)</a></li>
+</ul>
+</li>
+<li><a href="#6-sse-frozen-srccontractseventsts">6. SSE 프로토콜 (FROZEN) — src/contracts/events.ts</a></li>
+<li><a href="#7-llm-d">7. LLM 파이프라인 (D 소유)</a><ul>
+<li><a href="#7-1-libllmindexts-frozen-t2h">7-1. 인터페이스 lib/llm/index.ts (시그니처 FROZEN, T+2h 커밋)</a></li>
+<li><a href="#7-2">7-2. 프롬프트 사양</a></li>
+<li><a href="#7-3-d">7-3. 품질 가드 (D)</a></li>
+</ul>
+</li>
+<li><a href="#8">8. 화면 사양</a><ul>
+<li><a href="#8-1-a">8-1. 공통 셸 [A]</a></li>
+<li><a href="#8-2-login-a">8-2. 로그인 /login [A]</a></li>
+<li><a href="#8-3-a">8-3. 홈 / [A]</a></li>
+<li><a href="#8-4-new-a">8-4. 새 자료 /new [A]</a></li>
+<li><a href="#8-5-materialsid-a">8-5. 자료 상세 /materials/[id] [A]</a></li>
+<li><a href="#8-6-sessionidprepare-b">8-6. 세션 준비 /session/[id]/prepare [B]</a></li>
+<li><a href="#8-7-sessionidteach-b">8-7. 가르치기 /session/[id]/teach [B] — 핵심 화면</a></li>
+<li><a href="#8-8-sessionidexam-b">8-8. 시험 /session/[id]/exam [B]</a></li>
+<li><a href="#8-9-sessionidresult-b">8-9. 채점·성적 /session/[id]/result [B]</a></li>
+<li><a href="#8-10-sessionidreview-b">8-10. 되짚기 /session/[id]/review [B]</a></li>
+<li><a href="#8-11-sessionidcomplete-b">8-11. 완료 /session/[id]/complete [B]</a></li>
+<li><a href="#8-12-sessions-a">8-12. 내 세션 /sessions [A]</a></li>
+<li><a href="#8-13-map-p1-a">8-13. 지식 지도 /map (P1) [A]</a></li>
+<li><a href="#8-14-b-componentsmascotmascottsx">8-14. 마스코트 [B] components/mascot/Mascot.tsx</a></li>
+<li><a href="#8-15-a-appglobalscss">8-15. 디자인 토큰 [A] app/globals.css (원본과 다른 자체 팔레트)</a></li>
+</ul>
+</li>
+<li><a href="#9">9. 캠퍼스 변주 요소 체크리스트</a></li>
+<li><a href="#10-2">10. 데모 시나리오 (2분, 리허설용)</a></li>
+<li><a href="#11-definition-of-done">11. 완료 기준 (Definition of Done)</a></li>
+<li><a href="#12-ai-ai">12. 팀원별 AI 작업 지시서 (각자 자기 AI에 붙여 넣기)</a><ul>
+<li><a href="#12-a-a-fe">12-A. A — 앱 셸 · 자료 화면 (FE)</a></li>
+<li><a href="#12-b-b-fe">12-B. B — 세션 화면 전부 (FE)</a></li>
+<li><a href="#12-c-c-db-crud-api-be">12-C. C — DB · CRUD API · 인증 · 인제스트 (BE)</a></li>
+<li><a href="#12-d-d-llm-be">12-D. D — LLM 파이프라인 · 스트리밍 라우트 (BE)</a></li>
+</ul>
+</li>
+<li><a href="#13">13. 리스크 &amp; 대응</a></li>
+</ul>
+</div>
+</nav>
+<main><h1 id="teachback-campus">새내기(TeachBack Campus) 구현 설계서</h1>
+<blockquote>
+<p>해커톤: 2026 제1회 컴퓨터공학과 해커톤 L/NKerthon (10/1~10/2) · 주제 "우리가 바꾸는 캠퍼스의 하루"
+팀 4명 · 각자 AI 코딩 도구로 구현 · GitHub 푸시 · <strong>작업 영역 완전 분리</strong>
+이 문서는 AI에게 그대로 붙여 넣는 용도로 작성됨. 본문의 계약(타입·API·SSE·DB)은 <strong>고정(FROZEN)</strong> 이며 변경은 팀 합의 후 소유자만 수정한다.</p>
+</blockquote>
+<hr />
+<h2 id="0">0. 한 장 요약</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>서비스명(가칭)</td>
+<td><strong>새내기</strong> — "가르쳐야 아는 AI 새내기에게 전공을 가르쳐라" (영문 코드명 <code>teachback-campus</code>)</td>
+</tr>
+<tr>
+<td>한 줄</td>
+<td>강의자료를 올리면 AI가 목차로 나누고, 사용자(선배)가 <strong>아무것도 모르는 AI 새내기</strong>에게 설명한다. 새내기는 <strong>들은 것만으로</strong> 혼자 시험을 보고, 채점 결과의 틀린 곳 = 내 설명에서 빠진 곳을 되짚는다.</td>
+</tr>
+<tr>
+<td>캠퍼스 변주</td>
+<td>과목(Course) 단위 관리 + 시험 D-day, 교수 PDF/강의노트 업로드, 설명 중 <strong>즉시 되묻기(소크라틱 체크)</strong> — 자료와 모순된 설명이면 새내기가 바로 의심 질문</td>
+</tr>
+<tr>
+<td>원본 대비 차별점</td>
+<td>원본(다들 AI)은 틀린 설명을 그대로 받아쓰고 시험에서만 걸러짐. 우리는 <strong>설명 즉시 자료 대조 → 모순이면 되묻기</strong> (정답은 알려주지 않음)</td>
+</tr>
+<tr>
+<td>스택</td>
+<td>Next.js 15 App Router + TypeScript + Tailwind · Prisma + SQLite(로컬 파일 DB) · LLM API(OpenAI 기본, Anthropic 전환 가능) · SSE over POST</td>
+</tr>
+<tr>
+<td>P0 루프</td>
+<td>데모 로그인 → 자료 업로드 → 목차 생성 → 세션 준비 → 가르치기(채팅) → 새내기 혼자 시험(관전) → 채점+놓친 곳 → 되짚기(튜터) → 완료 판정</td>
+</tr>
+<tr>
+<td>컷</td>
+<td>코넬 노트 공부 모드, 그룹 라운드, 업적, 음성 입력, 카카오 로그인, 회원가입, 지식 지도(P1로만)</td>
+</tr>
+<tr>
+<td>팀 분할</td>
+<td><strong>A</strong> 앱 셸·자료 화면(FE) / <strong>B</strong> 세션 화면 전부(FE) / <strong>C</strong> DB·CRUD API·인증·인제스트(BE) / <strong>D</strong> LLM 파이프라인·스트리밍 라우트(BE)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1">1. 작업 분리 원칙 (충돌 방지)</h2>
+<h3 id="1-1">1-1. 디렉터리 소유권 (다른 사람 영역은 절대 수정 금지)</h3>
+<pre><code>teachback-campus/
+├─ src/
+│  ├─ contracts/                 ← [A가 T+0에 생성, 이후 FROZEN] 타입·zod·SSE 이벤트·fixture 타입
+│  │   ├─ types.ts                  모든 도메인 타입 + zod 스키마
+│  │   ├─ events.ts                 SSE 이벤트 타입
+│  │   └─ api.md                    엔드포인트 요약 (이 문서 §5 복사)
+│  ├─ app/
+│  │   ├─ layout.tsx, globals.css, page.tsx(홈)            [A]
+│  │   ├─ login/                                            [A]
+│  │   ├─ new/                                              [A]
+│  │   ├─ materials/[id]/                                   [A]
+│  │   ├─ map/                        (P1)                  [A]
+│  │   ├─ session/[id]/prepare|teach|exam|result|review|complete/   [B]
+│  │   └─ api/
+│  │       ├─ auth/**                                       [C]
+│  │       ├─ home/route.ts                                 [C]
+│  │       ├─ materials/route.ts, materials/[id]/route.ts   [C]
+│  │       ├─ materials/[id]/generate/route.ts              [D]  ← LLM 스트리밍
+│  │       ├─ sources/**                                    [C]
+│  │       ├─ sessions/route.ts, sessions/[id]/route.ts     [C]
+│  │       ├─ sessions/[id]/(finish-explanation|start-exam|complete|result|gaps/**|messages/**)/route.ts   [C]
+│  │       ├─ sessions/[id]/(prepare|explanations|exam/answers|evaluate|tutor)/route.ts                  [D]  ← LLM 스트리밍
+│  │       └─ mock/**                                       [B]  ← B의 프런트 개발용 가짜 API
+│  ├─ components/
+│  │   ├─ shell/**  (사이드바, 헤더, 카드, 버튼 등 공통 UI)  [A]
+│  │   ├─ material/**                                       [A]
+│  │   ├─ session/**                                        [B]
+│  │   ├─ exam/**                                           [B]
+│  │   └─ mascot/**                                         [B]
+│  ├─ lib/
+│  │   ├─ client/api.ts   (fetch 래퍼 + SSE 리더)          [A, T+2h까지 커밋 후 FROZEN]
+│  │   ├─ server/db.ts    (Prisma 싱글턴)                   [C]
+│  │   ├─ server/auth.ts  (쿠키 → userId)                   [C]
+│  │   ├─ server/ingest.ts(PDF/MD/TXT 파싱)                 [C]
+│  │   ├─ server/sse.ts   (SSE 응답 헬퍼)                   [D]
+│  │   └─ llm/**          (provider, prompts, schemas, stub)[D]
+│  └─ mocks/**            (B 전용 fixture JSON)             [B]
+├─ prisma/schema.prisma, prisma/seed.ts                    [C]
+├─ fixtures/               (데모 자료 md, 골든 테스트)       [D]
+├─ scripts/eval-llm.ts                                      [D]
+├─ public/                 (폰트·이미지)                     [A]  (마스코트 SVG는 B가 components/mascot 안에 인라인)
+└─ package.json, tsconfig, tailwind.config, .env.example    [A가 스켈레톤에서 생성]
+</code></pre>
+<h3 id="1-2">1-2. 공유 파일 규칙</h3>
+<ul>
+<li><code>package.json</code> / <code>pnpm-lock.yaml</code>: A가 스켈레톤 커밋에서 <strong>아래 §2-2의 의존성을 전부 미리 설치</strong>. 추가가 꼭 필요하면 <code>chore(deps): add xxx</code> 한 줄 커밋을 main에 직접 올리고 알린다. 기능 PR에 deps 변경을 섞지 않는다.</li>
+<li><code>src/contracts/**</code>, <code>prisma/schema.prisma</code>, <code>lib/client/api.ts</code>, <code>lib/server/db.ts</code>, <code>lib/llm/index.ts</code>(시그니처): <strong>FROZEN</strong>. 바꿔야 하면 팀 채팅에 "계약 변경 제안"을 올리고 소유자가 수정·커밋한다.</li>
+<li>다른 사람 영역의 함수가 필요하면 <strong>import만</strong> 한다. 없으면 자기 영역에 임시 stub를 두고 TODO를 남긴다.</li>
+</ul>
+<h3 id="1-3-git">1-3. Git 워크플로</h3>
+<pre><code>main            ← 통합 브랜치. 직접 푸시는 A의 스켈레톤 커밋과 deps 커밋만.
+feat/a-shell    ← A
+feat/b-session  ← B
+feat/c-data     ← C
+feat/d-llm      ← D
+</code></pre>
+<ul>
+<li>각자 자기 브랜치에만 푸시. 2~3시간마다 <code>git pull --rebase origin main</code> 후 PR → 셀프 머지(소유 영역만 바뀌었으면 리뷰 생략).</li>
+<li>충돌이 나면 <strong>내 영역 밖 파일은 무조건 main 버전을 택한다</strong>.</li>
+<li>커밋 메시지: <code>feat(a): ...</code> <code>feat(b): ...</code> <code>feat(c): ...</code> <code>feat(d): ...</code> <code>fix(x): ...</code> <code>chore(deps): ...</code></li>
+</ul>
+<h3 id="1-4-t">1-4. 통합 체크포인트 (T = 킥오프 시각)</h3>
+<table>
+<thead>
+<tr>
+<th>시각</th>
+<th>머지되어야 하는 것</th>
+<th>확인 방법</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T+0.5h</td>
+<td>A: 스켈레톤 + contracts + globals.css + deps</td>
+<td><code>pnpm dev</code> 뜸, <code>/</code>에 사이드바</td>
+</tr>
+<tr>
+<td>T+2h</td>
+<td>A: <code>lib/client/api.ts</code> · C: schema+db+seed+auth · D: <code>lib/llm/index.ts</code> 시그니처+stub · B: mock 라우트</td>
+<td>각자 브랜치에서 <code>pnpm build</code> 통과</td>
+</tr>
+<tr>
+<td>T+6h</td>
+<td>C: materials CRUD+ingest · D: generate SSE · A: /new, /materials 화면</td>
+<td><strong>업로드→목차 생성</strong> 실제 동작</td>
+</tr>
+<tr>
+<td>T+10h</td>
+<td>D: prepare+explanations · B: prepare/teach 화면</td>
+<td><strong>가르치기 채팅</strong> 실제 LLM으로 동작</td>
+</tr>
+<tr>
+<td>T+14h</td>
+<td>D: exam answers+evaluate+tutor · B: exam/result/review/complete · C: 상태 전이 API</td>
+<td><strong>전체 루프</strong> 1회 완주</td>
+</tr>
+<tr>
+<td>T+16h</td>
+<td>데모 시나리오 리허설 3회, stub 세이프 모드 확인, README</td>
+<td>발표 준비</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2">2. 기술 스택 &amp; 프로젝트 설정</h2>
+<h3 id="2-1">2-1. 선택 이유</h3>
+<ul>
+<li><strong>Next.js App Router 단일 앱</strong>: FE/BE 한 레포, Route Handler로 SSE 스트리밍 쉬움, 배포 없이 노트북에서 데모.</li>
+<li><strong>Prisma + SQLite</strong>: 설치 0, 파일 하나(<code>prisma/dev.db</code>). Postgres(Supabase)로 바꾸려면 <code>provider</code>만 변경. SQLite라 <code>Json</code> 타입 대신 <strong>String에 JSON 문자열</strong> 저장.</li>
+<li><strong>SSE over POST</strong>: 원본과 동일. 클라이언트는 <code>fetch</code> + <code>ReadableStream</code> 리더로 파싱(EventSource는 POST 불가).</li>
+<li><strong>LLM 추상화</strong>: <code>lib/llm/provider.ts</code> 한 곳에서만 공급자를 호출. <code>LLM_PROVIDER=openai|anthropic|stub</code>. <code>stub</code>은 fixture를 돌려주는 <strong>데모 세이프 모드</strong>.</li>
+</ul>
+<h3 id="2-2-a-t0">2-2. 스켈레톤 명령 (A가 T+0에 실행)</h3>
+<pre><code class="language-bash">pnpm create next-app@latest teachback-campus --ts --tailwind --eslint --app --src-dir --import-alias &quot;@/*&quot; --use-pnpm
+cd teachback-campus
+pnpm add prisma @prisma/client zod pdf-parse openai @anthropic-ai/sdk nanoid date-fns clsx
+pnpm add -D tsx @types/pdf-parse
+pnpm prisma init --datasource-provider sqlite
+</code></pre>
+<p><code>.env.example</code></p>
+<pre><code>DATABASE_URL=&quot;file:./dev.db&quot;
+LLM_PROVIDER=openai          # openai | anthropic | stub
+LLM_MODEL=                   # 팀이 쓰는 모델 ID (비우면 provider 기본값)
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+NEXT_PUBLIC_API_BASE=/api    # B는 로컬에서 /api/mock 으로 바꿔 개발
+SESSION_COOKIE=tb_uid
+</code></pre>
+<p><code>package.json</code> scripts</p>
+<pre><code class="language-json">{ &quot;dev&quot;: &quot;next dev&quot;, &quot;build&quot;: &quot;next build&quot;, &quot;start&quot;: &quot;next start&quot;,
+  &quot;db:push&quot;: &quot;prisma db push&quot;, &quot;db:seed&quot;: &quot;tsx prisma/seed.ts&quot;, &quot;db:reset&quot;: &quot;rm -f prisma/dev.db &amp;&amp; prisma db push &amp;&amp; tsx prisma/seed.ts&quot;,
+  &quot;eval:llm&quot;: &quot;tsx scripts/eval-llm.ts&quot; }
+</code></pre>
+<h3 id="2-3-id">2-3. ID 규칙</h3>
+<p><code>nanoid(14)</code>에 접두사: <code>usr_</code> <code>mat_</code> <code>src_</code> <code>chp_</code> <code>sess_</code> <code>msg_</code> <code>exam_</code> <code>q1..qN</code>(문항은 시험 내 로컬 id) <code>gap_</code> <code>tm_</code>.</p>
+<hr />
+<h2 id="3-db-c-frozen">3. 도메인 &amp; DB 스키마 (C 소유, FROZEN)</h2>
+<p><code>prisma/schema.prisma</code></p>
+<pre><code class="language-prisma">generator client { provider = &quot;prisma-client-js&quot; }
+datasource db { provider = &quot;sqlite&quot;; url = env(&quot;DATABASE_URL&quot;) }
+
+model User {
+  id        String   @id            // usr_
+  nickname  String
+  createdAt DateTime @default(now())
+  materials Material[]
+  sessions  Session[]
+}
+
+model Material {
+  id          String   @id          // mat_
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  courseName  String                // 캠퍼스 변주: 과목명 (예: &quot;운영체제&quot;)
+  examDate    DateTime?             // 시험일 → 홈에서 D-day
+  title       String                // LLM이 지은 자료 제목 (생성 전엔 &quot;새 자료&quot;)
+  status      String   @default(&quot;PENDING&quot;) // PENDING | READY | FAILED
+  error       String?
+  createdAt   DateTime @default(now())
+  sources     Source[]
+  chapters    Chapter[]
+}
+
+model Source {
+  id         String   @id          // src_
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  kind       String                // MD | TXT | PDF
+  fileName   String
+  text       String                // 추출된 전체 텍스트
+  charCount  Int
+  chapters   Chapter[]
+}
+
+model Chapter {
+  id          String   @id         // chp_
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  pointsJson  String               // string[] JSON  (핵심 포인트 2~4개)
+  sourceId    String
+  source      Source   @relation(fields: [sourceId], references: [id])
+  startOffset Int                  // source.text 내 char 범위
+  endOffset   Int
+  taughtAt    DateTime?            // 첫 COMPLETED 세션 시각 (&quot;가르침&quot; 달걀)
+  stableAt    DateTime?            // 놓친 곳 0으로 COMPLETED 시각 (&quot;안정&quot;)
+  sessions    Session[]
+}
+
+model Session {
+  id             String   @id      // sess_
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  chapterId      String
+  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  status         String   @default(&quot;PREPARING&quot;) // PREPARING | EXPLAINING | EXAM_IN_PROGRESS | EVALUATING | RESULT_READY | REVIEWING | COMPLETED | FAILED
+  phase          String   @default(&quot;QUESTION&quot;)  // QUESTION | EXAM_READY  (EXPLAINING 내부 단계)
+  juniorLevel    String   @default(&quot;EASY&quot;)      // EASY | HARD
+  objectivesJson String   @default(&quot;[]&quot;)        // [{id:&quot;o1&quot;, text}]
+  heardJson      String   @default(&quot;[]&quot;)        // string[] 들은 개념
+  score          Int?
+  finalVerdict   String?                         // NEEDS_WORK | MOSTLY | STABLE
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+  messages       Message[]
+  exam           Exam?
+  gaps           Gap[]
+  tutorMessages  TutorMessage[]
+}
+
+model Message {
+  id        String   @id          // msg_
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String                // USER | JUNIOR
+  stage     String                // QUESTION | ANSWER | REACTION | DOUBT
+  content   String
+  excluded  Boolean  @default(false)   // 사용자가 &quot;이 설명 빼기&quot; 한 경우(P1)
+  createdAt DateTime @default(now())
+}
+
+model Exam {
+  id        String   @id          // exam_
+  sessionId String   @unique
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  status    String   @default(&quot;READY&quot;) // READY | IN_PROGRESS | EVALUATING | GRADED
+  createdAt DateTime @default(now())
+  questions ExamQuestion[]
+  answers   ExamAnswer[]
+  grades    Grade[]
+}
+
+model ExamQuestion {
+  id           String @id         // &quot;q1&quot;..&quot;q3&quot; 는 시험 내 로컬 id → 전역 id는 `${examId}:${qid}`
+  examId       String
+  exam         Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid          String             // q1
+  order        Int
+  points       Int                // 34/33/33
+  question     String
+  objectiveRef String             // o1 | o2 | o3
+  rubric       String             // 채점 기준 (사용자에게 비공개)
+}
+
+model ExamAnswer {
+  id            String @id        // `${examId}:${qid}`
+  examId        String
+  exam          Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid           String
+  answer        String
+  sentencesJson String            // [{sentence, ref, level:&quot;STRONG&quot;|&quot;FAINT&quot;|&quot;NONE&quot;, unlearned}]
+  createdAt     DateTime @default(now())
+}
+
+model Grade {
+  id       String @id             // `${examId}:${qid}`
+  examId   String
+  exam     Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid      String
+  score    Int
+  maxScore Int
+  verdict  String                 // CORRECT | PARTIAL | WRONG
+  comment  String
+}
+
+model Gap {
+  id            String   @id      // gap_
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  qid           String
+  title         String
+  diagnosis     String
+  evidenceQuote String             // 원인이 된 내 설명 (없으면 &quot;&quot;)
+  conceptsJson  String             // string[]
+  sourceExcerpt String             // 원자료 발췌
+  sourceOffset  Int?
+  status        String   @default(&quot;FOUND&quot;) // FOUND | REVIEWED
+  createdAt     DateTime @default(now())
+  tutorMessages TutorMessage[]
+}
+
+model TutorMessage {
+  id        String   @id          // tm_
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  gapId     String
+  gap       Gap      @relation(fields: [gapId], references: [id], onDelete: Cascade)
+  request   String
+  response  String
+  createdAt DateTime @default(now())
+}
+</code></pre>
+<h3 id="3-1-c-prismaseedts">3-1. 시드 (C) — <code>prisma/seed.ts</code></h3>
+<ul>
+<li>데모 계정 3개: <code>usr_demo1</code>(체험 1), <code>usr_demo2</code>, <code>usr_demo3</code></li>
+<li><code>usr_demo1</code>에 fixture 자료 2개 <strong>READY 상태로</strong> 미리 넣기(D가 <code>fixtures/*.md</code>와 <code>fixtures/chapters.*.json</code> 제공): "운영체제 4장 프로세스 스케줄링"(과목 운영체제, 시험일 +7일), "경제학원론 수요·공급"(과목 경제학원론, 시험일 +12일)</li>
+<li>완료된 세션 1개(점수 94, 놓친 곳 1개)도 fixture로 넣어 홈/결과 화면이 처음부터 차 보이게</li>
+</ul>
+<hr />
+<h2 id="4">4. 세션 상태 머신 (전원 공통)</h2>
+<pre><code>POST /api/sessions ──▶ PREPARING
+  GET /prepare(SSE, D) 완료 ──▶ EXPLAINING / phase QUESTION
+  POST /explanations(SSE, D) 반복 (사용자 설명 ↔ 새내기 반응·되묻기·다음 질문)
+  POST /finish-explanation(C) ──▶ EXPLAINING / phase EXAM_READY
+  POST /start-exam(C) ──▶ EXAM_IN_PROGRESS   (Exam.status IN_PROGRESS)
+  POST /exam/answers(SSE, D) 문항별 ×3, 마지막에 exam.completed
+  POST /evaluate(SSE, D) ──▶ EVALUATING ──(스트림 끝)──▶ RESULT_READY  (Exam.status GRADED, Gap 생성, Session.score/finalVerdict 저장)
+  POST /gaps/{gapId}/reviewed(C) ──▶ (status REVIEWING; 모든 gap REVIEWED 되면 complete 가능)
+  POST /complete(C) ──▶ COMPLETED  (Chapter.taughtAt 세팅, gap 0개면 stableAt)
+</code></pre>
+<ul>
+<li><code>finalVerdict</code> 규칙(D가 evaluate에서 계산): 총점 ≥ 90 &amp;&amp; gap 0 → <code>STABLE</code>, 총점 ≥ 70 → <code>MOSTLY</code>, 그 외 <code>NEEDS_WORK</code></li>
+<li>사용자는 RESULT_READY에서 <code>complete</code>로 바로 갈 수도 있다(놓친 곳을 남기고 끝내기).</li>
+<li>모든 상태 전이는 <strong>서버가 현재 상태를 검증</strong>하고 틀리면 <code>409 {code:"INVALID_STATE"}</code>.</li>
+</ul>
+<hr />
+<h2 id="5-api-frozen-base-api-json-tb_uid">5. API 계약 (FROZEN) — base <code>/api</code>, 모든 응답 JSON, 인증은 쿠키 <code>tb_uid</code></h2>
+<h3 id="5-1">5-1. 공통</h3>
+<ul>
+<li>성공: 그대로 객체/배열. 실패: <code>{ "error": { "code": "NOT_FOUND"|"INVALID_STATE"|"UNAUTHORIZED"|"VALIDATION"|"LLM_FAILED", "message": "..." } }</code> + HTTP 404/409/401/400/502</li>
+<li>인증 없으면 401. <code>lib/server/auth.ts</code>의 <code>requireUser(req)</code> 사용(C 소유, D는 import).</li>
+</ul>
+<h3 id="5-2-c">5-2. 인증 [C]</h3>
+<table>
+<thead>
+<tr>
+<th>메서드</th>
+<th>경로</th>
+<th>요청</th>
+<th>응답</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/auth/demo-accounts</code></td>
+<td>–</td>
+<td><code>[{userId, nickname}]</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/auth/demo-login</code></td>
+<td><code>{userId}</code></td>
+<td><code>{ok:true}</code> + Set-Cookie <code>tb_uid</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/auth/me</code></td>
+<td>–</td>
+<td><code>{userId, nickname, streakDays}</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/auth/logout</code></td>
+<td>–</td>
+<td><code>{ok:true}</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="5-3-c">5-3. 홈 [C]</h3>
+<p><code>GET /home</code> →</p>
+<pre><code class="language-json">{ &quot;userName&quot;: &quot;체험 1&quot;,
+  &quot;courses&quot;: [ { &quot;courseName&quot;: &quot;운영체제&quot;, &quot;examDate&quot;: &quot;2026-10-08&quot;, &quot;dDay&quot;: 7,
+      &quot;materials&quot;: [ { &quot;materialId&quot;: &quot;mat_x&quot;, &quot;title&quot;: &quot;4장 프로세스 스케줄링&quot;, &quot;chapterCount&quot;: 6, &quot;taughtCount&quot;: 2,
+                       &quot;resume&quot;: { &quot;sessionId&quot;: &quot;sess_x&quot;, &quot;chapterTitle&quot;: &quot;CPU 스케줄링 알고리즘&quot;, &quot;status&quot;: &quot;EXPLAINING&quot;, &quot;stageLabel&quot;: &quot;가르치는 중&quot; } } ] } ],
+  &quot;recentSessions&quot;: [ { &quot;sessionId&quot;: &quot;sess_y&quot;, &quot;chapterTitle&quot;: &quot;...&quot;, &quot;materialTitle&quot;: &quot;...&quot;, &quot;status&quot;: &quot;COMPLETED&quot;, &quot;score&quot;: 94, &quot;finalVerdict&quot;: &quot;MOSTLY&quot;, &quot;updatedAt&quot;: &quot;ISO&quot; } ],
+  &quot;stats&quot;: { &quot;completedSessions&quot;: 3, &quot;averageScore&quot;: 81, &quot;streakDays&quot;: 2 } }
+</code></pre>
+<p><code>stageLabel</code> 매핑: PREPARING→"준비 중", EXPLAINING→"가르치는 중", EXAM_IN_PROGRESS→"시험 중", EVALUATING→"채점 중", RESULT_READY/REVIEWING→"되짚기", COMPLETED→"완료"</p>
+<h3 id="5-4-c-d">5-4. 자료 [C], 목차 생성 [D]</h3>
+<table>
+<thead>
+<tr>
+<th>메서드</th>
+<th>경로</th>
+<th>요청</th>
+<th>응답</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code>/materials</code></td>
+<td>multipart: <code>files[]</code>(md/txt/pdf, 최대 5개·각 10MB), <code>courseName</code>, <code>examDate?</code></td>
+<td><code>{materialId, status:"PENDING", sources:[{sourceId,kind,fileName,charCount}]}</code> — 동기 파싱(pdf-parse)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/materials</code></td>
+<td>–</td>
+<td><code>[{materialId,title,courseName,examDate,status,chapterCount,taughtCount,createdAt}]</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/materials/{id}</code></td>
+<td>–</td>
+<td>§5-4-1</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/materials/{id}</code></td>
+<td>–</td>
+<td><code>{ok:true}</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/sources/{id}/content</code></td>
+<td>–</td>
+<td><code>{sourceId, fileName, text}</code></td>
+</tr>
+<tr>
+<td><strong>POST</strong></td>
+<td><strong><code>/materials/{id}/generate</code></strong> [D]</td>
+<td>–</td>
+<td><strong>SSE</strong> (§6-1). 완료 시 Material.title/chapters 저장, status READY</td>
+</tr>
+</tbody>
+</table>
+<p>5-4-1 <code>GET /materials/{id}</code></p>
+<pre><code class="language-json">{ &quot;materialId&quot;:&quot;mat_x&quot;, &quot;title&quot;:&quot;4장 프로세스 스케줄링&quot;, &quot;courseName&quot;:&quot;운영체제&quot;, &quot;examDate&quot;:&quot;2026-10-08&quot;, &quot;status&quot;:&quot;READY&quot;,
+  &quot;sources&quot;:[{&quot;sourceId&quot;:&quot;src_x&quot;,&quot;kind&quot;:&quot;PDF&quot;,&quot;fileName&quot;:&quot;os-ch4.pdf&quot;,&quot;charCount&quot;:18234}],
+  &quot;chapters&quot;:[{ &quot;chapterId&quot;:&quot;chp_1&quot;,&quot;order&quot;:1,&quot;title&quot;:&quot;프로세스와 스레드&quot;,&quot;points&quot;:[&quot;프로세스 상태 전이&quot;,&quot;PCB&quot;,&quot;컨텍스트 스위칭&quot;],
+                &quot;sourceId&quot;:&quot;src_x&quot;,&quot;startOffset&quot;:0,&quot;endOffset&quot;:3120,
+                &quot;action&quot;:{&quot;kind&quot;:&quot;START&quot;} ,                      // START | CONTINUE(sessionId) | RETRY(마지막 세션 완료됨)
+                &quot;taughtAt&quot;:null,&quot;stableAt&quot;:null,&quot;bestScore&quot;:null,&quot;openGapCount&quot;:0 }] }
+</code></pre>
+<p><code>action</code>: 진행 중 세션(COMPLETED/FAILED 아님) 있으면 <code>{"kind":"CONTINUE","sessionId":"sess_x","status":"EXPLAINING"}</code>; 완료 세션만 있으면 <code>{"kind":"RETRY"}</code>; 없으면 <code>START</code>. <strong>잠금 규칙 없음</strong>(원본의 순차 잠금은 컷 — 아무 목차나 바로 가르치기 가능).</p>
+<h3 id="5-5-crud-c">5-5. 세션 — CRUD/전이 [C]</h3>
+<table>
+<thead>
+<tr>
+<th>메서드</th>
+<th>경로</th>
+<th>요청</th>
+<th>응답</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code>/sessions</code></td>
+<td><code>{chapterId, juniorLevel?:"EASY"\|"HARD"}</code></td>
+<td><code>{sessionId}</code> (status PREPARING)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/sessions</code></td>
+<td>–</td>
+<td><code>[{sessionId, chapterTitle, materialTitle, courseName, status, stageLabel, score, finalVerdict, updatedAt}]</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/sessions/{id}</code></td>
+<td>–</td>
+<td>§5-5-1 세션 객체</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/sessions/{id}</code></td>
+<td><code>{juniorLevel}</code></td>
+<td>세션 객체 (EXPLAINING 중에만 허용)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/sessions/{id}</code></td>
+<td>–</td>
+<td><code>{ok:true}</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/finish-explanation</code></td>
+<td>–</td>
+<td><code>{status:"EXPLAINING", phase:"EXAM_READY"}</code> (USER 메시지 1개 이상 필요, 아니면 409 <code>NO_EXPLANATION</code>)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/start-exam</code></td>
+<td>–</td>
+<td><code>{status:"EXAM_IN_PROGRESS", exam:{examId, questions:[{qid,order,points,question,objectiveRef}]}}</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/sessions/{id}/result</code></td>
+<td>–</td>
+<td>§5-5-2 결과 객체 (RESULT_READY 이후)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/gaps/{gapId}/reviewed</code></td>
+<td>–</td>
+<td><code>{gapId, status:"REVIEWED", remaining: n}</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/complete</code></td>
+<td>–</td>
+<td><code>{status:"COMPLETED", score, finalVerdict, openGapCount, chapter:{taughtAt, stableAt}}</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/messages/{mid}/exclude</code> (P1)</td>
+<td>–</td>
+<td><code>{ok:true}</code></td>
+</tr>
+</tbody>
+</table>
+<p>5-5-1 세션 객체</p>
+<pre><code class="language-json">{ &quot;sessionId&quot;:&quot;sess_x&quot;, &quot;status&quot;:&quot;EXPLAINING&quot;, &quot;phase&quot;:&quot;QUESTION&quot;, &quot;juniorLevel&quot;:&quot;EASY&quot;,
+  &quot;chapter&quot;:{&quot;chapterId&quot;:&quot;chp_1&quot;,&quot;order&quot;:1,&quot;title&quot;:&quot;...&quot;,&quot;points&quot;:[&quot;...&quot;]},
+  &quot;material&quot;:{&quot;materialId&quot;:&quot;mat_x&quot;,&quot;title&quot;:&quot;...&quot;,&quot;courseName&quot;:&quot;운영체제&quot;},
+  &quot;objectives&quot;:[{&quot;id&quot;:&quot;o1&quot;,&quot;text&quot;:&quot;프로세스 상태 전이 5단계를 설명할 수 있다&quot;}],
+  &quot;messages&quot;:[{&quot;messageId&quot;:&quot;msg_1&quot;,&quot;role&quot;:&quot;JUNIOR&quot;,&quot;stage&quot;:&quot;QUESTION&quot;,&quot;content&quot;:&quot;선배, 프로세스가 뭔지부터 알려줄래?&quot;,&quot;createdAt&quot;:&quot;ISO&quot;}],
+  &quot;heardConcepts&quot;:[&quot;프로세스&quot;,&quot;PCB&quot;],
+  &quot;exam&quot;: null | {&quot;examId&quot;:&quot;exam_x&quot;,&quot;status&quot;:&quot;READY&quot;,&quot;questions&quot;:[{&quot;qid&quot;:&quot;q1&quot;,&quot;order&quot;:1,&quot;points&quot;:34,&quot;question&quot;:&quot;...&quot;,&quot;objectiveRef&quot;:&quot;o1&quot;}],&quot;answers&quot;:[{&quot;qid&quot;:&quot;q1&quot;,&quot;answer&quot;:&quot;...&quot;}]},
+  &quot;score&quot;:null, &quot;finalVerdict&quot;:null, &quot;gapCount&quot;:0, &quot;createdAt&quot;:&quot;ISO&quot;, &quot;updatedAt&quot;:&quot;ISO&quot; }
+</code></pre>
+<p><code>rubric</code>은 절대 내려주지 않는다.</p>
+<p>5-5-2 결과 객체</p>
+<pre><code class="language-json">{ &quot;sessionId&quot;:&quot;sess_x&quot;, &quot;status&quot;:&quot;RESULT_READY&quot;, &quot;totalScore&quot;:94, &quot;questionCount&quot;:3, &quot;correctCount&quot;:2, &quot;partialCount&quot;:1, &quot;wrongCount&quot;:0,
+  &quot;finalVerdict&quot;:&quot;MOSTLY&quot;,
+  &quot;items&quot;:[{&quot;qid&quot;:&quot;q1&quot;,&quot;order&quot;:1,&quot;points&quot;:34,&quot;question&quot;:&quot;...&quot;,&quot;answer&quot;:&quot;...&quot;,&quot;sentences&quot;:[{&quot;sentence&quot;:&quot;...&quot;,&quot;ref&quot;:2,&quot;level&quot;:&quot;STRONG&quot;,&quot;unlearned&quot;:false}],
+            &quot;grade&quot;:{&quot;score&quot;:28,&quot;maxScore&quot;:34,&quot;verdict&quot;:&quot;PARTIAL&quot;,&quot;comment&quot;:&quot;...&quot;}}],
+  &quot;gaps&quot;:[{&quot;gapId&quot;:&quot;gap_x&quot;,&quot;qid&quot;:&quot;q1&quot;,&quot;title&quot;:&quot;...&quot;,&quot;diagnosis&quot;:&quot;...&quot;,&quot;evidenceQuote&quot;:&quot;...&quot;,&quot;concepts&quot;:[&quot;...&quot;],&quot;sourceExcerpt&quot;:&quot;...&quot;,&quot;status&quot;:&quot;FOUND&quot;,
+           &quot;tutorMessages&quot;:[{&quot;id&quot;:&quot;tm_x&quot;,&quot;request&quot;:&quot;...&quot;,&quot;response&quot;:&quot;...&quot;,&quot;createdAt&quot;:&quot;ISO&quot;}]}],
+  &quot;chapter&quot;:{&quot;chapterId&quot;:&quot;chp_1&quot;,&quot;title&quot;:&quot;...&quot;,&quot;taughtAt&quot;:null,&quot;stableAt&quot;:null} }
+</code></pre>
+<h3 id="5-6-llm-d-sse-6">5-6. 세션 — LLM 스트리밍 [D] (모두 SSE, §6 이벤트)</h3>
+<table>
+<thead>
+<tr>
+<th>메서드</th>
+<th>경로</th>
+<th>요청</th>
+<th>비고</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/sessions/{id}/prepare</code></td>
+<td>–</td>
+<td>PREPARING에서만. 학습목표·시험문항·첫 질문 생성 후 EXPLAINING으로 전이. 이미 EXPLAINING이면 즉시 <code>ready</code> 1개만 보내고 종료(새로고침 안전)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/explanations</code></td>
+<td><code>{content:string}</code> (1~2000자)</td>
+<td>USER 메시지 저장 → 자료 대조(되묻기) → 반응·다음 질문 스트림</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/exam/answers</code></td>
+<td><code>{qid}</code></td>
+<td>해당 문항 답안 생성 스트림. 이미 답했으면 <code>answer.recap</code>+<code>answer.saved{cached:true}</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/evaluate</code></td>
+<td>–</td>
+<td>3문항 모두 답한 뒤. 문항별 <code>grade</code> → <code>gap</code>들 → <code>done</code>. 완료 시 RESULT_READY</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/sessions/{id}/tutor</code></td>
+<td><code>{gapId, content?}</code> (content 없으면 프리셋 "이 부분을 자료 기준으로 쉽게 설명해줘")</td>
+<td>글자 단위 스트림</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-sse-frozen-srccontractseventsts">6. SSE 프로토콜 (FROZEN) — <code>src/contracts/events.ts</code></h2>
+<p>와이어 포맷: <code>Content-Type: text/event-stream; charset=utf-8</code>, 첫 줄 <code>: connected\n\n</code>, 이벤트는 <code>event: &lt;name&gt;\ndata: &lt;JSON 한 줄&gt;\n\n</code>. 15초마다 <code>: ping\n\n</code>. 오류는 <code>event: error</code> + <code>data:{code,message}</code> 후 종료. 마지막은 항상 <code>event: done</code>.</p>
+<pre><code class="language-ts">// src/contracts/events.ts
+export type SseEvent =
+  // 6-1 목차 생성 /materials/{id}/generate
+  | { event: &quot;progress&quot;; data: { step: &quot;READING&quot;|&quot;SPLITTING&quot;|&quot;TITLING&quot;; message: string; elapsedMs: number } }
+  | { event: &quot;chapters&quot;; data: { title: string; chapters: Array&lt;{ chapterId: string; order: number; title: string; points: string[] }&gt; } }
+  // 6-2 세션 준비 /sessions/{id}/prepare
+  | { event: &quot;progress&quot;; data: { step: &quot;OBJECTIVES&quot;|&quot;QUESTIONS&quot;|&quot;GREETING&quot;; message: string; elapsedMs: number } }
+  | { event: &quot;ready&quot;; data: { session: SessionDto } }
+  // 6-3 가르치기 /sessions/{id}/explanations
+  | { event: &quot;user.saved&quot;; data: { messageId: string } }
+  | { event: &quot;junior.concepts&quot;; data: { heardConcepts: string[]; added: string[] } }
+  | { event: &quot;junior.doubt&quot;; data: { messageId: string; content: string } }          // ★ 되묻기 (EASY에서 모순 감지 시). 이 턴은 여기서 종료(question 없음)
+  | { event: &quot;junior.token&quot;; data: { token: string } }                               // 문장 단위
+  | { event: &quot;junior.message&quot;; data: { messageId: string; stage: &quot;REACTION&quot;; content: string } }
+  | { event: &quot;junior.question&quot;; data: { messageId: string; content: string; coveredObjectives: string[] } }
+  // 6-4 시험 답안 /sessions/{id}/exam/answers
+  | { event: &quot;answer.sources&quot;; data: { qid: string; sources: Array&lt;{ ref: number; content: string }&gt; } }   // ref = USER 메시지 순번(1-base)
+  | { event: &quot;answer.thought&quot;; data: { qid: string; token: string; closed: boolean } }                     // 글자 단위 속마음
+  | { event: &quot;answer.token&quot;; data: { qid: string; token: string } }                                        // 문장 단위
+  | { event: &quot;answer.recall&quot;; data: { qid: string; ref: number | null; level: &quot;STRONG&quot;|&quot;FAINT&quot;|&quot;NONE&quot;; unlearned: boolean } }
+  | { event: &quot;answer.recap&quot;; data: { qid: string; sentences: Array&lt;{ sentence: string; ref: number|null; level: string; unlearned: boolean }&gt; } }
+  | { event: &quot;answer.saved&quot;; data: { qid: string; answer: string; cached: boolean } }
+  | { event: &quot;exam.completed&quot;; data: { examId: string } }
+  // 6-5 채점 /sessions/{id}/evaluate
+  | { event: &quot;grading&quot;; data: { qid: string } }
+  | { event: &quot;grade&quot;; data: { qid: string; score: number; maxScore: number; verdict: &quot;CORRECT&quot;|&quot;PARTIAL&quot;|&quot;WRONG&quot;; comment: string } }
+  | { event: &quot;gap&quot;; data: GapDto }
+  | { event: &quot;result&quot;; data: { totalScore: number; finalVerdict: &quot;NEEDS_WORK&quot;|&quot;MOSTLY&quot;|&quot;STABLE&quot;; gapCount: number } }
+  // 6-6 튜터 /sessions/{id}/tutor
+  | { event: &quot;tutor.token&quot;; data: { token: string } }
+  | { event: &quot;tutor.message&quot;; data: { id: string; gapId: string; request: string; response: string } }
+  // 공통
+  | { event: &quot;error&quot;; data: { code: string; message: string } }
+  | { event: &quot;done&quot;; data: Record&lt;string, unknown&gt; };
+</code></pre>
+<p>클라이언트 파서(A 소유 <code>lib/client/api.ts</code>):</p>
+<pre><code class="language-ts">export async function sse(url: string, init: RequestInit, onEvent: (name: string, data: any) =&gt; void, signal?: AbortSignal) {
+  const res = await fetch(base(url), { ...init, headers: { &quot;Content-Type&quot;: &quot;application/json&quot;, ...(init.headers||{}) }, signal });
+  if (!res.ok || !res.body) throw await toApiError(res);
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = &quot;&quot;;
+  while (true) { const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); let i;
+    while ((i = buf.indexOf(&quot;\n\n&quot;)) &gt;= 0) { const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      if (chunk.startsWith(&quot;:&quot;)) continue; let name = &quot;message&quot;, data = &quot;&quot;;
+      for (const line of chunk.split(&quot;\n&quot;)) { if (line.startsWith(&quot;event:&quot;)) name = line.slice(6).trim(); else if (line.startsWith(&quot;data:&quot;)) data += line.slice(5).trim(); }
+      onEvent(name, data ? JSON.parse(data) : {}); } }
+}
+export const api = { get: &lt;T&gt;(u: string) =&gt; json&lt;T&gt;(u), post: &lt;T&gt;(u: string, body?: unknown) =&gt; json&lt;T&gt;(u, { method: &quot;POST&quot;, body: body ? JSON.stringify(body) : undefined }), patch, del, upload: (u: string, fd: FormData) =&gt; json(u, { method: &quot;POST&quot;, body: fd }) };
+</code></pre>
+<p>서버 헬퍼(D 소유 <code>lib/server/sse.ts</code>): <code>createSse()</code> → <code>{ response: Response, send(event, data), ping(), close() }</code> (ReadableStream + TextEncoder, <code>: connected</code> 자동 전송, 15s ping 타이머, close 시 타이머 해제).</p>
+<hr />
+<h2 id="7-llm-d">7. LLM 파이프라인 (D 소유)</h2>
+<h3 id="7-1-libllmindexts-frozen-t2h">7-1. 인터페이스 <code>lib/llm/index.ts</code> (시그니처 FROZEN, T+2h 커밋)</h3>
+<pre><code class="language-ts">export type ChapterText = { title: string; points: string[]; text: string };     // text = source.text.slice(start,end)
+export type TaughtMsg = { ref: number; content: string };                        // 사용자 USER 메시지(excluded 제외), 1-base 순번
+
+export interface Llm {
+  generateChapters(input: { sources: { sourceId: string; text: string }[] }):
+    Promise&lt;{ title: string; chapters: { title: string; points: string[]; sourceId: string; startOffset: number; endOffset: number }[] }&gt;;
+  prepareSession(input: { chapter: ChapterText; level: &quot;EASY&quot;|&quot;HARD&quot; }):
+    Promise&lt;{ objectives: { id: string; text: string }[]; questions: { qid: string; order: number; points: number; question: string; objectiveRef: string; rubric: string }[]; firstQuestion: string }&gt;;
+  juniorTurn(input: { chapter: ChapterText; level: &quot;EASY&quot;|&quot;HARD&quot;; objectives: {id:string;text:string}[]; heardConcepts: string[]; history: { role: &quot;USER&quot;|&quot;JUNIOR&quot;; stage: string; content: string }[]; explanation: string }):
+    AsyncIterable&lt;{ type: &quot;concepts&quot;; heardConcepts: string[]; added: string[] } | { type: &quot;doubt&quot;; content: string } | { type: &quot;reaction&quot;; content: string } | { type: &quot;question&quot;; content: string; coveredObjectives: string[] }&gt;;
+  writeExamAnswer(input: { question: string; taught: TaughtMsg[]; heardConcepts: string[] }):
+    AsyncIterable&lt;{ type: &quot;sources&quot;; sources: TaughtMsg[] } | { type: &quot;thought&quot;; token: string; closed: boolean } | { type: &quot;sentence&quot;; text: string; ref: number|null; level: &quot;STRONG&quot;|&quot;FAINT&quot;|&quot;NONE&quot;; unlearned: boolean } | { type: &quot;final&quot;; answer: string }&gt;;
+  gradeExam(input: { chapter: ChapterText; questions: { qid: string; question: string; points: number; rubric: string }[]; answers: { qid: string; answer: string }[]; taught: TaughtMsg[] }):
+    AsyncIterable&lt;{ type: &quot;grade&quot;; qid: string; score: number; maxScore: number; verdict: &quot;CORRECT&quot;|&quot;PARTIAL&quot;|&quot;WRONG&quot;; comment: string } | { type: &quot;gap&quot;; qid: string; title: string; diagnosis: string; evidenceQuote: string; concepts: string[]; sourceExcerpt: string }&gt;;
+  tutorExplain(input: { chapter: ChapterText; gap: { title: string; diagnosis: string; sourceExcerpt: string }; request: string }):
+    AsyncIterable&lt;{ type: &quot;token&quot;; token: string } | { type: &quot;final&quot;; response: string }&gt;;
+}
+export const llm: Llm; // provider.ts에서 LLM_PROVIDER에 따라 openai | anthropic | stub 구현을 export
+</code></pre>
+<ul>
+<li><code>lib/llm/provider.ts</code>: <code>completeJSON&lt;T&gt;(system, user, zodSchema, {temperature})</code> (JSON 모드 + zod 파싱 실패 시 1회 재시도) / <code>streamText(system, user)</code> (토큰 async iterable). OpenAI는 <code>chat.completions</code> + <code>response_format:{type:"json_object"}</code>, Anthropic은 <code>messages.stream</code>. 모델 ID는 <code>LLM_MODEL</code> 환경변수.</li>
+<li><code>lib/llm/stub.ts</code>: <code>fixtures/</code>의 JSON을 지연(300ms/문장) 섞어 돌려주는 가짜 구현. <strong>데모 세이프 모드</strong>. 모든 라우트가 provider 교체만으로 동작해야 한다.</li>
+<li>모든 프롬프트는 한국어, 출력은 JSON. <code>lib/llm/prompts/*.ts</code>에 파일당 1개.</li>
+</ul>
+<h3 id="7-2">7-2. 프롬프트 사양</h3>
+<p><strong>P1 generateChapters</strong> — 긴 자료는 문단 단위로 쪼개 <code>[P0]</code>,<code>[P1]</code>… 라벨을 붙여 넣고, LLM은 <strong>문단 인덱스 범위</strong>를 돌려준다(글자 오프셋을 LLM에 시키지 않는다). 서버가 인덱스→offset 변환.
+- 입력: 자료 전체(최대 40,000자, 넘으면 앞부분 + "…이하 생략"), 문단 라벨
+- 규칙: 챕터 4~12개, 각 300~4,000자, 제목 ≤ 20자, points 2~4개(각 ≤ 15자), 원문 순서 유지, 겹침·누락 없음, 자료 제목 ≤ 20자
+- 출력 <code>{ "title": "...", "chapters": [ { "title": "...", "points": ["..."], "startPara": 0, "endPara": 7 } ] }</code></p>
+<p><strong>P2 prepareSession</strong>
+- 입력: 챕터 제목·points·본문, level
+- 출력: <code>objectives</code> 3개(o1~o3, "~을 설명할 수 있다" 형태, points와 1:1), <code>questions</code> 3개(q1~q3, 배점 34/33/33, 서술형 1~2문장 질문, objectiveRef, rubric = 정답에 꼭 들어가야 할 요소 2~3개를 <code>;</code>로), <code>firstQuestion</code> (새내기 말투, points[0]부터: EASY "선배, {개념}부터 알려줄래?", HARD "{개념}부터 말해 줘. 받아쓸게.")
+- 금지: 자료 밖 지식 요구, 계산 문제</p>
+<p><strong>P3 juniorTurn (2단계 호출)</strong>
+- 3-A 대조(JSON): 입력 = 챕터 본문 + 사용자 설명 1개 → <code>{ "heardConcepts": ["..."], "contradictions": [ { "claim": "사용자가 말한 문장", "why": "자료와 어긋나는 이유(내부용)" } ], "coveredObjectives": ["o1"] }</code>. 모순 판정 기준: 자료가 명시한 사실과 <strong>정반대/수치 불일치</strong>만. 자료에 없는 보충 설명은 모순 아님.
+- 3-B 생성(JSON): 입력 = level, history 요약, 설명, 3-A 결과
+  - <code>level=EASY &amp;&amp; contradictions.length&gt;0</code> → <code>{ "doubt": "어? {claim 요지}라고? 나는 반대로 들은 것 같은데… 한 번만 더 설명해줄래?" }</code> <strong>정답·자료 내용을 절대 말하지 않는다</strong>. 이 턴은 doubt로 끝(질문 없음). 서버는 DOUBT 메시지 저장, heardConcepts에 <strong>추가하지 않음</strong>.
+  - 그 외 → <code>{ "reactions": ["…구나.", "…는 좀 헷갈리네."], "question": "다음 질문" }</code> reactions 1~3문장(각 ≤ 40자, 들은 내용을 자기 말로 되뇜), question은 아직 안 다룬 objective 기반, 전부 다뤘으면 "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게."
+  - HARD 말투: 반말·짧게, 되묻기 없음("받아쓸게"). EASY 말투: 호기심 많은 신입생.
+- 서버 저장: USER(ANSWER) → JUNIOR(REACTION)들 → JUNIOR(QUESTION) 또는 JUNIOR(DOUBT). heardConcepts는 합집합으로 Session에 저장.</p>
+<p><strong>P4 writeExamAnswer</strong> — 새내기는 <strong>taught(사용자 USER 메시지)와 heardConcepts만</strong> 안다. 자료 본문은 넣지 않는다.
+- 출력(JSON): <code>{ "thought": "짧은 속마음 ≤ 30자", "sentences": [ { "text": "답안 문장", "ref": 2, "level": "STRONG" } ], "unlearned": false }</code>
+- 규칙: 문장 1~4개, 존댓말 서술, 각 문장은 반드시 어느 ref(사용자 메시지 순번)에서 왔는지 표시. 근거 없는 문장 금지. 들은 게 없으면 <code>unlearned:true</code> + 문장 1개 "이 부분은 선배한테 못 들어서 모르겠습니다."
+- level: 사용자 문장과 의미 겹침 ≥ 70% STRONG, 30~70% FAINT, 그 외 NONE(서버가 ref 없는 문장에 NONE)
+- 스트리밍: 서버가 thought를 글자 단위로, 문장을 문장 단위로 쏜다(LLM 토큰 스트림 불필요 — JSON 한 번 받고 연출).</p>
+<p><strong>P5 gradeExam</strong> — 채점 기준은 <strong>자료 본문 + rubric</strong>. 사용자가 뭐라고 했는지가 아니라 자료가 정답.
+- 문항별 출력: <code>{ "qid":"q1", "score": 28, "verdict": "PARTIAL", "comment": "≤ 120자, 무엇이 맞고 무엇이 빠졌는지" }</code> (score는 rubric 요소 충족 비율 × points, 자료에 없는 서술은 가점 없음·감점 없음, 자료와 반대면 WRONG)
+- gap: verdict ≠ CORRECT인 문항마다 1개 <code>{ "title": "≤ 25자", "diagnosis": "3~5문장: 새내기 답안의 어떤 부분이 자료와 다르거나 빠졌는지 → 그게 사용자 설명 [ref n]에서 비롯됐는지(없으면 '설명에서 다루지 않음')", "evidenceQuote": "원인이 된 사용자 설명 원문 또는 ''", "concepts": ["..."], "sourceExcerpt": "자료에서 해당 부분 1~2문장 그대로 인용" }</code>
+- 총점 = Σscore, finalVerdict 규칙 §4.</p>
+<p><strong>P6 tutorExplain</strong> — 입력: gap + 자료 발췌 + 요청. 출력: 4~6문장, 자료 발췌 근거로, 쉬운 비유 1개, 마지막 문장은 "이것만 기억하면 됩니다: …". 글자 단위 스트리밍(streamText 사용).</p>
+<h3 id="7-3-d">7-3. 품질 가드 (D)</h3>
+<ul>
+<li>모든 JSON 출력은 zod로 검증, 실패 시 "JSON만 출력" 지시 추가해 1회 재시도, 또 실패하면 <code>error{code:"LLM_FAILED"}</code> 전송 후 세션 status는 그대로 두고 클라이언트가 "다시 시도" 버튼 노출.</li>
+<li>토큰 상한: 챕터 본문 8,000자 초과 시 앞뒤 유지 중간 축약. 응답 max_tokens 1,500.</li>
+<li><code>scripts/eval-llm.ts</code>: fixtures의 자료 2개로 P1~P5를 돌려 (a) 챕터 수 4~12 (b) 문항 3개·배점 합 100 (c) 틀린 설명 fixture에 doubt 발생 (d) 안 가르친 문항 unlearned (e) 채점 총점 0~100 을 assert. <code>pnpm eval:llm</code>.</li>
+</ul>
+<hr />
+<h2 id="8">8. 화면 사양</h2>
+<h3 id="8-1-a">8-1. 공통 셸 [A]</h3>
+<ul>
+<li>좌측 고정 사이드바 240px: 로고 "새내기", 메뉴 [홈 <code>/</code>] [새 자료 <code>/new</code>] [내 세션 <code>/sessions</code>] [지식 지도 <code>/map</code>(P1)] ; 하단 프로필 카드(닉네임, 완료 n회, 평균 점수, [로그아웃]). 모바일(&lt;900px)은 상단 바 + 햄버거.</li>
+<li>공통 컴포넌트(<code>components/shell</code>): <code>Card</code>(흰 배경, 1px 테두리, 반경 16, 하단 2px 진한 보더로 종이 느낌), <code>Button</code>(primary/secondary/ghost, 로딩 스피너), <code>Chip</code>, <code>Stepper</code>(단계 1~4), <code>EmptyState</code>, <code>Toast</code>, <code>ConfirmDialog</code>, <code>PageHeader</code>.</li>
+<li>로그인 가드: <code>app/(app)</code> 레이아웃에서 <code>/api/auth/me</code> 401이면 <code>/login</code>으로.</li>
+</ul>
+<h3 id="8-2-login-a">8-2. 로그인 <code>/login</code> [A]</h3>
+<ul>
+<li>중앙 카드: "처음 뵙겠습니다, 선배" / "가르친 만큼만 아는 새내기가 선배의 설명을 기다리고 있습니다." / 데모 계정 버튼 3개(<code>/auth/demo-accounts</code>) → <code>demo-login</code> → <code>/</code>.</li>
+</ul>
+<h3 id="8-3-a">8-3. 홈 <code>/</code> [A]</h3>
+<ul>
+<li><code>GET /home</code>. 헤더 "홈" + 우측 [+ 새 자료].</li>
+<li>과목 섹션: 과목명 + D-day 칩("D-7", 지났으면 "시험 끝"). 안에 자료 카드: 제목, "목차 6개 중 2개 가르침" 진행바, 이어하기 버튼(resume 있으면 <code>/session/{id}/{status별 경로}</code>, 없으면 <code>/materials/{id}</code>).</li>
+<li>하단 2열: "최근 세션"(5개, 판정 칩+점수, 클릭 → <code>/session/{id}/complete</code> 또는 진행 중 경로) / "통계"(완료 횟수, 평균 점수, 연속 학습일).</li>
+<li>status→경로: PREPARING→<code>/prepare</code>, EXPLAINING→<code>/teach</code>, EXAM_IN_PROGRESS→<code>/exam</code>, EVALUATING·RESULT_READY→<code>/result</code>, REVIEWING→<code>/review</code>, COMPLETED→<code>/complete</code>. (이 매핑 함수 <code>routeForSession(session)</code>은 <code>lib/client/api.ts</code>에 두고 B도 import)</li>
+</ul>
+<h3 id="8-4-new-a">8-4. 새 자료 <code>/new</code> [A]</h3>
+<ul>
+<li>폼: 과목명(필수, 예 "운영체제"), 시험일(선택, date), 파일 드롭존(md/txt/pdf, 다중, 각 10MB) + 파일 리스트(이름·크기·삭제). 샘플 버튼 2개("운영체제 샘플", "경제학 샘플" → <code>fixtures/</code>의 md를 fetch해 File로 만들어 업로드).</li>
+<li>[목차 뽑기] → <code>POST /materials</code>(multipart) → <code>/materials/{id}</code>로 이동하면서 즉시 <code>POST /materials/{id}/generate</code> SSE 시작(§8-5).</li>
+</ul>
+<h3 id="8-5-materialsid-a">8-5. 자료 상세 <code>/materials/[id]</code> [A]</h3>
+<ul>
+<li>status PENDING이면 생성 패널: 마스코트 + "새내기가 자료를 읽는 중" + progress.message + 경과초. <code>chapters</code> 이벤트 수신 시 리스트로 전환. 오류면 [다시 시도].</li>
+<li>READY: 헤더(제목, 과목·D-day, 소스 칩), 안내 "한 번에 목차 하나를 가르칩니다. 순서는 자유입니다."</li>
+<li>목차 행: 번호, 제목, points 칩, 상태 아이콘(미가르침 ○ / 가르침 ● / 안정 ★), bestScore·놓친 곳 n, 우측 버튼: action.kind START→[가르치기], CONTINUE→[이어하기], RETRY→[다시 가르치기]. 클릭 → <code>POST /sessions {chapterId}</code> → <code>/session/{id}/prepare</code>.</li>
+<li>하단 <a href="ConfirmDialog">자료 삭제</a>.</li>
+</ul>
+<h3 id="8-6-sessionidprepare-b">8-6. 세션 준비 <code>/session/[id]/prepare</code> [B]</h3>
+<ul>
+<li>진입 즉시 <code>GET /sessions/{id}/prepare</code> SSE. 화면: 마스코트(생각 중) + "새내기가 자료를 읽고 시험 문제를 만드는 중" + progress + 경과초. 그동안 난이도 카드 2개(라디오): <strong>쉽게</strong> "선배, 나 궁금한 거 많아. 이상하면 바로 되물을게." / <strong>어렵게</strong> "말하는 대로 받아쓸게. 틀려도 안 물어. 시험에서 봐." (선택 시 <code>PATCH {juniorLevel}</code>; ready 전이면 로컬에 들고 있다가 ready 후 PATCH).</li>
+<li><code>ready</code> 수신 → 버튼 [이 새내기로 시작 →] → <code>/teach</code>.</li>
+</ul>
+<h3 id="8-7-sessionidteach-b">8-7. 가르치기 <code>/session/[id]/teach</code> [B] — 핵심 화면</h3>
+<ul>
+<li>헤더: ← 자료명, 칩 "가르치기", 챕터 제목, 부제 "새내기는 가르친 내용만 기억합니다", Stepper(1 가르치기 · 2 시험 · 3 결과 · 4 되짚기).</li>
+<li>우측 보조 패널(토글): "학습 목표 3개"(coveredObjectives로 체크 표시) + "새내기가 들은 개념" 칩(heardConcepts). → 사용자가 뭘 더 가르쳐야 하는지 즉시 보임(원본엔 없는 UX).</li>
+<li>대화 영역: 과거 턴은 "새내기의 질문 / 내 설명" 묶음 카드. 최신 JUNIOR 질문은 마스코트 옆 큰 말풍선 "새내기 · 질문". <strong>DOUBT는 노란 말풍선 "새내기 · 되물음"</strong> + 마스코트 갸웃 상태.</li>
+<li>입력: textarea(placeholder "새내기의 질문에 선배의 말로 답해주세요.", Enter=줄바꿈, Ctrl+Enter=전송) + [보내기]. 전송 중 비활성, 마스코트 "…" 타이핑 인디케이터.</li>
+<li>전송 흐름: <code>POST /explanations</code> SSE → <code>user.saved</code>(내 카드 확정) → <code>junior.concepts</code>(칩 갱신) → <code>junior.doubt</code>(되물음 말풍선, 턴 종료) 또는 <code>junior.token/message</code>(문장 단위로 반응 말풍선에 쌓임, 글자 타이핑 연출 20ms/자) → <code>junior.question</code>(큰 말풍선 교체) → <code>done</code>.</li>
+<li>자료 보기 버튼: 모달 "자료를 보면서 설명하면 아는 것 같은 착각이 들기 쉽습니다. 막힐 때만 잠깐 보세요." [자료 보기][계속 설명] → 우측 드로어에 <code>GET /sources/{id}/content</code>의 챕터 범위만 표시.</li>
+<li>하단 [그만 가르치고 시험 보기 →] (USER 메시지 0개면 비활성, 스트림 중 비활성) → <code>POST /finish-explanation</code> → <code>/exam</code>.</li>
+<li>오류: <code>error</code> 이벤트 시 토스트 + 마지막 내 설명 카드에 [다시 보내기].</li>
+</ul>
+<h3 id="8-8-sessionidexam-b">8-8. 시험 <code>/session/[id]/exam</code> [B]</h3>
+<ul>
+<li>첫 진입(phase EXAM_READY, exam 없음): 인트로 — 마스코트(연필 든 상태) "나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘." [시험 시작] → <code>POST /start-exam</code>.</li>
+<li>시험 중: 상단 "답안 작성 중 1 / 3" + 진행바 + <a href="속마음 보기 / 한 번에 보기 / 자동 진행 — localStorage">보기 설정 ▾</a>.</li>
+<li>답안지 카드(종이 질감, <code>--paper</code>): 머리 "2026학년도 새내기 학력평가 답안지", [성명 | 새내기] [과목 | 과목명] [배점 | 100]; "1. [34점] 문항"; 답란 줄노트 위에 손글씨 폰트로 타이핑.</li>
+<li>문항마다 <code>POST /exam/answers {qid}</code> SSE: <code>answer.sources</code>로 우측 패널 "새내기가 떠올리는 내 설명"(ref별 카드) 표시 → <code>answer.thought</code> 마스코트 머리 위 말풍선(글자 단위, closed면 2초 후 사라짐) → <code>answer.token</code> 문장 타이핑(30ms/자, "한 번에 보기"면 즉시) + <code>answer.recall</code>로 해당 ref 카드 노란 하이라이트(level FAINT는 연한 색, unlearned면 답란에 빨간 밑줄 + "못 들은 부분" 칩) → <code>answer.saved</code> → [다음 문항 풀기 (2 / 3) →]. "자동 진행"이면 1초 후 자동 호출.</li>
+<li>페이지네이션 ◁ 1 2 3 ▷ (답한 문항 다시 보기 → recap 수신 시 즉시 렌더).</li>
+<li><code>exam.completed</code> 수신 후 버튼 [답안 제출하고 채점 받기 →] → <code>/result</code> (result 페이지가 evaluate 시작).</li>
+</ul>
+<h3 id="8-9-sessionidresult-b">8-9. 채점·성적 <code>/session/[id]/result</code> [B]</h3>
+<ul>
+<li>진입 시 status가 EXAM_IN_PROGRESS면 <code>POST /evaluate</code> SSE 시작; EVALUATING/RESULT_READY면 <code>GET /result</code>만.</li>
+<li>채점 중: 상단 "채점 진행 중 0 / 3" + 좌측 채점 순서(문제 1~3: 대기/채점 중/점수) + 우측 답안지에 문항별 "채점 전" 칩. <code>grading</code>→스피너, <code>grade</code>→"28 / 34" + 채점 소견 박스(verdict 색: CORRECT 초록, PARTIAL 주황, WRONG 빨강), <code>gap</code>→하단 "놓친 곳" 리스트에 추가, <code>result</code>→성적표로 전환.</li>
+<li>성적표: 마스코트 말풍선 "배운 건 다 썼어. 못 쓴 데는 아직 못 들은 부분이야." / 종이 카드 "성적통지표": [성명 새내기][과목][총점 94/100][문항 3][정답 2][부분 1][오답 0] / "놓친 곳 N군데".</li>
+<li>버튼: <a href="/review, gap 0이면 숨김">왜 틀렸는지 보기 →</a> / <a href="POST /complete → /complete">놓친 곳 남기고 끝내기</a> / <a href="위로 스크롤">문항별 채점 다시 보기</a>.</li>
+</ul>
+<h3 id="8-10-sessionidreview-b">8-10. 되짚기 <code>/session/[id]/review</code> [B]</h3>
+<ul>
+<li><code>GET /result</code>. 좌측 메인: "놓친 곳 되짚기 · N곳". gap 카드(번호, 제목): 섹션 "자료에서는"(sourceExcerpt 인용 박스 + [자료에서 보기] → 드로어에 챕터 본문, excerpt 하이라이트), "진단"(diagnosis), "원인이 된 내 설명"(evidenceQuote, 없으면 "이 부분은 설명하지 않았습니다").</li>
+<li>카드 하단 [이해했어요 ✓] → <code>POST /gaps/{gapId}/reviewed</code> → 카드 접힘 + 체크. 전부 REVIEWED면 상단 CTA [되짚기 마치기 →] 활성 → <code>POST /complete</code> → <code>/complete</code>.</li>
+<li>우측 "AI 튜터" 패널: 현재 gap 제목, <a href="프리셋">이 부분 쉽게 설명 받기</a> / textarea "더 궁금한 점" + [질문]. <code>POST /tutor</code> SSE → 글자 단위 스트리밍 말풍선. 과거 tutorMessages는 result에서 불러와 표시.</li>
+</ul>
+<h3 id="8-11-sessionidcomplete-b">8-11. 완료 <code>/session/[id]/complete</code> [B]</h3>
+<ul>
+<li><code>GET /sessions/{id}</code> + <code>GET /result</code>. 마스코트 상태: STABLE→기쁨(점프), MOSTLY→칭찬, NEEDS_WORK→격려.</li>
+<li>"학습 완료" / 판정 칩(STABLE "안정" 초록 · MOSTLY "대부분 이해" 주황 · NEEDS_WORK "보완 필요" 회색) / 챕터 제목 / 점수 큰 숫자 / 놓친 곳 n개.</li>
+<li>면책 문구: "이 판정은 이번에 선배가 가르친 내용으로 새내기가 받은 결과입니다. 선배의 이해도 자체를 뜻하지 않습니다."</li>
+<li>챕터 상태 카드: "가르침 ●" 획득 애니메이션(taughtAt이 이번 세션에 생겼으면 "처음으로 가르쳤습니다!"), stableAt이면 "★ 안정".</li>
+<li>버튼: <a href="POST /sessions">같은 목차 다시 가르치기</a> / [자료로 돌아가기] / [홈].</li>
+</ul>
+<h3 id="8-12-sessions-a">8-12. 내 세션 <code>/sessions</code> [A]</h3>
+<ul>
+<li><code>GET /sessions</code>. "진행 중 n" / "완료 n" 두 섹션. 행: 챕터 제목, 과목 · 자료, 상대 시간, 칩(stageLabel 또는 "판정 · 점수"), [이어하기/보기], 🗑(<code>DELETE</code>).</li>
+</ul>
+<h3 id="8-13-map-p1-a">8-13. 지식 지도 <code>/map</code> (P1) [A]</h3>
+<ul>
+<li><code>GET /materials</code> + 각 <code>GET /materials/{id}</code>: 과목별 아코디언 → 목차 행에 ○/●/★ + bestScore + 놓친 곳. 클릭 → <code>/materials/{id}</code>.</li>
+</ul>
+<h3 id="8-14-b-componentsmascotmascottsx">8-14. 마스코트 [B] <code>components/mascot/Mascot.tsx</code></h3>
+<ul>
+<li>props: <code>state: "idle"|"thinking"|"doubt"|"writing"|"praise"|"cheer"|"encourage"</code>, <code>size</code>, <code>bubble?: ReactNode</code>.</li>
+<li>인라인 SVG 캐릭터(학사모 쓴 둥근 캐릭터, 눈·입 파츠만 상태별 교체). 애니메이션은 CSS keyframes(idle 숨쉬기, thinking 눈 좌우, writing 손 흔들림, cheer 점프). <code>prefers-reduced-motion</code> 존중. <strong>원본의 병아리/달걀 모티프는 쓰지 않는다.</strong></li>
+</ul>
+<h3 id="8-15-a-appglobalscss">8-15. 디자인 토큰 [A] <code>app/globals.css</code> (원본과 다른 자체 팔레트)</h3>
+<pre><code class="language-css">:root{
+  --bg:#F6F5F0; --surface:#FFFFFF; --ink:#1E2330; --muted:#6B7280; --line:#E3DFD5;
+  --primary:#1F6F5B; --primary-ink:#FFFFFF; --primary-soft:#E3F1EC;
+  --accent:#F4B942; --accent-soft:#FFF4D6; --danger:#C0392B; --danger-soft:#FBE9E7; --warn:#D97706; --ok:#2E7D32;
+  --paper:#FBF7EA; --paper-rule:#D9D0B8; --paper-ink:#2B2A26;
+  --radius:16px; --radius-sm:10px; --shadow:0 1px 0 var(--line), 0 6px 20px rgba(30,35,48,.06);
+  --font-sans:&quot;Pretendard Variable&quot;,Pretendard,-apple-system,&quot;Segoe UI&quot;,sans-serif;
+  --font-hand:&quot;Nanum Pen Script&quot;,cursive;   /* 답안지 손글씨 */
+}
+</code></pre>
+<p>Pretendard는 <code>public/fonts</code>에 woff2(또는 jsdelivr CDN), Nanum Pen Script는 Google Fonts. 다크모드는 컷.</p>
+<hr />
+<h2 id="9">9. 캠퍼스 변주 요소 체크리스트</h2>
+<ul>
+<li>[ ] 과목명·시험일 입력, 홈 과목 섹션 + D-day 칩 (A, C)</li>
+<li>[ ] 데모 자료 = 실제 전공 강의노트 형식(운영체제, 경제학원론) (D fixtures)</li>
+<li>[ ] 되묻기(doubt) — 발표 때 틀린 설명을 일부러 넣어 시연 (D, B)</li>
+<li>[ ] 학습 목표 체크 패널 — 뭘 더 가르쳐야 하는지 가시화 (B)</li>
+<li>[ ] 발표 멘트: "시험기간, 친구에게 설명해 보면 아는지 모르는지 바로 드러난다. 그 친구를 AI로 만들었다. 단, 이 친구는 내가 가르친 것만 안다."</li>
+</ul>
+<hr />
+<h2 id="10-2">10. 데모 시나리오 (2분, 리허설용)</h2>
+<ol>
+<li>로그인(체험 1) → 홈: 운영체제 D-7, 경제학원론 D-12 카드. (10초)</li>
+<li>경제학원론 자료 → 목차 "수요의 이해" [가르치기] → 준비 화면에서 "쉽게" 선택 → 시작. (20초, 준비는 stub면 3초)</li>
+<li>새내기 질문 "수요 법칙부터 알려줄래?" → <strong>일부러 틀리게</strong> "가격이 오르면 수요량도 늘어" 입력 → 새내기 되물음 "어? 가격이 오르는데 더 산다고? 한 번만 더 설명해줄래?" (차별점 강조) → 올바르게 다시 설명 → 반응 + 다음 질문 → 한 번 더 설명 → [시험 보기]. (50초)</li>
+<li>시험: 자동 진행 켜고 관전, 우측에 "내 설명" 하이라이트, 3번 문항은 안 가르쳐서 "못 들은 부분". (25초)</li>
+<li>채점 → 총점·놓친 곳 1~2개 → 되짚기에서 자료 발췌+원인 설명 → 튜터 한 줄 → 완료 "대부분 이해". (15초)
+- 네트워크·LLM 장애 대비: <code>.env</code>에서 <code>LLM_PROVIDER=stub</code>으로 바꾸면 같은 시나리오가 fixture로 그대로 재생된다. 리허설 때 양쪽 모두 확인.</li>
+</ol>
+<hr />
+<h2 id="11-definition-of-done">11. 완료 기준 (Definition of Done)</h2>
+<ul>
+<li><code>pnpm db:reset &amp;&amp; pnpm dev</code> 후 §10 시나리오가 실제 LLM과 stub 양쪽에서 끝까지 동작</li>
+<li>모든 API가 §5 계약과 필드명까지 일치(B의 mock과 C/D의 실제 응답이 동일 TS 타입을 통과)</li>
+<li>상태 전이 오류 시 409 + 화면 토스트, LLM 실패 시 "다시 시도" 버튼</li>
+<li>1280×800, 390×844에서 가로 스크롤 없음</li>
+<li><code>pnpm build</code> 경고 0, <code>pnpm eval:llm</code> 통과</li>
+<li>README: 설치·env·실행·데모 순서</li>
+</ul>
+<hr />
+<h2 id="12-ai-ai">12. 팀원별 AI 작업 지시서 (각자 자기 AI에 붙여 넣기)</h2>
+<blockquote>
+<p>공통 머리말(4명 모두 자기 지시서 맨 앞에 붙임):
+"다음은 해커톤 프로젝트 <code>teachback-campus</code>의 설계서다. 너는 이 중 <strong>[내 역할]</strong> 영역만 구현한다. 설계서의 §3 DB 스키마, §5 API 계약, §6 SSE 이벤트, §7-1 LLM 인터페이스는 FROZEN이며 절대 바꾸지 않는다. <strong>내 소유 디렉터리 밖의 파일은 생성·수정하지 않는다</strong> (필요하면 TODO 주석과 함께 내 영역에 임시 stub를 만든다). 작업 순서대로 진행하며 각 단계 끝에 <code>pnpm build</code>가 통과해야 한다. 커밋 메시지 접두사는 <code>feat(x):</code>다." + 이 문서 전체 첨부.</p>
+</blockquote>
+<h3 id="12-a-a-fe">12-A. A — 앱 셸 · 자료 화면 (FE)</h3>
+<p>소유: <code>src/app/{layout.tsx,globals.css,page.tsx,login,new,materials,sessions,map}</code>, <code>src/components/{shell,material}</code>, <code>src/lib/client/api.ts</code>, <code>src/contracts/**</code>(최초 생성), <code>public/**</code>, 루트 설정 파일.
+순서:
+1. §2-2 스켈레톤 생성, deps 설치, <code>.env.example</code>, <code>src/contracts/{types.ts,events.ts,api.md}</code>를 §3·§5·§6에서 그대로 옮겨 작성(zod 스키마 포함), §8-15 토큰을 <code>globals.css</code>에. <strong>main에 직접 커밋·푸시 (T+0.5h)</strong>.
+2. <code>lib/client/api.ts</code>: <code>api.get/post/patch/del/upload</code>, <code>sse()</code>(§6 코드), <code>routeForSession()</code>, <code>NEXT_PUBLIC_API_BASE</code> 지원. <strong>T+2h까지 main 머지 후 FROZEN</strong>.
+3. <code>components/shell</code>: Sidebar, PageHeader, Card, Button, Chip, Stepper, EmptyState, Toast, ConfirmDialog, 로그인 가드 레이아웃.
+4. <code>/login</code>, <code>/</code>(홈), <code>/new</code>(업로드+샘플), <code>/materials/[id]</code>(생성 SSE 패널 + 목차 리스트 + 세션 생성), <code>/sessions</code>.
+5. (P1) <code>/map</code>.
+완료 기준: C/D 라우트가 없어도 B의 <code>/api/mock</code>(또는 자체 임시 mock)으로 화면이 다 보이고, 실제 API 붙이면 시나리오 1·2단계가 동작.</p>
+<h3 id="12-b-b-fe">12-B. B — 세션 화면 전부 (FE)</h3>
+<p>소유: <code>src/app/session/**</code>, <code>src/app/api/mock/**</code>, <code>src/components/{session,exam,mascot}</code>, <code>src/mocks/**</code>.
+순서:
+1. <code>src/mocks/</code>에 §5-5-1 세션 객체·§5-5-2 결과 객체·SSE 이벤트 시퀀스 fixture(JSON) 작성. <code>app/api/mock/**</code>에 §5 경로를 그대로 복제한 가짜 라우트(SSE는 300ms 간격으로 fixture 이벤트 재생). 로컬 <code>.env</code>에 <code>NEXT_PUBLIC_API_BASE=/api/mock</code>.
+2. <code>Mascot</code>(§8-14), <code>SpeechBubble</code>, <code>TypingText</code>(글자/문장 타이핑), <code>AnswerSheet</code>(종이 답안지), <code>StepperHeader</code>.
+3. <code>/prepare</code> → <code>/teach</code>(§8-7, doubt 말풍선·학습목표 패널 포함) → <code>/exam</code>(§8-8) → <code>/result</code>(§8-9) → <code>/review</code>(§8-10) → <code>/complete</code>(§8-11). 모두 A의 <code>sse()</code>/<code>api</code> 사용(머지 전엔 동일 시그니처로 로컬 복사본을 <code>components/session/_api.ts</code>에 두고 머지 후 교체).
+4. 새로고침 복원: 각 페이지는 진입 시 <code>GET /sessions/{id}</code>로 상태를 읽어 <code>routeForSession</code>과 다르면 리다이렉트.
+완료 기준: mock으로 §10 시나리오 3~5단계가 끝까지 재생되고, <code>NEXT_PUBLIC_API_BASE=/api</code>로 바꿔도 코드 수정 없이 동작.</p>
+<h3 id="12-c-c-db-crud-api-be">12-C. C — DB · CRUD API · 인증 · 인제스트 (BE)</h3>
+<p>소유: <code>prisma/**</code>, <code>src/lib/server/{db.ts,auth.ts,ingest.ts}</code>, <code>src/app/api/{auth,home,materials/route.ts,materials/[id]/route.ts,sources,sessions/route.ts,sessions/[id]/route.ts,sessions/[id]/(finish-explanation|start-exam|result|complete|gaps|messages)}</code>.
+순서:
+1. §3 스키마 그대로 <code>schema.prisma</code>, <code>db.ts</code>(싱글턴), <code>auth.ts</code>(<code>requireUser</code>, 쿠키 <code>tb_uid</code> httpOnly), <code>seed.ts</code>(§3-1; D의 fixture 파일이 아직 없으면 짧은 더미 텍스트로). <code>pnpm db:reset</code> 동작. <strong>T+2h main 머지</strong>.
+2. <code>/auth/*</code>, <code>/home</code>, <code>/materials</code>(multipart 파싱 → <code>ingest.ts</code>: pdf-parse/텍스트, 10MB·5개 제한, 빈 텍스트면 400), <code>/materials/[id]</code>(GET/DELETE, <code>action</code> 계산), <code>/sources/[id]/content</code>.
+3. <code>/sessions</code>(POST: 챕터 존재·소유 확인 후 PREPARING 생성 / GET 목록), <code>/sessions/[id]</code>(GET 세션 객체 §5-5-1 — rubric 제외 / PATCH / DELETE), <code>/finish-explanation</code>, <code>/start-exam</code>(Exam READY→IN_PROGRESS), <code>/result</code>(§5-5-2), <code>/gaps/[gapId]/reviewed</code>, <code>/complete</code>(taughtAt/stableAt 갱신, finalVerdict는 세션에 저장된 값 사용), <code>/messages/[mid]/exclude</code>(P1).
+4. 모든 전이에 §4 상태 검증(409), 소유자 검증(404). <code>lib/server/session-dto.ts</code>에 <code>toSessionDto()</code>/<code>toResultDto()</code>를 두고 D도 import하게 export.
+완료 기준: curl/REST 클라이언트로 §5-2~5-5 전부 호출 가능, 시드 데이터로 홈·자료·세션 목록 응답이 §5 예시와 필드 일치.</p>
+<h3 id="12-d-d-llm-be">12-D. D — LLM 파이프라인 · 스트리밍 라우트 (BE)</h3>
+<p>소유: <code>src/lib/llm/**</code>, <code>src/lib/server/sse.ts</code>, <code>src/app/api/materials/[id]/generate</code>, <code>src/app/api/sessions/[id]/{prepare,explanations,exam/answers,evaluate,tutor}</code>, <code>fixtures/**</code>, <code>scripts/eval-llm.ts</code>.
+순서:
+1. <code>lib/llm/index.ts</code> 인터페이스(§7-1) + <code>provider.ts</code>(openai/anthropic/stub 스위치, <code>completeJSON</code>/<code>streamText</code>) + <code>stub.ts</code>(fixture 재생) + <code>sse.ts</code>. <code>fixtures/</code>: 자료 md 2개(운영체제 스케줄링, 경제학 수요·공급 — 각 6~10k자 직접 작성), 각 자료의 <code>chapters.json</code>, 샘플 세션의 prepare/turn/answers/grades fixture. <strong>T+2h main 머지</strong>.
+2. <code>prompts/</code>: P1~P6 (§7-2) + zod 스키마. <code>scripts/eval-llm.ts</code>(§7-3).
+3. 라우트: <code>generate</code>(문단 분할→P1→offset 변환→Chapter 저장→<code>chapters</code> 이벤트), <code>prepare</code>(P2→objectives/Exam(READY)/첫 JUNIOR QUESTION 저장→EXPLAINING→<code>ready</code>), <code>explanations</code>(USER 저장→P3-A→P3-B→DOUBT 또는 REACTION+QUESTION 저장→이벤트), <code>exam/answers</code>(taught 수집→P4→thought 글자/문장 단위 연출→ExamAnswer 저장→3개 다 되면 <code>exam.completed</code>), <code>evaluate</code>(EVALUATING→P5 문항별→Grade/Gap 저장→총점·판정→RESULT_READY→<code>result</code>), <code>tutor</code>(P6 streamText→TutorMessage 저장).
+4. 모든 라우트: <code>requireUser</code>(C) + 상태 검증(409) + try/catch로 <code>error</code> 이벤트 + 재진입 안전(prepare는 이미 EXPLAINING이면 ready만, answers는 캐시 recap).
+완료 기준: <code>pnpm eval:llm</code> 통과, 실제 LLM과 stub 양쪽에서 §10 시나리오의 백엔드 구간이 curl로 재현됨, 되묻기 fixture에서 <code>junior.doubt</code> 발생.</p>
+<hr />
+<h2 id="13">13. 리스크 &amp; 대응</h2>
+<table>
+<thead>
+<tr>
+<th>리스크</th>
+<th>대응</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LLM 지연/장애로 데모 중단</td>
+<td><code>LLM_PROVIDER=stub</code> 세이프 모드, 리허설 때 전환 테스트</td>
+</tr>
+<tr>
+<td>JSON 파싱 실패</td>
+<td>zod 검증 + 1회 재시도 + <code>error</code> 이벤트 + 화면 재시도 버튼</td>
+</tr>
+<tr>
+<td>PDF 텍스트 추출 품질(이미지 PDF)</td>
+<td>데모는 md 샘플 사용, PDF는 보조. 빈 텍스트면 400 "텍스트를 읽을 수 없는 파일"</td>
+</tr>
+<tr>
+<td>되묻기 오탐(맞는 설명을 되묻음)</td>
+<td>P3-A 기준을 "정반대/수치 불일치"로 좁힘, HARD에선 비활성. 발표 시나리오는 명백한 오류 사용</td>
+</tr>
+<tr>
+<td>머지 충돌</td>
+<td>디렉터리 소유권 + FROZEN 파일 + deps 단독 커밋 + 2~3시간마다 rebase</td>
+</tr>
+<tr>
+<td>원본 카피 지적</td>
+<td>이름·마스코트·팔레트·문구 전부 자체 제작, 되묻기·학습목표 패널·과목/D-day는 원본에 없음을 발표에서 명시</td>
+</tr>
+</tbody>
+</table></main></div></body></html>
