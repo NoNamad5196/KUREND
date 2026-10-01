@@ -11,6 +11,9 @@ export type CharacterMeta = {
   color: string; // 대표색
   soft: string; // 배경색
   intro: string[]; // 선택 카드 설명 2줄
+  teachLabel: string;
+  exampleLine: string;
+  teachingHint: string;
   traits: { 이해력: number; 기억력: number; 되묻기: number; 시험난이도: number }; // 1~5
   examLabel: string;
   gameOver: { title: string; lines: string[]; after: string };
@@ -24,7 +27,10 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     difficulty: "EASY",
     color: "#3F6FB5",
     soft: "#E6EEF9",
-    intro: ["이해가 빠른 후배", "객관식 3문항"],
+    intro: ["이해가 빠른 후배", "선택형 중심 · 필요하면 직접 설명"],
+    teachLabel: "선택지로 쉽게 가르치기",
+    exampleLine: "선배님, 이건 어떤 뜻이에요?",
+    teachingHint: "후배에게 알려줄 내용을 선택하세요. 고른 내용 그대로 후배가 배워요.",
     traits: { 이해력: 5, 기억력: 5, 되묻기: 2, 시험난이도: 2 },
     examLabel: "객관식 4지선다 3문항",
     gameOver: {
@@ -40,7 +46,10 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     difficulty: "NORMAL",
     color: "#C9566E",
     soft: "#FBE7EC",
-    intro: ["이해는 빠르지만", "서술형 5문항"],
+    intro: ["한 번 명확하게 들으면 기억해요", "왜 그런지, 어떤 뜻인지 궁금해해요"],
+    teachLabel: "이유와 의미를 직접 설명하기",
+    exampleLine: "선배님, 왜 그렇게 되는 건가요?",
+    teachingHint: "뜻과 이유를 함께 설명해 주세요. 개념끼리 어떻게 이어지는지도 좋아요.",
     traits: { 이해력: 4, 기억력: 5, 되묻기: 3, 시험난이도: 3 },
     examLabel: "서술형 5문항 (의미 설명)",
     gameOver: {
@@ -56,7 +65,10 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     difficulty: "HARD",
     color: "#C77A12",
     soft: "#FFF1D6",
-    intro: ["이해시키기 어려움", "반복 설명 필요 · 서술형 7문항"],
+    intro: ["이해시키기 어려움", "반복 설명 필요 · 서술형 시험"],
+    teachLabel: "여러 번 설명하며 이해시키기",
+    exampleLine: "선배, 그 말 다시 설명해 줘.",
+    teachingHint: "한 번 들었다고 모두 기억하지는 못해요. 다른 표현과 예시로 다시 설명해 주세요.",
     traits: { 이해력: 2, 기억력: 3, 되묻기: 5, 시험난이도: 5 },
     examLabel: "서술형 7문항 + 응용",
     gameOver: {

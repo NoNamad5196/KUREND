@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ProfilePage } from "@/components/profile/ProfilePage";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "프로필 · KUREND" };
-
+/** 예전 프로필·설정 주소 — 마이페이지(통계·업적·설정·계정)로 합쳤다. */
 export default function Page() {
-  return <ProfilePage />;
+  redirect("/mypage");
 }

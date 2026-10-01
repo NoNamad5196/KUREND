@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: bash scripts/render-build.sh
     startCommand: bash scripts/render-start.sh
-    healthCheckPath: /api/auth/demo-accounts
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: "24.19.0"

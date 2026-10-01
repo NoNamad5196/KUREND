@@ -13,7 +13,7 @@ import { LifeHearts } from "./LifeHearts";
 import type { JuniorCharacter, LifeResult } from "./types";
 import "./game.css";
 
-const COLORS = ["#F4B942", "#1F6F5B", "#E07A6E", "#8FD0F0", "#F6E6C8", "#C77A12"];
+const COLORS = ["var(--accent)", "var(--primary)", "var(--line)", "var(--muted)", "var(--surface)", "var(--ok)"];
 
 export function Confetti({ count = 60 }: { count?: number }) {
   return (
@@ -77,12 +77,11 @@ export function ResultOverlay({
     <div className="ro-backdrop" role="dialog" aria-modal="true" aria-labelledby="ro-title">
       {kind !== "failed" && <Confetti count={kind === "perfect" ? 90 : 40} />}
       <div className={clsx("ro-card", `ro-${kind}`)}>
-        {kind !== "failed" && <div className="ro-rays" aria-hidden="true" />}
         <div className="ro-card-inner relative px-6 pb-6 pt-8 text-center">
           <div className="mx-auto h-[150px]">
             <JuniorAvatar character={character} size={150} mood={kind === "failed" ? "sad" : "happy"} pose={kind === "perfect" ? "jump" : undefined} enter />
           </div>
-          {final && <p className="mt-2 text-sm font-black tracking-widest text-muted">졸업시험</p>}
+          {final && <p className="editorial-label mt-3 text-primary">졸업시험</p>}
           <h2 id="ro-title" className="ro-title mt-2 text-5xl sm:text-6xl">{title}</h2>
           <p className="ro-score mt-4 text-4xl font-black tabular-nums">
             {result.score} <span className="text-xl text-muted">/ 100</span>
@@ -97,14 +96,14 @@ export function ResultOverlay({
             </p>
             <p className="text-sm">{message}</p>
           </div>
-          <div className="ro-actions mt-6 flex justify-center gap-2">
+          <div className="ro-actions mt-6 flex flex-col justify-center gap-2 sm:flex-row">
             {gameOver ? (
               <Button variant="danger" size="lg" onClick={onGameOver ?? onClose}>
                 …어?
               </Button>
             ) : (
               <>
-                {final && result.canGraduate && onGraduate && <Button size="lg" onClick={onGraduate}>졸업식으로 🎓</Button>}
+                {final && result.canGraduate && onGraduate && <Button size="lg" onClick={onGraduate}>졸업식으로 →</Button>}
                 <Button size="lg" variant={final && result.canGraduate && onGraduate ? "secondary" : "primary"} onClick={onClose}>
                   성적표 보기
                 </Button>

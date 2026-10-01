@@ -25,19 +25,19 @@ export function StepperHeader({
   className?: string;
 }) {
   return (
-    <header className={clsx("flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", className)}>
+    <header className={clsx("session-header flex flex-col gap-5 border-b border-line pb-6 lg:flex-row lg:items-start lg:justify-between", className)}>
       <div className="min-w-0 sm:flex-1">
-        <Link href={`/materials/${session.material.materialId}`} className="text-sm text-muted transition hover:text-ink">
+        <Link href={`/materials/${session.material.materialId}`} className="inline-block max-w-full break-words text-xs text-muted transition hover:text-primary">
           ← {session.material.title}
         </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Chip tone={chipTone}>{chipLabel}</Chip>
-          <h1 className="min-w-0 text-xl font-bold tracking-tight [text-wrap:balance] sm:text-2xl">{session.chapter.title}</h1>
+          <h1 className="min-w-0 basis-full break-words text-[clamp(1.65rem,4vw,2.8rem)] font-bold leading-tight tracking-[-0.045em] [text-wrap:balance]">{session.chapter.title}</h1>
         </div>
-        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
-        <Stepper steps={[...SESSION_STEPS]} current={step} className="mt-2 flex-wrap" />
+        {subtitle && <p className="mt-3 text-sm leading-6 text-muted">{subtitle}</p>}
+        <Stepper steps={[...SESSION_STEPS]} current={step} className="mt-5 flex-wrap" />
       </div>
-      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
+      {right && <div className="flex flex-wrap items-center gap-2 lg:max-w-[320px] lg:justify-end">{right}</div>}
     </header>
   );
 }

@@ -12,7 +12,6 @@
  */
 import { useEffect, useSyncExternalStore } from "react";
 
-export const ONBOARDING_KEY = "kurend.onboarded.v1";
 export const PREFERENCES_KEY = "kurend.prefs.v1";
 /** src/components/exam/ViewSettings.tsx 의 저장 키 (instant · autoAdvance · showThought) */
 const EXAM_VIEW_KEY = "kurend.examView";

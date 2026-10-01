@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChapterDto } from "@/contracts/types";
 import type { TeacherNoteDto } from "@/contracts/game";
-import { Button, Card, Chip, Spinner } from "@/components/session/ui";
+import { Button, Chip, Spinner } from "@/components/session/ui";
 import { TeacherNoteBody } from "./TeacherNoteDrawer";
 import { generateTeacherNote, loadTeacherNotes } from "./useTeacherNote";
 
@@ -46,25 +46,26 @@ export function TeacherNoteSection({ materialId, chapters }: { materialId: strin
 
   const missing = chapters.filter((c) => !notes?.get(c.chapterId)).length;
   return (
-    <Card className="mt-5 p-5">
+    <section className="mt-12 border-t border-line pt-6" aria-labelledby="teacher-note-section-heading">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold">선배용 강의노트</h2>
-          <p className="mt-1 text-sm text-muted">후배를 가르치기 전에 범위를 먼저 훑어보세요. 정답이 아니라 “무엇을 설명할지”만 담겨 있어요.</p>
+          <p className="editorial-label mb-3">TEACHING NOTES</p>
+          <h2 id="teacher-note-section-heading" className="text-2xl font-semibold tracking-tight sm:text-3xl">선배용 강의노트</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">후배를 가르치기 전에 범위를 먼저 훑어보세요. 정답이 아니라 “무엇을 설명할지”만 담겨 있어요.</p>
         </div>
         {notes && missing > 0 && <Button size="sm" variant="secondary" loading={busy === "all"} disabled={!!busy} onClick={() => void generateAll()}>없는 노트 {missing}개 모두 만들기</Button>}
       </div>
       {error && <p role="alert" className="mt-3 rounded-sm bg-danger-soft p-3 text-sm text-danger">{error}</p>}
       {!notes && !error && <p className="mt-4 flex items-center gap-2 text-sm text-muted"><Spinner /> 강의노트를 확인하는 중…</p>}
       {notes && (
-        <ol className="mt-3 divide-y divide-line">
+        <ol className="mt-6 divide-y divide-line border-y border-line">
           {chapters.map((c) => {
             const note = notes.get(c.chapterId);
             const isOpen = open === c.chapterId;
             return (
-              <li key={c.chapterId} className="py-3">
+              <li key={c.chapterId} className="py-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg text-xs font-bold text-muted">{c.order}</span>
+                  <span className="w-8 shrink-0 font-mono text-xs text-muted">{c.order}</span>
                   <span className="min-w-0 flex-1 font-semibold">{c.title}</span>
                   {note ? (
                     <>
@@ -75,12 +76,12 @@ export function TeacherNoteSection({ materialId, chapters }: { materialId: strin
                     <Button size="sm" variant="secondary" loading={busy === c.chapterId} disabled={!!busy} onClick={() => void generate(c.chapterId)}>만들기</Button>
                   )}
                 </div>
-                {note && isOpen && <div className="mt-3"><TeacherNoteBody note={note} /></div>}
+                {note && isOpen && <div className="mt-5 border-l border-line pl-5"><TeacherNoteBody note={note} /></div>}
               </li>
             );
           })}
         </ol>
       )}
-    </Card>
+    </section>
   );
 }

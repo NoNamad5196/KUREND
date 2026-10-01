@@ -1,8 +1,7 @@
 "use client";
 /**
- * [B 로컬 임시 UI 프리미티브] A의 `components/shell/**`(Card, Button, Chip, Stepper, EmptyState, Toast,
- * ConfirmDialog, PageHeader)와 같은 역할. A가 머지되면 import 경로만 `@/components/shell`로 교체한다.
- * TODO(B): A 머지 후 교체.
+ * 학습 화면 공통 UI. shell UI와 같은 디자인 토큰을 사용하며
+ * 학습 화면의 기존 props와 알림·모달 동작을 유지한다.
  */
 import clsx from "clsx";
 import Link from "next/link";
@@ -18,7 +17,7 @@ export function Card({
   return (
     <div
       className={clsx(
-        "rounded-card border border-line border-b-2 border-b-[#CFC9BB] shadow-card",
+        "k-card border border-line",
         paper ? "bg-paper text-paper-ink" : "bg-surface",
         className,
       )}
@@ -58,17 +57,17 @@ export function Button({
   loading?: boolean;
 }) {
   const variantCls: Record<ButtonVariant, string> = {
-    primary: "bg-primary text-primary-ink hover:brightness-110 border border-primary",
-    secondary: "bg-surface text-ink border border-line hover:bg-bg",
-    ghost: "bg-transparent text-ink hover:bg-bg border border-transparent",
-    danger: "bg-danger-soft text-danger border border-danger/30 hover:bg-danger/15",
+    primary: "k-button-primary",
+    secondary: "k-button-secondary",
+    ghost: "k-button-ghost",
+    danger: "k-button-danger",
   };
-  const sizeCls = { sm: "h-8 px-3 text-sm", md: "h-10 px-4 text-sm", lg: "h-12 px-6 text-base" }[size];
+  const sizeCls = { sm: "min-h-10 px-3 py-2 text-xs", md: "min-h-11 px-5 py-3 text-sm", lg: "min-h-12 px-6 py-3 text-base" }[size];
   return (
     <button
       type="button"
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        "k-button inline-flex items-center justify-center gap-3 disabled:cursor-not-allowed disabled:opacity-50",
         variantCls[variant],
         sizeCls,
         className,
@@ -94,16 +93,16 @@ export function Chip({
   const toneCls: Record<ChipTone, string> = {
     default: "bg-bg text-ink border-line",
     primary: "bg-primary-soft text-primary border-primary/20",
-    accent: "bg-accent-soft text-[#8A5A00] border-accent/40",
+    accent: "bg-accent-soft text-primary border-accent/40",
     danger: "bg-danger-soft text-danger border-danger/20",
-    ok: "bg-[#E6F2E7] text-ok border-ok/20",
-    warn: "bg-[#FFF1DE] text-warn border-warn/20",
+    ok: "bg-ok-soft text-ok border-ok/20",
+    warn: "bg-warn-soft text-warn border-warn/20",
     muted: "bg-bg text-muted border-line",
   };
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-5 whitespace-nowrap",
+        "k-chip inline-flex items-center gap-1 border px-2 py-0.5 text-[11px] font-medium leading-5 whitespace-nowrap",
         toneCls[tone],
         className,
       )}
@@ -126,7 +125,7 @@ export function Stepper({
   className?: string;
 }) {
   return (
-    <ol className={clsx("flex items-center gap-1 text-xs", className)} aria-label="진행 단계">
+    <ol className={clsx("flex flex-wrap items-center gap-x-3 gap-y-1 text-xs", className)} aria-label="진행 단계">
       {steps.map((label, i) => {
         const n = i + 1;
         const state = n < current ? "done" : n === current ? "active" : "todo";
@@ -135,23 +134,23 @@ export function Stepper({
             <span
               aria-current={state === "active" ? "step" : undefined}
               className={clsx(
-                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
-                state === "active" && "border-primary bg-primary-soft text-primary font-semibold",
-                state === "done" && "border-line bg-surface text-muted",
-                state === "todo" && "border-transparent text-muted",
+                "k-step inline-flex items-center gap-2 py-2",
+                state === "active" && "text-primary font-semibold",
+                state === "done" && "text-primary",
+                state === "todo" && "text-muted",
               )}
             >
               <span
                 className={clsx(
-                  "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold",
-                  state === "active" ? "bg-primary text-primary-ink" : "bg-line text-muted",
+                  "inline-flex items-center justify-center font-mono text-[10px]",
+                  state === "active" ? "text-primary" : "text-muted",
                 )}
               >
-                {state === "done" ? "✓" : n}
+                {state === "done" ? "✓" : `0${n}`}
               </span>
               {label}
             </span>
-            {i < steps.length - 1 && <span className="text-line">—</span>}
+            {i < steps.length - 1 && <span className="sr-only">다음</span>}
           </li>
         );
       })}
@@ -176,7 +175,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={clsx("flex flex-wrap items-start justify-between gap-3", className)}>
+    <header className={clsx("k-page-header flex flex-wrap items-end justify-between gap-5", className)}>
       <div className="min-w-0">
         {back && (
           <Link href={back.href} className="text-sm text-muted hover:text-ink">
@@ -185,11 +184,11 @@ export function PageHeader({
         )}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {chip}
-          <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
+          <h1 className="k-page-title">{title}</h1>
         </div>
-        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+        {subtitle && <p className="k-page-description mt-3 text-sm text-muted">{subtitle}</p>}
       </div>
-      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
+      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
     </header>
   );
 }
@@ -207,9 +206,9 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={clsx("flex flex-col items-center justify-center gap-2 py-12 text-center", className)}>
-      <p className="text-base font-semibold">{title}</p>
-      {description && <p className="max-w-md text-sm text-muted">{description}</p>}
+    <div className={clsx("k-empty flex flex-col items-center justify-center gap-3 text-center", className)}>
+      <p className="text-2xl font-semibold tracking-tight">{title}</p>
+      {description && <p className="max-w-md text-sm leading-7 text-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -250,7 +249,7 @@ export function Toaster() {
           className={clsx(
             "pointer-events-auto rounded-sm border px-4 py-2 text-sm shadow-card",
             t.tone === "error" && "border-danger/30 bg-danger-soft text-danger",
-            t.tone === "success" && "border-ok/30 bg-[#E6F2E7] text-ok",
+            t.tone === "success" && "border-ok/30 bg-ok-soft text-ok",
             t.tone === "info" && "border-line bg-surface text-ink",
           )}
         >

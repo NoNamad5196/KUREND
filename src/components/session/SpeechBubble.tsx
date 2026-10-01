@@ -8,7 +8,7 @@ export type BubbleTone = "default" | "doubt" | "user" | "muted" | "paper";
 
 const TONE: Record<BubbleTone, { box: string; speaker: string; tail: string }> = {
   default: { box: "bg-surface border-line", speaker: "text-muted", tail: "bg-surface border-line" },
-  doubt: { box: "bg-accent-soft border-accent", speaker: "text-[#8A5A00]", tail: "bg-accent-soft border-accent" },
+  doubt: { box: "bg-accent-soft border-accent", speaker: "text-primary", tail: "bg-accent-soft border-accent" },
   user: { box: "bg-primary-soft border-transparent", speaker: "text-primary", tail: "bg-primary-soft border-transparent" },
   muted: { box: "bg-bg border-line text-muted", speaker: "text-muted", tail: "bg-bg border-line" },
   paper: { box: "bg-paper border-paper-rule text-paper-ink", speaker: "text-muted", tail: "bg-paper border-paper-rule" },
@@ -33,8 +33,8 @@ export function SpeechBubble({
   return (
     <div
       className={clsx(
-        "kurend-bubble relative max-w-full rounded-card border",
-        size === "lg" ? "px-5 py-4 text-lg leading-relaxed sm:text-xl" : "px-4 py-3 text-sm leading-6",
+        "kurend-bubble relative max-w-full rounded-sm border",
+        size === "lg" ? "px-5 py-5 text-lg leading-relaxed sm:px-7 sm:text-xl" : "px-4 py-4 text-sm leading-7",
         t.box,
         className,
       )}
@@ -51,7 +51,7 @@ export function SpeechBubble({
           )}
         />
       )}
-      {speaker && <span className={clsx("mb-1 block text-[11px] font-bold tracking-wide", t.speaker)}>{speaker}</span>}
+      {speaker && <span className={clsx("mb-3 block text-[11px] font-semibold tracking-wide", t.speaker)}>{speaker}</span>}
       <div className="relative">{children}</div>
     </div>
   );

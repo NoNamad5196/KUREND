@@ -534,7 +534,7 @@ async function main() {
   await wipe();
 
   for (const [i, u] of DEMO_USERS.entries()) {
-    await db.user.create({ data: { ...u, createdAt: daysFromNow(-7, 9 + i) } });
+    await db.user.create({ data: { ...u, createdAt: daysFromNow(-7, 9 + i), onboardingCompletedAt: i === 0 ? daysFromNow(-7, 9) : null } });
   }
   console.log(`  users: ${DEMO_USERS.map((u) => u.id).join(", ")}`);
 

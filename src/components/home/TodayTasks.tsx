@@ -5,7 +5,6 @@
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import clsx from "clsx";
 import type { HomeDto } from "@/contracts/types";
 import type { RunDto, WrongNoteDto } from "@/contracts/game";
 import { routeForSession } from "@/lib/client/api";
@@ -34,13 +33,6 @@ function buildTasks(home: HomeDto, run: RunDto | null, notes: WrongNoteDto[]): T
   return tasks.slice(0, 4);
 }
 
-const TONE: Record<Task["tone"], string> = {
-  primary: "border-primary/30 bg-primary-soft/60",
-  danger: "border-danger/30 bg-danger-soft/70",
-  accent: "border-accent/50 bg-accent-soft/70",
-  default: "border-line bg-surface",
-};
-
 export function TodayTasks({ home, run }: { home: HomeDto; run: RunDto | null | undefined }) {
   const [notes, setNotes] = useState<WrongNoteDto[]>([]);
   useEffect(() => { gameApi.listWrongNotes().then(setNotes).catch(() => setNotes([])); }, []);
@@ -49,22 +41,19 @@ export function TodayTasks({ home, run }: { home: HomeDto; run: RunDto | null | 
   if (!tasks.length) return null;
   const line = run && run.next ? `선배, 오늘은 “${run.next.title}” 배우고 싶어요!` : run ? "선배, 오늘도 잘 부탁해요!" : "선배, 저희 중 누구를 가르쳐 주실 거예요?";
   return (
-    <section aria-labelledby="today-heading" className="mb-8">
-      <div className="mb-3 flex items-end gap-3">
-        <JuniorAvatar character={run?.character ?? "KU_HARD"} size={54} mood="talk" />
-        <div className="relative mb-1 rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-2 text-sm font-semibold shadow-card">{line}</div>
+    <section aria-labelledby="today-heading" className="today-tasks">
+      <div className="editorial-section-heading">
+        <div><p className="editorial-label">00 / TODAY</p><h2 id="today-heading">오늘 할 일</h2></div>
+        <p className="today-tasks-line"><span className="today-tasks-avatar" aria-hidden="true"><JuniorAvatar character={run?.character ?? "KU_HARD"} size={40} pose="still" mood="talk" /></span><span>{line}</span></p>
       </div>
-      <h2 id="today-heading" className="mb-3 text-lg font-bold">오늘 할 일</h2>
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {tasks.map((t) => (
+      <ul className="today-tasks-list">
+        {tasks.map((t, index) => (
           <li key={t.key}>
-            <Link href={t.href} className={clsx("group flex h-full items-start gap-3 rounded-card border p-4 transition hover:-translate-y-0.5 hover:shadow-card", TONE[t.tone])}>
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-lg shadow-sm" aria-hidden="true">{t.icon}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-bold leading-6">{t.title}</span>
-                <span className="mt-0.5 block text-xs leading-5 text-muted">{t.detail}</span>
-              </span>
-              <span className="shrink-0 self-center text-xs font-bold text-primary group-hover:underline">{t.cta} →</span>
+            <Link href={t.href} className="today-task" data-tone={t.tone}>
+              <span className="today-task-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              <span className="today-task-icon" aria-hidden="true">{t.icon}</span>
+              <span className="today-task-body"><b>{t.title}</b><span>{t.detail}</span></span>
+              <span className="today-task-cta">{t.cta}<span aria-hidden="true">↗</span></span>
             </Link>
           </li>
         ))}

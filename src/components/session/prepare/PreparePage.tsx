@@ -8,11 +8,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SseEventData } from "@/contracts/events";
+import { JuniorAvatar } from "@/components/game/JuniorAvatar";
 import { ApiError, sse } from "@/components/session/_api";
 import { StepperHeader } from "@/components/session/StepperHeader";
-import { Button, Card, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
+import { Button, EmptyState, ProgressBar, Spinner, toast } from "@/components/session/ui";
 import { useSession } from "@/components/session/useSession";
-import { CharacterBadge } from "@/components/game/CharacterBadge";
 import { CHARACTER_META } from "@/components/game/characters";
 import { LifeHearts } from "@/components/game/LifeHearts";
 import { useSessionGame } from "@/components/game/useSessionGame";
@@ -81,14 +81,15 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   }, [sessionId, setSession, recover, reload]);
 
   useEffect(() => {
+    setReady(false); setStreamError(null); setProgress(null); setElapsed(0); startedRef.current = false;
+    return () => { abortRef.current?.abort(); startedRef.current = false; };
+  }, [sessionId]);
+
+  useEffect(() => {
     if (!session || startedRef.current) return;
     startedRef.current = true;
     void startPrepare();
   }, [session, startPrepare]);
-  useEffect(() => {
-    setReady(false); setStreamError(null); startedRef.current = false;
-    return () => { abortRef.current?.abort(); startedRef.current = false; };
-  }, [sessionId]);
 
 
   if (redirecting) return null;
@@ -107,80 +108,86 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
   const orbit = session.chapter.points.length ? session.chapter.points : [session.chapter.title];
 
   return (
-    <div className="space-y-6">
-      <StepperHeader session={session} step={1} chipLabel="세션 준비" subtitle={`${withJosa(juniorLabel(run?.character), "은/는")} 가르친 내용만 기억합니다`} />
+    <div className="page-enter space-y-8">
+      <StepperHeader session={session} step={1} chipLabel={isFinal ? "졸업시험 준비" : "세션 준비"} subtitle={`${withJosa(juniorLabel(run?.character), "은/는")} 가르친 내용만 기억합니다`} />
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <Card className="kurend-rise relative flex flex-col items-center gap-5 overflow-hidden px-6 py-8 text-center">
-          {/* 마스코트 + 궤도 개념 칩 */}
-          <div className="relative grid h-[260px] w-full max-w-[360px] place-items-center">
-            <div
-              aria-hidden
-              className="absolute inset-6 rounded-full"
-              style={{ background: "radial-gradient(circle, var(--primary-soft) 0%, transparent 70%)" }}
-            />
-            {!ready && (
-              <div className="kurend-orbit" aria-hidden>
-                {orbit.map((p, i) => {
-                  const deg = (360 / orbit.length) * i;
-                  return (
-                    <span key={p} style={{ transform: `rotate(${deg}deg) translate(132px) rotate(${-deg}deg)` }}>
-                      <span className="inline-block animate-[kurend-orbit_22s_linear_infinite_reverse] whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-muted shadow-card">
-                        {p}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            <div className={clsx("relative", ready && "kurend-pop")}>
-              <JuniorOrMascot character={run?.character} state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={150} />
+      <div className="prepare-layout">
+        <section className="prepare-portrait kurend-rise" aria-label="이번 수업의 후배">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="editorial-label">YOUR STUDY PARTNER</p>
+              <h2 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{run ? CHARACTER_META[run.character].name : "새내기"}</h2>
             </div>
+            {run && <LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} />}
           </div>
+          <div className="prepare-art">
+            <span aria-hidden className="prepare-art-type">READY<br />TO LEARN.</span>
+            {run ? <JuniorAvatar character={run.character} size={290} mood={ready ? "happy" : streamError ? "confused" : "think"} enter className={clsx("relative", ready && "kurend-pop")} /> : <JuniorOrMascot state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={250} className={clsx("relative", ready && "kurend-pop")} />}
+          </div>
+          {run ? (
+            <div className="relative space-y-4 border-t border-primary/20 pt-5">
+              {isFinal && <p className="text-sm font-semibold text-primary">졸업시험 · 자료 전체에서 출제</p>}
+              <p className="text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 자료와 진도는 유지하면서 다른 후배와 새 대화를 시작할 수 있어요.</p>
+              <div className="flex flex-wrap gap-x-7 gap-y-3">
+                <div><p className="editorial-label">EXAM</p><p className="mt-1 text-sm font-semibold">{isFinal ? "객관식+서술형" : run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}{game?.questionCount !== undefined && ` ${game.questionCount}문항`}</p></div>
+                <div><p className="editorial-label">PASS SCORE</p><p className="mt-1 text-sm font-semibold">합격 {run.passScore}점</p></div>
+              </div>
+              <p className="text-xs leading-5 text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
+            </div>
+          ) : (
+            <div className="relative space-y-3 border-t border-primary/20 pt-5">
+              <h3 className="text-base font-bold">연습 모드</h3>
+              <p className="text-sm leading-6 text-muted">이 자료에는 아직 가르칠 후배가 없어요. LIFE·졸업 없이 자유롭게 연습합니다.</p>
+              <Link href={`/materials/${session.material.materialId}/junior`} className="inline-block text-sm font-semibold text-primary hover:underline">후배 선택하고 게임으로 시작 →</Link>
+            </div>
+          )}
+        </section>
 
+        <section className="min-w-0 py-3 sm:py-6" aria-label="수업 준비 상태">
+          <p className="editorial-label mb-6">BEFORE WE BEGIN / 01</p>
           {ready ? (
-            <div className="w-full space-y-4">
+            <div className="space-y-7">
               <div className="kurend-pop">
-                <p className="text-lg font-bold">새내기가 준비됐어요</p>
-                <p className="mt-1 text-sm text-muted">
+                <p className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{withJosa(juniorLabel(run?.character), "이/가")} 준비됐어요</p>
+                <p className="mt-4 text-sm leading-6 text-muted">
                   학습 목표 {session.objectives.length}개와 시험 문항 {session.exam?.questions.length ?? 3}개를 만들었습니다.
                 </p>
               </div>
-              <ul className="kurend-stagger mx-auto w-full max-w-md space-y-1.5 text-left text-sm">
+              <ul className="kurend-stagger border-t border-line text-sm">
                 {session.objectives.map((o, i) => (
-                  <li key={o.id} className="flex gap-2 rounded-sm bg-bg px-3 py-2">
-                    <span className="font-semibold text-primary">{i + 1}</span>
+                  <li key={o.id} className="flex gap-4 border-b border-line py-4 leading-6">
+                    <span className="font-mono text-xs text-primary">{String(i + 1).padStart(2, "0")}</span>
                     <span>{o.text}</span>
                   </li>
                 ))}
               </ul>
-              <Button size="lg" onClick={() => router.push(`/session/${sessionId}/teach`)} className="kurend-pop shadow-card">
+              <Button size="lg" onClick={() => router.push(`/session/${sessionId}/teach`)} className="kurend-pop w-full sm:w-auto">
                 {run ? `${withJosa(juniorLabel(run.character), "과/와")} 수업 시작` : "이 새내기로 시작"} →
               </Button>
             </div>
           ) : streamError ? (
-            <div className="space-y-3">
-              <p className="text-lg font-bold">준비에 실패했어요</p>
-              <p className="text-sm text-danger">{streamError}</p>
+            <div className="space-y-5" role="alert">
+              <p className="text-3xl font-bold tracking-tight">준비에 실패했어요</p>
+              <p className="text-sm leading-6 text-danger">{streamError}</p>
               <Button onClick={() => void startPrepare()}>다시 시도</Button>
             </div>
           ) : (
-            <div className="w-full max-w-sm space-y-4" aria-live="polite">
+            <div className="space-y-6" aria-live="polite">
               <div>
-                <p className="text-lg font-bold">새내기가 자료를 읽고 시험 문제를 만드는 중</p>
-                <p className="mt-1 text-sm text-muted">{progress?.message ?? "자료를 펼치는 중"}</p>
+                <p className="max-w-lg text-3xl font-bold leading-tight tracking-tight sm:text-4xl">자료를 바탕으로<br />수업과 시험을 준비하는 중</p>
+                <p className="mt-4 text-sm leading-6 text-muted">{progress?.message ?? "자료를 펼치는 중"}</p>
               </div>
               <ProgressBar value={doneIdx + 1} max={STEPS.length + 1} />
-              <ol className="space-y-1.5 text-left text-sm">
+              <ol className="border-t border-line text-sm">
                 {STEPS.map((s, i) => {
                   const state = i < doneIdx ? "done" : i === doneIdx ? "active" : "todo";
                   return (
-                    <li key={s.step} className={clsx("flex items-center gap-2 transition-colors", state === "todo" ? "text-muted" : "text-ink")}>
+                    <li key={s.step} className={clsx("flex items-center gap-4 border-b border-line py-4 transition-colors", state === "todo" ? "text-muted" : "text-ink")}>
                       <span
                         className={clsx(
-                          "grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold",
-                          state === "done" && "kurend-pop bg-ok text-white",
-                          state === "active" && "bg-primary-soft text-primary",
+                          "grid h-6 w-6 place-items-center rounded-sm text-[11px] font-bold",
+                          state === "done" && "kurend-pop bg-primary text-primary-ink",
+                          state === "active" && "bg-accent text-primary",
                           state === "todo" && "bg-line text-muted",
                         )}
                       >
@@ -191,34 +198,21 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
                   );
                 })}
               </ol>
-              <p className="text-xs tabular-nums text-muted">{elapsed}초 경과</p>
+              <p className="font-mono text-xs tabular-nums text-muted">{elapsed}초 경과</p>
             </div>
           )}
-        </Card>
-
-        <div className="min-w-0 space-y-6">
-        {run ? (
-          <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-bold">{isFinal ? "졸업시험 — 자료 전체에서 출제" : "이번 수업의 후배"}</h2>
-              <LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} />
+          {run && (
+            <div className="mt-10 border-t border-line pt-6">
+              <p className="text-xs font-semibold text-primary">{CHARACTER_META[run.character].teachLabel}</p>
+              <p className="mt-3 text-xl font-medium leading-relaxed tracking-tight">“{CHARACTER_META[run.character].exampleLine}”</p>
+              <p className="mt-3 text-sm leading-6 text-muted">{CHARACTER_META[run.character].teachingHint}</p>
             </div>
-            <div className="mt-3 flex items-center gap-3">
-              <CharacterBadge character={run.character} />
-              <p className="text-sm text-muted">합격 {run.passScore}점 · {isFinal ? "졸업시험 · 객관식+서술형" : run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"} {game?.questionCount ?? ""}문항</p>
-            </div>
-            <p className="mt-3 text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 자료와 진도는 유지하면서 다른 후배와 새 대화를 시작할 수 있어요.</p>
-            <p className="mt-2 text-xs text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
-          </Card>
-        ) : (
-          <Card className="kurend-rise px-5 py-5 [animation-delay:.08s]">
-            <h2 className="text-base font-bold">연습 모드</h2>
-            <p className="mt-1 text-sm text-muted">이 자료에는 아직 가르칠 후배가 없어요. LIFE·졸업 없이 자유롭게 연습합니다.</p>
-            <Link href={`/materials/${session.material.materialId}/junior`} className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">후배 선택하고 게임으로 시작 →</Link>
-          </Card>
-        )}
-        {!isFinal && <TeacherNotePreview materialId={session.material.materialId} chapterId={session.chapter.chapterId} />}
-        </div>
+          )}
+          <div className="mt-7 flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-5" aria-label="이번 챕터의 개념">
+            {orbit.map((point) => <span key={point} className="text-xs leading-5 text-muted">{point}</span>)}
+          </div>
+          {!isFinal && <div className="mt-8"><TeacherNotePreview materialId={session.material.materialId} chapterId={session.chapter.chapterId} /></div>}
+        </section>
       </div>
     </div>
   );

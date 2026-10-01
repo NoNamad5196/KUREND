@@ -16,6 +16,7 @@ export const GET = withApi(async (req) => {
   const body: MeDto = {
     userId: user.userId,
     nickname: user.nickname,
+    onboardingCompleted: user.onboardingCompletedAt !== null,
     streakDays: streakDays(completed.map((s) => s.completedAt ?? s.updatedAt)),
   };
   return json(body);

@@ -26,7 +26,7 @@ export function FinalExamAction({ run, size, className }: { run: RunSummary; siz
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (run.canGraduate) {
-    return <Link href={`/runs/${encodeURIComponent(run.runId)}/graduation`} className={className}><Button size={size} className="w-full">졸업하기 🎓</Button></Link>;
+    return <Link href={`/runs/${encodeURIComponent(run.runId)}/graduation`} className={className}><Button size={size} className="w-full">졸업하기 →</Button></Link>;
   }
   async function start() {
     setBusy(true);
@@ -42,7 +42,7 @@ export function FinalExamAction({ run, size, className }: { run: RunSummary; siz
   return (
     <div className={className}>
       <Button size={size} className="w-full" loading={busy} onClick={() => void start()}>
-        {run.finalExam.status === "IN_PROGRESS" ? "졸업시험 이어하기 →" : run.finalExam.attempts > 0 ? "졸업시험 다시 보기 📝" : "졸업시험 보기 📝"}
+        {run.finalExam.status === "IN_PROGRESS" ? "졸업시험 이어하기 →" : run.finalExam.attempts > 0 ? "졸업시험 다시 보기 →" : "졸업시험 보기 →"}
       </Button>
       {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
     </div>

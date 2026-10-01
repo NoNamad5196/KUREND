@@ -1,11 +1,11 @@
 "use client";
-
+/**
+ * 마이페이지 "설정" 본문 — 이 기기(브라우저)에만 저장되는 화면·학습 설정 스위치 목록.
+ * 제목·번호는 마이페이지의 archive-section 머리가 맡는다.
+ */
 import { useId } from "react";
-import { setPreference, useApplyPreferences, usePreferences, type PreferenceKey } from "@/lib/client/preferences";
-import { resetOnboarding } from "@/components/onboarding/Onboarding";
-import { Button, Card } from "@/components/shell/ui";
+import { setPreference, usePreferences, type PreferenceKey } from "@/lib/client/preferences";
 import { Switch } from "./Switch";
-import "./reduce-motion.css";
 
 const ROWS: Array<{ key: PreferenceKey; label: string; description: string }> = [
   { key: "reduceMotion", label: "움직임 줄이기", description: "캐릭터와 화면 전환 애니메이션을 최소로 줄여요." },
@@ -16,35 +16,24 @@ const ROWS: Array<{ key: PreferenceKey; label: string; description: string }> = 
 
 export function SettingsPanel() {
   const prefs = usePreferences();
-  useApplyPreferences(); // 온보딩이 아직 전역에 없더라도 이 화면에서는 반영
   const base = useId();
   return (
-    <section aria-labelledby={`${base}-heading`}>
-      <h2 id={`${base}-heading`} className="mb-3 text-lg font-bold">설정</h2>
-      <Card className="p-0">
-        <ul className="divide-y divide-line">
-          {ROWS.map(({ key, label, description }) => {
-            const id = `${base}-${key}`;
-            return (
-              <li key={key} className="flex items-center justify-between gap-3 py-3 pl-5 pr-3">
-                <div className="min-w-0">
-                  <label htmlFor={id} className="cursor-pointer font-semibold">{label}</label>
-                  <p id={`${id}-desc`} className="mt-0.5 text-xs text-muted">{description}</p>
-                </div>
-                <Switch id={id} checked={prefs[key]} describedBy={`${id}-desc`} onChange={(next) => setPreference(key, next)} />
-              </li>
-            );
-          })}
-          <li className="flex items-center justify-between gap-3 py-3 pl-5 pr-4">
-            <div className="min-w-0">
-              <p className="font-semibold">온보딩 다시 보기</p>
-              <p className="mt-0.5 text-xs text-muted">처음 안내 4장을 다시 볼 수 있어요.</p>
-            </div>
-            <Button variant="secondary" className="shrink-0" onClick={() => resetOnboarding()}>다시 보기</Button>
-          </li>
-        </ul>
-      </Card>
-      <p className="mt-2 text-xs text-muted">설정은 이 기기(브라우저)에만 저장돼요.</p>
-    </section>
+    <div>
+      <ul className="border-t border-ink">
+        {ROWS.map(({ key, label, description }) => {
+          const id = `${base}-${key}`;
+          return (
+            <li key={key} className="flex items-center justify-between gap-4 border-b border-line py-4">
+              <div className="min-w-0">
+                <label htmlFor={id} className="cursor-pointer font-semibold">{label}</label>
+                <p id={`${id}-desc`} className="mt-1 text-xs leading-5 text-muted">{description}</p>
+              </div>
+              <Switch id={id} checked={prefs[key]} describedBy={`${id}-desc`} onChange={(next) => setPreference(key, next)} />
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-3 text-xs text-muted">설정은 이 기기(브라우저)에만 저장돼요.</p>
+    </div>
   );
 }

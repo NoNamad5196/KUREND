@@ -24,19 +24,26 @@ import { api } from "./api";
 
 const enc = encodeURIComponent;
 
+/** LIFE·진행·후배가 바뀌는 호출 뒤에 알린다 — 상단 "지금 가르치는 후배" 칩이 화면 이동 없이 바로 갱신된다. */
+export const RUN_CHANGED_EVENT = "kurend:run-changed";
+function notifyRunChanged<T>(value: T): T {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(RUN_CHANGED_EVENT));
+  return value;
+}
+
 export const gameApi = {
   /** materialId 가 있으면 그 자료의 ACTIVE Run, 없으면 가장 최근 ACTIVE Run. 없으면 run: null */
   getCurrentRun: (materialId?: string) =>
     api.get<CurrentRunResponse>(materialId ? `/runs/current?materialId=${enc(materialId)}` : "/runs/current").then((r) => r.run),
-  createRun: (body: CreateRunRequest) => api.post<RunDto>("/runs", body),
+  createRun: (body: CreateRunRequest) => api.post<RunDto>("/runs", body).then(notifyRunChanged),
   changeCharacter: (runId: string, body: ChangeCharacterRequest) =>
-    api.patch<ChangeCharacterResponse>(`/runs/${enc(runId)}`, body),
+    api.patch<ChangeCharacterResponse>(`/runs/${enc(runId)}`, body).then(notifyRunChanged),
   getRun: (runId: string) => api.get<RunDto>(`/runs/${enc(runId)}`),
   /** 서버가 session.score 로 판정한다. 같은 세션에 두 번 부르면 applied:false 로 같은 결과를 돌려준다. */
-  applyLife: (runId: string, sessionId: string) => api.post<ApplyLifeResponse>(`/runs/${enc(runId)}/life`, { sessionId }),
+  applyLife: (runId: string, sessionId: string) => api.post<ApplyLifeResponse>(`/runs/${enc(runId)}/life`, { sessionId }).then(notifyRunChanged),
   /** 졸업시험(자료 전체 · 10문항 객관식+서술형) 세션을 만들거나 진행 중인 것을 돌려준다 → /session/{id}/prepare */
   startFinal: (runId: string) => api.post<StartFinalResponse>(`/runs/${enc(runId)}/final`),
-  graduate: (runId: string) => api.post<GraduateResponse>(`/runs/${enc(runId)}/graduate`),
+  graduate: (runId: string) => api.post<GraduateResponse>(`/runs/${enc(runId)}/graduate`).then(notifyRunChanged),
   getSessionGame: (sessionId: string) => api.get<SessionGameDto>(`/sessions/${enc(sessionId)}/game`),
   getTeacherNotes: (materialId: string) => api.get<TeacherNoteListResponse>(`/materials/${enc(materialId)}/teacher-note`),
   /** 없는 챕터의 강의노트를 생성(1회, 이후 캐시). ②의 LLM 메서드 generateTeacherNote 와 이름을 구분. */

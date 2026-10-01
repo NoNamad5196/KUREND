@@ -5,7 +5,7 @@ import type { ChapterDto, HomeDto, MaterialDto, MaterialListItemDto, SessionList
 export const dynamic = "force-dynamic";
 
 type PreviewSession = SessionListItemDto & { chapterId: string; materialId: string };
-type PreviewStore = { materials: Map<string, MaterialDto>; sessions: Map<string, PreviewSession> };
+type PreviewStore = { materials: Map<string, MaterialDto>; sessions: Map<string, PreviewSession>; onboarded: Set<string> };
 type Context = { params: Promise<{ path: string[] }> };
 
 const accounts = [
@@ -23,7 +23,7 @@ function seedStore(): PreviewStore {
       { chapterId: "chp_preview2", order: 2, title: "CPU 스케줄링", points: ["FCFS", "SJF", "라운드 로빈"], sourceId: "src_preview", startOffset: 400, endOffset: 820, action: { kind: "START" }, taughtAt: null, stableAt: null, bestScore: null, openGapCount: 0 },
     ],
   };
-  return { materials: new Map([[material.materialId, material]]), sessions: new Map() };
+  return { materials: new Map([[material.materialId, material]]), sessions: new Map(), onboarded: new Set(["usr_demo1"]) };
 }
 
 function store(): PreviewStore {
@@ -96,7 +96,11 @@ async function handle(req: NextRequest, context: Context): Promise<Response> {
   const data = store();
   if (endpoint === "auth/me" && req.method === "GET") {
     const account = accounts.find((item) => item.userId === req.cookies.get("tb_uid")?.value)!;
-    return NextResponse.json({ userId: account.userId, nickname: account.nickname, streakDays: 0 });
+    return NextResponse.json({ userId: account.userId, nickname: account.nickname, streakDays: 0, onboardingCompleted: data.onboarded.has(account.userId) });
+  }
+  if (endpoint === "auth/onboarding" && req.method === "POST") {
+    data.onboarded.add(req.cookies.get("tb_uid")!.value);
+    return NextResponse.json({ ok: true });
   }
   if (endpoint === "auth/logout" && req.method === "POST") {
     const response = NextResponse.json({ ok: true }); response.cookies.delete("tb_uid"); return response;

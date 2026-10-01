@@ -6,5 +6,6 @@ export const dynamic = "force-dynamic";
 export const GET = withMock((req) => {
   const id = cookieUser(req);
   if (!id) return jsonError("UNAUTHORIZED", "로그인이 필요합니다.", 401);
-  return ok({ userId: id, nickname: getUser(id)!.nickname, streakDays: streakDays(id) });
+  const user = getUser(id)!;
+  return ok({ userId: id, nickname: user.nickname, streakDays: streakDays(id), onboardingCompleted: user.onboardingCompletedAt !== null });
 });

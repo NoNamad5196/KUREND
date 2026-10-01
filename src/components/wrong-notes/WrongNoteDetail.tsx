@@ -56,29 +56,29 @@ export function WrongNoteDetail({ id }: { id: string }) {
 
   const unlocked = !!note.userReason && !editing;
   return (
-    <div className="space-y-5">
+    <div className="wn-detail page-enter space-y-8">
       <div>
-        <Link href="/wrong-notes" className="text-sm font-semibold text-muted hover:text-primary">← 오답노트</Link>
+        <Link href="/wrong-notes" className="text-link text-sm font-semibold text-muted hover:text-primary">← 오답노트</Link>
+        <p className="editorial-label mb-4 mt-8">REVIEW / A CHANCE TO UNDERSTAND</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Chip tone={note.verdict === "WRONG" ? "red" : "yellow"}>{VERDICT_TEXT[note.verdict]}</Chip>
           <span className="text-sm text-muted">{note.courseName} · {note.materialTitle} · {note.chapterTitle}</span>
         </div>
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-5">
+      <div className="wn-detail-layout">
+        <div className="min-w-0 space-y-8">
           {/* 시험지 */}
-          <Card className="wn-paper wn-rise relative border">
-            <span className="wn-stamp absolute right-5 top-4 rounded-md border-2 border-danger px-2 py-0.5 text-lg font-black text-danger">{note.score} / {note.maxScore}</span>
-            <p className="pr-24 text-xs font-bold tracking-widest text-muted">문항 {note.qid.replace("q", "")}</p>
-            <h1 className="mt-1 pr-24 text-lg font-bold leading-7 [text-wrap:balance]">{note.question}</h1>
+          <Card className="wn-paper wn-rise">
+            <div className="flex flex-wrap items-center justify-between gap-3"><p className="editorial-label">문항 {note.qid.replace("q", "")}</p><span className="wn-score">{note.score}<small> / {note.maxScore}</small></span></div>
+            <h1 className="wn-question">{note.question}</h1>
             {note.choices && <Choices choices={note.choices} answer={note.answer} className="mt-4" />}
-            <div className="mt-4 rounded-sm border border-paper-rule bg-surface/60 p-4">
+            <div className="wn-answer">
               <p className="text-xs font-bold text-muted">새내기의 답</p>
-              <p className="mt-1 whitespace-pre-wrap font-hand text-2xl leading-8">{note.answer || "(답하지 못함)"}</p>
+              <p className="mt-3 whitespace-pre-wrap break-words text-xl leading-8">{note.answer || "(답하지 못함)"}</p>
             </div>
             {note.evidenceQuote && (
-              <div className="mt-3 rounded-sm bg-accent-soft p-3 text-sm">
+              <div className="wn-evidence mt-6 text-sm">
                 <p className="text-xs font-bold text-warn">이 답이 나온 내 설명</p>
                 <p className="mt-1 break-words">“{note.evidenceQuote}”</p>
               </div>
@@ -86,8 +86,9 @@ export function WrongNoteDetail({ id }: { id: string }) {
           </Card>
 
           {/* 선배가 먼저 쓰는 이유 */}
-          <Card className="wn-rise [animation-delay:.08s]">
-            <h2 className="font-bold">왜 틀렸을까요?</h2>
+          <Card className="wn-reflection wn-rise [animation-delay:.08s]">
+            <p className="editorial-label mb-4">01 / YOUR REFLECTION</p>
+            <h2 className="text-2xl font-semibold tracking-tight">왜 틀렸을까요?</h2>
             <p className="mt-1 text-sm text-muted">AI 분석을 보기 전에, 내 설명에서 무엇이 빠졌거나 잘못됐는지 먼저 적어 보세요.</p>
             {unlocked ? (
               <div className="mt-3 rounded-sm bg-primary-soft p-4">
@@ -105,11 +106,11 @@ export function WrongNoteDetail({ id }: { id: string }) {
                   maxLength={1000}
                   rows={4}
                   placeholder="예: 가격과 수요량이 반대로 움직인다는 걸 거꾸로 설명했다."
-                  className="w-full resize-y rounded-[10px] border border-line bg-bg px-3 py-2 text-sm leading-6 outline-none focus:border-primary focus:bg-surface"
+                  className="w-full resize-y rounded-[3px] border border-line bg-surface px-4 py-4 text-sm leading-7 outline-none focus:border-primary"
                 />
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs text-muted tabular-nums">{reason.length} / 1000</span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {editing && <Button variant="secondary" onClick={() => setEditing(false)}>취소</Button>}
                     <Button loading={saving} disabled={!reason.trim()} onClick={() => void save()}>저장하고 AI 분석 보기</Button>
                   </div>
@@ -121,12 +122,12 @@ export function WrongNoteDetail({ id }: { id: string }) {
         </div>
 
         {/* AI 분석 (이유를 써야 열림) */}
-        <aside className="min-w-0 space-y-4 lg:sticky lg:top-6">
-          <Card className={clsx("space-y-4", unlocked ? (justUnlocked ? "wn-unlock" : "wn-rise") : "wn-locked")}>
+        <aside className="wn-analysis min-w-0 space-y-6">
+          <Card className={clsx("wn-analysis-paper space-y-6", unlocked ? (justUnlocked ? "wn-unlock" : "wn-rise") : "wn-locked")}>
             <div className="flex items-center gap-3">
               <Mascot state={unlocked ? (note.aiComparison?.startsWith("맞아요") ? "praise" : "thinking") : "idle"} size={64} />
               <div>
-                <h2 className="font-bold">AI 분석</h2>
+                <p className="editorial-label mb-2">02 / INSIGHT</p><h2 className="text-xl font-semibold">AI 분석</h2>
                 {!unlocked && <p className="text-xs text-muted">이유를 먼저 쓰면 열려요</p>}
               </div>
             </div>
@@ -155,7 +156,7 @@ export function WrongNoteDetail({ id }: { id: string }) {
               )}
             </div>
           </Card>
-          <Card className="space-y-2">
+          <Card className="wn-reteach space-y-3">
             <p className="text-sm font-semibold">이 개념만 콕 집어 다시 가르쳐 볼까요?</p>
             <p className="text-xs text-muted">같은 목차로 새 세션을 열고, 놓친 개념을 집중해서 설명합니다.</p>
             <Button className="w-full" loading={reteaching} onClick={() => void reteach()}>다시 가르치기 →</Button>

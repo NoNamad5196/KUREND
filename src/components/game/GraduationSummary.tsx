@@ -10,9 +10,9 @@ import type { GraduationSummary as Summary } from "./types";
 
 function Stat({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
   return (
-    <div className="rounded-card bg-bg px-3 py-3 text-center">
-      <p className="text-[11px] text-muted">{label}</p>
-      <p className="mt-1 text-xl font-black tabular-nums">{value}<span className="ml-0.5 text-xs font-semibold text-muted">{unit}</span></p>
+    <div className="border-t border-line py-3">
+      <p className="text-[10px] leading-5 text-muted sm:text-[11px]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{value}<span className="ml-1 text-xs font-normal text-muted">{unit}</span></p>
     </div>
   );
 }
@@ -20,10 +20,11 @@ function Stat({ label, value, unit }: { label: string; value: string | number; u
 export function GraduationSummary({ summary, albumHref, nextHref }: { summary: Summary; albumHref?: string; nextHref: string }) {
   const meta = CHARACTER_META[summary.character];
   return (
-    <Card className="w-full max-w-md p-5 text-center">
-      <p className="text-xl font-black">{withJosa(meta.name, "이/가")} 졸업했습니다!</p>
-      <p className="mt-1 text-sm text-muted">{summary.courseName ? `${summary.courseName} · ` : ""}{summary.materialTitle}</p>
-      <div className="mt-4 grid grid-cols-3 gap-2">
+    <Card className="graduation-summary w-full max-w-lg p-5 text-left sm:p-7">
+      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">KUREND / Graduation record</p>
+      <p className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{withJosa(meta.name, "이/가")} 졸업했습니다!</p>
+      <p className="mt-2 break-words text-xs leading-6 text-muted">{summary.courseName ? `${summary.courseName} · ` : ""}{summary.materialTitle}</p>
+      <div className="mt-5 grid grid-cols-3 gap-x-4">
         <Stat label="함께 공부한 기간" value={summary.days} unit="일" />
         <Stat label="가르친 챕터" value={summary.chapters} unit="개" />
         <Stat label="시험" value={summary.exams} unit="회" />
@@ -31,9 +32,9 @@ export function GraduationSummary({ summary, albumHref, nextHref }: { summary: S
         <Stat label="PERFECT" value={summary.perfectCount} unit="회" />
         <Stat label="작성한 오답노트" value={summary.wrongNoteCount} unit="개" />
       </div>
-      <div className="mt-4 flex items-center justify-center gap-2 text-sm">
-        <span className="text-muted">최종 LIFE</span>
-        <LifeHearts lives={summary.finalLives} maxLives={summary.maxLives} size={22} animate={false} />
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs">
+        <span className="font-mono tracking-wider text-muted">최종 LIFE</span>
+        <LifeHearts lives={summary.finalLives} maxLives={summary.maxLives} size={19} animate={false} />
       </div>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
         {albumHref && <Link href={albumHref} className="flex-1"><Button variant="secondary" className="w-full">졸업 기록 보기</Button></Link>}

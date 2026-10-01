@@ -3,6 +3,9 @@ import type { ChapterText } from "./types";
 export const MAX_SOURCE_CHARACTERS = 40_000;
 export const MAX_CHAPTER_CHARACTERS = 8_000;
 export const UNLEARNED_ANSWER = "이 부분은 선배한테 못 들어서 모르겠습니다.";
+export function isUnlearnedAnswer(answer: string): boolean {
+  return answer.trim().replace(/^[①②③④]\s*/u, "").replace("선배님께", "선배한테") === UNLEARNED_ANSWER;
+}
 
 export type SourceParagraph = {
   index: number;

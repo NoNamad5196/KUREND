@@ -19,15 +19,15 @@ export function ObjectivesPanel({
 }) {
   const done = objectives.filter((o) => covered.includes(o.id)).length;
   return (
-    <Card className={clsx("space-y-4 px-4 py-4", className)}>
-      <section>
-        <h2 className="flex items-center justify-between text-sm font-bold">
+    <Card className={clsx("grid gap-7 border-0 bg-transparent px-0 py-1 sm:grid-cols-[1.2fr_1fr] sm:gap-10", className)}>
+      <section className="min-w-0">
+        <h2 className="flex items-center justify-between gap-4 border-b border-line pb-3 text-sm font-semibold">
           학습 목표
           <span className="text-xs font-medium tabular-nums text-muted">
             {done} / {objectives.length}
           </span>
         </h2>
-        <ol className="mt-3 space-y-2.5">
+        <ol className="mt-4 space-y-4">
           {objectives.map((o) => {
             const ok = covered.includes(o.id);
             return (
@@ -35,8 +35,8 @@ export function ObjectivesPanel({
                 <span
                   aria-hidden
                   className={clsx(
-                    "mt-0.5 grid h-[18px] w-[18px] place-items-center rounded-full border-2 text-[11px] font-bold transition-all duration-300",
-                    ok ? "scale-110 border-ok bg-ok text-white" : "border-line",
+                    "mt-0.5 grid h-[18px] w-[18px] place-items-center rounded-sm border text-[11px] font-bold transition-colors duration-300",
+                    ok ? "border-primary bg-primary text-primary-ink" : "border-line",
                   )}
                 >
                   {ok ? "✓" : ""}
@@ -55,12 +55,12 @@ export function ObjectivesPanel({
           })}
         </ol>
       </section>
-      <section>
-        <h2 className="flex items-center justify-between text-sm font-bold">
+      <section className="min-w-0">
+        <h2 className="flex items-center justify-between gap-4 border-b border-line pb-3 text-sm font-semibold">
           새내기가 들은 개념
           <span className="text-xs font-medium tabular-nums text-muted">{heardConcepts.length}</span>
         </h2>
-        <div className="mt-2 flex flex-wrap gap-1.5" aria-live="polite">
+        <div className="mt-4 flex flex-wrap gap-2" aria-live="polite">
           {heardConcepts.length === 0 ? (
             <span className="text-xs text-muted">아직 들은 개념이 없어요</span>
           ) : (

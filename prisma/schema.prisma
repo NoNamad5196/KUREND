@@ -15,6 +15,7 @@ model User {
   id         String      @id // usr_
   nickname   String
   createdAt  DateTime    @default(now())
+  onboardingCompletedAt DateTime? // null = 신규 선배 오리엔테이션 대기
   materials  Material[]
   sessions   Session[]
   runs       JuniorRun[] // [게임 확장] 관계 필드만(컬럼 없음)
@@ -102,6 +103,7 @@ model Message {
   role      String // USER | JUNIOR
   stage     String // QUESTION | ANSWER | REACTION | DOUBT
   content   String
+  teachingChoicesJson String? // 가르치기 선택지: [{id,text}], 시험 보기와 별개
   excluded  Boolean  @default(false) // 사용자가 "이 설명 빼기" 한 경우(P1)
   createdAt DateTime @default(now())
 }

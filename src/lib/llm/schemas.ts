@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { objectiveRefFor, pointsPlan } from "@/contracts/game";
 import type { SourceParagraph } from "./text";
-import { UNLEARNED_ANSWER } from "./text";
+import { isUnlearnedAnswer } from "./text";
 import type { TaughtMsg } from "./types";
 
 const nonempty = z.string().trim().min(1);
@@ -168,7 +168,7 @@ export function gradeExamSchema(input: {
     comment: nonempty.max(120), rubricChecks: z.array(z.boolean()).length(input.rubricCount),
     contradictsSource: z.boolean(), gap: gapSchema.nullable(),
   }).superRefine((result, ctx) => {
-    if (input.answer.trim() === UNLEARNED_ANSWER && (result.rubricChecks.some(Boolean) || result.contradictsSource)) {
+    if (isUnlearnedAnswer(input.answer) && (result.rubricChecks.some(Boolean) || result.contradictsSource)) {
       ctx.addIssue({ code: "custom", path: ["rubricChecks"], message: "미학습 응답은 충족한 요소가 없으며 자료와 모순된 주장도 아닙니다." });
     }
     const correct = !result.contradictsSource && result.rubricChecks.every(Boolean);
