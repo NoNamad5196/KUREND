@@ -34,8 +34,8 @@ export function AnswerSheet({ studentName = "새내기", courseName, title = "20
             </div>
             <h3 className="mb-7 break-words text-xl font-semibold leading-relaxed tracking-tight sm:text-2xl">{item.question}</h3>
             {item.choices && item.choices.length > 0 && <Choices choices={item.choices} answer={item.status === "done" || item.qid !== activeQid ? item.text : undefined} className="mb-7" />}
-            <div className={clsx(item.choices?.length ? "min-h-20" : "min-h-36 break-words whitespace-pre-wrap px-2 font-hand text-xl leading-9 sm:text-2xl", item.unlearned && "underline decoration-danger decoration-2 underline-offset-4")}
-              style={{ backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 35px, var(--paper-rule) 35px, var(--paper-rule) 36px)" }}>
+            <div className={clsx("exam-answer-text break-words whitespace-pre-wrap", item.choices?.length ? "min-h-20 rounded-sm border border-paper-rule bg-surface px-4 py-3 font-sans text-sm leading-7 sm:text-base" : "min-h-36 px-2 font-hand text-xl leading-9 sm:text-2xl", item.unlearned && "underline decoration-danger decoration-2 underline-offset-4")}
+              style={item.choices?.length ? undefined : { backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 35px, var(--paper-rule) 35px, var(--paper-rule) 36px)" }}>
               {item.qid === activeQid && item.status === "writing" ? (
                 <TypingText key={item.qid} text={item.text} speedMs={typingSpeedMs} instant={instant} cursor onDone={() => onTypingDone?.(item.qid)} />
               ) : item.text || <span className="font-sans text-sm text-muted">{item.status === "writing" ? "답을 떠올리고 있어요…" : "아직 작성하지 않았어요"}</span>}

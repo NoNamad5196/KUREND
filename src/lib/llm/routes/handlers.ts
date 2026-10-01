@@ -1,4 +1,4 @@
-import { isObjectiveQuestion } from "@/contracts/game";
+import { isObjectiveQuestion, PRACTICE_QUESTION_COUNT } from "@/contracts/game";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
@@ -219,7 +219,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
               ?? session.objectives.find((item) => !session.heardConcepts.includes(objectiveTopic(item)));
             if (objective) {
               const topic = objectiveTopic(objective);
-              const teachingChoices = teachingChoicesFor(session.chapter, topic);
+              const teachingChoices = llm.generateTeachingChoices ? await llm.generateTeachingChoices({ chapter: session.chapter, topic }) : teachingChoicesFor(session.chapter, topic);
               if (teachingChoices.length) resumed = await saveSession(request, session, { ...session,
                 messages: session.messages.map((item) => item.messageId === last.messageId ? {
                   ...item, content: personaQuestion(topic, "MALE_EASY"), teachingChoices,
@@ -232,8 +232,8 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         }
         const started = Date.now();
         send("progress", { step: "OBJECTIVES", message: "이 목차의 학습 목표를 정하고 있어요.", elapsedMs: 0 });
-        // 문항 수: 후배별(남 3 · 여 5 · KU 7), 졸업시험 10(객관식+서술형), 연습 모드 3
-        const questionCount = session.game?.questionCount ?? 3;
+        // 기존 세션의 확정 구성을 보존하며 새 연습 세션은 공통 5문항을 사용한다.
+        const questionCount = session.game?.questionCount ?? PRACTICE_QUESTION_COUNT;
         const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
           persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
@@ -414,8 +414,8 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
             if (gaps.some((gap) => gap.qid === event.qid)
               || !session.chapter.text.includes(event.sourceExcerpt) || !event.sourceExcerpt.trim()
               || (event.evidenceQuote && !taughtMessages(session).some((item) => item.content.includes(event.evidenceQuote)))) modelFailure();
-            const { qid, title, diagnosis, evidenceQuote, concepts, sourceExcerpt } = event;
-            const gap: GapDto = { gapId: `gap_${nanoid(14)}`, qid, title, diagnosis, evidenceQuote, concepts, sourceExcerpt, status: "FOUND", tutorMessages: [] };
+            const { qid, title, diagnosis, evidenceQuote, errorReason, concepts, sourceExcerpt } = event;
+            const gap: GapDto = { gapId: `gap_${nanoid(14)}`, qid, title, diagnosis, evidenceQuote, errorReason, concepts, sourceExcerpt, status: "FOUND", tutorMessages: [] };
             gaps.push({ ...gap, sourceOffset: session.chapter.startOffset + session.chapter.text.indexOf(sourceExcerpt) });
             send("gap", gap);
           }

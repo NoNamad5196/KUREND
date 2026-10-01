@@ -1,5 +1,5 @@
 // [① 게임 코어] POST /api/runs/{id}/final → {sessionId, created}
-// 모든 챕터를 통과한 ACTIVE Run 만 졸업시험(FINAL, 자료 전체 · 10문항 객관식+서술형 혼합)을 볼 수 있다.
+// 모든 챕터를 통과한 ACTIVE Run 만 졸업시험(FINAL, 자료 전체 · 5문항 객관식+서술형 혼합)을 볼 수 있다.
 // 진행 중인 졸업시험이 있으면 그 세션을 돌려준다. 새 세션에는 지금까지 챕터에서 가르친 선배 설명을 그대로 옮겨 담는다.
 import type { StartFinalResponse } from "@/contracts/game";
 import { levelFor, type JuniorCharacter } from "@/contracts/game";

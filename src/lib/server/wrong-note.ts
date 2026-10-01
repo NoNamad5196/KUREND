@@ -1,3 +1,4 @@
+import { decodeGapConcepts } from "@/lib/learning/error-reason";
 /**
  * [① 게임 코어 P1] 오답노트. AI 진단은 이미 저장된 Gap(diagnosis·evidenceQuote·sourceExcerpt·concepts)에서 즉시 만든다.
  * aiComparison(사용자 이유 vs 실제 원인)은 ② llm.diagnoseWrongNote 가 있으면 그것으로, 없으면 템플릿으로 만든다.
@@ -15,7 +16,7 @@ export const wrongNoteInclude = {
       id: true,
       chapter: { select: { id: true, title: true, material: { select: { id: true, title: true, courseName: true } } } },
       exam: { select: { questions: true, answers: true, grades: true } },
-      gaps: { select: { qid: true, evidenceQuote: true, sourceExcerpt: true } },
+      gaps: { select: { qid: true, evidenceQuote: true, sourceExcerpt: true, conceptsJson: true } },
     },
   },
 } satisfies Prisma.WrongNoteInclude;
@@ -47,6 +48,7 @@ export function toWrongNoteDto(n: WrongNoteWithRelations): WrongNoteDto {
     aiDiagnosis: n.aiDiagnosis,
     aiComparison: n.aiComparison,
     evidenceQuote: gap?.evidenceQuote ?? "",
+    errorReason: decodeGapConcepts(gap?.conceptsJson).errorReason ?? "UNKNOWN",
     sourceExcerpt: gap?.sourceExcerpt ?? "",
     missedConcepts: parseStringArray(n.missedConceptsJson),
     createdAt: n.createdAt.toISOString(),

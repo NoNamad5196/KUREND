@@ -4,7 +4,7 @@
  * 상수 + 순수 함수 + zod 스키마 + 타입을 한 파일에 둔다.
  */
 import { z } from "zod";
-import type { JuniorLevel } from "./types";
+import { LearningErrorReasonSchema, type JuniorLevel } from "./types";
 
 /* ───────── 열거형 ───────── */
 export const JUNIOR_CHARACTERS = ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const;
@@ -38,25 +38,25 @@ export type CharacterSpec = {
   level: JuniorLevel;
   examFormat: ExamFormat;
   passScore: number;
-  /** 챕터 시험 문항 수 (EASY 3 · NORMAL 5 · HARD 7) */
+  /** 새 챕터 시험 문항 수 (모든 캐릭터 5; 기존 시험은 저장된 문항 유지) */
   questionCount: number;
   tagline: string;
 };
 
 export const CHARACTERS: Record<JuniorCharacter, CharacterSpec> = {
-  MALE_EASY: { name: "남학생", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 3, tagline: "이해가 빠른 후배 · 객관식 3문항" },
-  FEMALE_NORMAL: { name: "여학생", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
-  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 7, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 7문항" },
+  MALE_EASY: { name: "컴돌이", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 5, tagline: "이해가 빠른 후배 · 객관식 5문항" },
+  FEMALE_NORMAL: { name: "컴순이", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
+  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 5, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 5문항" },
 };
 
 export const DEFAULT_MAX_LIVES = 3;
 export const MAX_LIVES_OPTIONS = [3, 5] as const;
 export const PERFECT_SCORE = 100;
 
-/** 졸업시험: 자료 전체 범위, 객관식 + 서술형 섞어 10문항 */
-export const FINAL_QUESTION_COUNT = 10;
+/** 졸업시험: 자료 전체 범위, 객관식 + 서술형 섞어 5문항 */
+export const FINAL_QUESTION_COUNT = 5;
 /** 후배 없는 연습 세션의 문항 수 */
-export const PRACTICE_QUESTION_COUNT = 3;
+export const PRACTICE_QUESTION_COUNT = 5;
 
 export const passScoreFor = (c: JuniorCharacter): number => CHARACTERS[c].passScore;
 export const questionCountFor = (c: JuniorCharacter): number => CHARACTERS[c].questionCount;
@@ -75,7 +75,7 @@ export function pointsPlan(n: number): number[] {
  */
 export const objectiveRefFor = (index: number): string => `o${index + 1}`;
 
-/** MIXED(졸업시험)에서 객관식인 문항: 앞쪽 절반(올림) — 10문항이면 q1~q5 객관식, q6~q10 서술형 */
+/** MIXED(졸업시험)에서 객관식인 문항: 앞쪽 절반(올림) — 5문항이면 q1~q3 객관식, q4~q5 서술형 */
 export function isObjectiveQuestion(format: ExamFormat, index: number, count: number): boolean {
   if (format === "OBJECTIVE") return true;
   if (format === "MIXED") return index < Math.ceil(count / 2);
@@ -184,7 +184,7 @@ export const SessionGameSchema = z.object({
   mastery: z.array(ConceptMasterySchema),
   /** CHAPTER | FINAL(졸업시험) */
   kind: z.enum(SESSION_KINDS).optional(),
-  /** 이 세션의 문항 수 (남 3 · 여 5 · KU 7 · 졸업시험 10 · 연습 3) */
+  /** 이 세션의 문항 수 (새 세션은 5 · 기존 세션은 저장된 문항 수) */
   questionCount: z.number().int().optional(),
 });
 export type SessionGameDto = z.infer<typeof SessionGameSchema>;
@@ -245,6 +245,7 @@ export const WrongNoteSchema = z.object({
   aiDiagnosis: z.string(),
   aiComparison: z.string().nullable(),
   evidenceQuote: z.string(),
+  errorReason: LearningErrorReasonSchema.optional(),
   sourceExcerpt: z.string(),
   missedConcepts: z.array(z.string()),
   createdAt: z.string(),

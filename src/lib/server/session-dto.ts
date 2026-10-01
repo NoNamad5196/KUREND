@@ -1,3 +1,4 @@
+import { decodeGapConcepts } from "@/lib/learning/error-reason";
 import { parseTeachingChoices } from "@/lib/llm/teaching-choices";
 /**
  * [C 소유] 세션/결과 DTO 변환. D 의 스트리밍 라우트도 import 해서 같은 모양으로 응답한다.
@@ -97,7 +98,7 @@ export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
     title: plain(g.title),
     diagnosis: plain(g.diagnosis),
     evidenceQuote: g.evidenceQuote,
-    concepts: parseStringArray(g.conceptsJson),
+    ...decodeGapConcepts(g.conceptsJson),
     sourceExcerpt: g.sourceExcerpt,
     status: g.status as GapDto["status"],
     tutorMessages: g.tutorMessages.map((t) => ({

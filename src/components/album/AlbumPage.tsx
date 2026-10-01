@@ -61,7 +61,7 @@ export function AlbumPage() {
           <div>
           <p className="editorial-label mb-5">THE FIRST CHAPTER IS YOURS</p>
           <h2 className="text-3xl font-semibold leading-tight tracking-tight">아직 졸업한<br />후배가 없어요</h2>
-          <p className="mb-7 mt-4 max-w-sm text-sm leading-7 text-muted">모든 챕터를 통과하고 졸업시험(10문항)까지 붙으면 후배가 졸업하고, 이곳에 사진이 걸려요.</p>
+          <p className="mb-7 mt-4 max-w-sm text-sm leading-7 text-muted">모든 챕터를 통과하고 졸업시험(5문항)까지 붙으면 후배가 졸업하고, 이곳에 사진이 걸려요.</p>
           <Link href="/"><Button>가르치러 가기</Button></Link>
           </div>
         </section>

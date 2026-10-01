@@ -23,7 +23,7 @@ test("character changes preserve study data and replace only conversations, incl
     await db.chapterProgress.create({ data: { runId, chapterId, attempts: 2, bestScore: 90, cleared: true } });
     await db.conceptMastery.create({ data: { runId, chapterId, concept: "수요", exposureCount: 3, mastery: 70 } });
     await db.session.create({ data: { id: sessionId, userId, runId, chapterId, status: "EXPLAINING", focusConceptsJson: '["수요"]', messages: {
-      create: { id: `msg_${key}`, role: "USER", stage: "ANSWER", content: "남학생에게 설명한 내용" },
+      create: { id: `msg_${key}`, role: "USER", stage: "ANSWER", content: "컴돌이에게 설명한 내용" },
     } } });
     await db.session.create({ data: { id: `${sessionId}_final`, userId, runId, chapterId, kind: "FINAL" } });
     await db.wrongNote.create({ data: { id: `wn_${key}`, userId, runId, sessionId, qid: "q1", userReason: "연습", aiDiagnosis: "이유 보완" } });
@@ -64,7 +64,7 @@ test("character changes preserve study data and replace only conversations, incl
     const finalSnapshot = (await backend.getSession(final.id, userId))!;
     assert.equal(finalSnapshot.game?.kind, "FINAL");
     assert.equal(finalSnapshot.game?.examFormat, "MIXED");
-    assert.equal(finalSnapshot.game?.questionCount, 10);
+    assert.equal(finalSnapshot.game?.questionCount, 5);
     assert.match(finalSnapshot.chapter.title, /졸업시험/);
     await assert.rejects(backend.commitSession(old, old), (e: unknown) => (e as { details?: { replacementSessionId?: string } }).details?.replacementSessionId === next.id);
     await assert.rejects(findOwnedSession(userId, sessionId), (e: unknown) => e instanceof ApiError && e.details.replacementSessionId === next.id);
@@ -76,7 +76,7 @@ test("character changes preserve study data and replace only conversations, incl
     assert.ok(third.sessionId);
     const historical = await db.session.findUniqueOrThrow({ where: { id: sessionId }, include: { messages: true } });
     assert.equal(historical.character, "MALE_EASY");
-    assert.equal(historical.messages[0].content, "남학생에게 설명한 내용");
+    assert.equal(historical.messages[0].content, "컴돌이에게 설명한 내용");
     assert.equal(historical.replacementSessionId, third.sessionId, "old bookmarks resolve directly after multiple switches");
     const material = toMaterialDto(await db.material.findUniqueOrThrow({ where: { id: materialId }, include: materialInclude }));
     assert.deepEqual(material.chapters[0].action, { kind: "CONTINUE", sessionId: third.sessionId, status: "PREPARING" });

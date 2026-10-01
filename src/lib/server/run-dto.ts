@@ -26,7 +26,7 @@ export const runInclude = {
     },
   },
   progress: true,
-  sessions: { where: { kind: "FINAL", replacementSessionId: null }, select: { id: true, status: true, score: true, updatedAt: true }, orderBy: { updatedAt: "desc" } },
+  sessions: { where: { kind: "FINAL", replacementSessionId: null }, select: { id: true, status: true, score: true, updatedAt: true, exam: { select: { _count: { select: { questions: true } } } } }, orderBy: { updatedAt: "desc" } },
 } satisfies Prisma.JuniorRunInclude;
 export type RunWithRelations = Prisma.JuniorRunGetPayload<{ include: typeof runInclude }>;
 
@@ -80,7 +80,7 @@ export function finalExamOf(run: RunWithRelations, rows: ProgressRow[]): RunDto[
     sessionId: open?.id ?? finals[0]?.id ?? null,
     bestScore: scored.length ? Math.max(...scored) : null,
     attempts: scored.length,
-    questionCount: FINAL_QUESTION_COUNT,
+    questionCount: open?.exam?._count.questions || FINAL_QUESTION_COUNT,
   };
 }
 

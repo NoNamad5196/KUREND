@@ -29,7 +29,8 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
 
 async function score(taught: string, persona: JuniorCharacter): Promise<number> {
   const spec = CHARACTERS[persona];
-  const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat }));
+  // Preserve this recorded three-question scoring fixture while new sessions use five.
+  const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: 3 }));
   const messages = [{ ref: 1, content: taught }];
   const answers = [];
   for (const question of prepared.questions) {
@@ -79,7 +80,7 @@ test("demo partial teaching scores 58 and complete teaching scores 100", async (
 test("three personas have distinct exam behavior and pass thresholds", async () => {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
-    const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona }));
+    const prepared = prepareSessionSchemaFor(5).parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona }));
     assert.equal(prepared.questions.every((question) => Boolean(question.choices)), spec.examFormat === "OBJECTIVE");
     assert.equal((await score(DEMO_COMPLETE_EXPLANATION, persona)) >= spec.passScore, true);
     assert.equal((await score("아직 잘 모르겠어.", persona)) < spec.passScore, true);
@@ -122,7 +123,7 @@ test("objective route stores four choices, cited selections, and binary grades",
     method: "POST", headers: { cookie: `tb_uid=${D_STUB_IDS.user}`, "content-type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  for (const qid of ["q1", "q2", "q3"]) {
+  for (const { qid } of session.exam!.questions) {
     const response = await handlers.answers(request({ qid }), session.sessionId);
     assert.equal(response.status, 200);
     assert.doesNotMatch(await response.text(), /event: error/u);
@@ -158,7 +159,7 @@ test("live objective grading skips the model for a correct choice and diagnoses 
   assert.ok(wrong[0].type === "grade" && wrong[0].score === 0 && wrong[0].verdict === "WRONG");
 });
 
-test("question counts follow the junior (3 objective / 5 / 7 descriptive) and the final exam mixes 10", async () => {
+test("each character has five learning objectives and exam questions; the five-question final keeps mixed formats", async () => {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
     const count = spec.questionCount;
@@ -171,12 +172,12 @@ test("question counts follow the junior (3 objective / 5 / 7 descriptive) and th
     assert.deepEqual(prepared.questions.map((q) => q.objectiveRef), prepared.objectives.map((o) => o.id));
     assert.equal(prepared.questions.reduce((sum, q) => sum + q.points, 0), 100);
   }
-  assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [3, 5, 7]);
+  assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [5, 5, 5]);
   const indexes = Array.from({ length: FINAL_QUESTION_COUNT }, (_, i) => i).filter((i) => isObjectiveQuestion("MIXED", i, FINAL_QUESTION_COUNT));
   const final = prepareSessionSchemaFor(FINAL_QUESTION_COUNT, indexes).parse(await stubLlm.prepareSession({
     chapter, level: "HARD", persona: "KU_HARD", examFormat: "MIXED", questionCount: FINAL_QUESTION_COUNT, kind: "FINAL" }));
-  assert.equal(final.questions.length, 10);
-  assert.deepEqual(final.questions.map((q) => q.points), pointsPlan(10));
-  assert.equal(final.questions.filter((q) => q.choices).length, 5);
-  assert.equal(final.questions.filter((q) => !q.choices).length, 5);
+  assert.equal(final.questions.length, 5);
+  assert.deepEqual(final.questions.map((q) => q.points), pointsPlan(5));
+  assert.equal(final.questions.filter((q) => q.choices).length, 3);
+  assert.equal(final.questions.filter((q) => !q.choices).length, 2);
 });

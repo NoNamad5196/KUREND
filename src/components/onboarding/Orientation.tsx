@@ -8,6 +8,7 @@ import { api } from "@/lib/client/api";
 import { useCurrentUser } from "@/components/shell/AppShell";
 import { Button, Chip } from "@/components/shell/ui";
 import { JuniorAvatar } from "@/components/game/JuniorAvatar";
+import { JuniorTrio } from "@/components/game/JuniorTrio";
 import { CHARACTER_META } from "@/components/game/characters";
 import { CHARACTERS, JUNIOR_CHARACTERS, type JuniorCharacter } from "@/contracts/game";
 import "./orientation.css";
@@ -41,7 +42,7 @@ function CharacterLesson() {
       </div>
       <div className="ko-character-detail">
         <h2>{meta.teachLabel}</h2>
-        <blockquote>“{character === "MALE_EASY" ? "선배님, 가격이 오르면 수요량은 어떻게 되나요?" : meta.exampleLine}”</blockquote>
+        <blockquote>“{character === "MALE_EASY" ? "가격이 오르면 수요량은 어떻게 됩니까?" : meta.exampleLine}”</blockquote>
         {character === "MALE_EASY" ? <div>
           <div className="ko-choice-examples" aria-label="선택형 가르치기 예시">
             {["늘어난다고 알려주기", "줄어든다고 알려주기", "그대로라고 알려주기", "잘 모르겠다고 말하기"].map((choice, index) => <span key={choice}><span>0{index + 1}</span>{choice}</span>)}
@@ -57,7 +58,7 @@ function TeachingDemo() {
   const [taught, setTaught] = useState(false);
   return <div className="ko-teaching-demo">
     <div className="ko-demo-user"><p className="editorial-label">선배의 설명 · 체험 예시</p><p>{taught ? "가격이 오르면 수요량은 줄어들어." : "아직 설명하지 않았어요."}</p><span aria-hidden="true">↙</span></div>
-    <div className="ko-demo-response"><JuniorAvatar character="MALE_EASY" size={230} mood={taught ? "happy" : "think"} /><div className="ko-demo-bubble" aria-live="polite"><p className="editorial-label">후배의 답</p><p>{taught ? "선배님이 가격이 오르면 수요량은 줄어든다고 알려주셨어요!" : "선배님, 아직 못 배워서 모르겠어요."}</p></div></div>
+    <div className="ko-demo-response"><JuniorAvatar character="MALE_EASY" size={230} mood={taught ? "happy" : "think"} /><div className="ko-demo-bubble" aria-live="polite"><p className="editorial-label">후배의 답</p><p>{taught ? "아, 그렇군요. 가격이 오르면 수요량은 줄어드는군요. 알겠습니다!" : "아직 배우지 못해서 모르겠습니다."}</p></div></div>
     <div className="ko-demo-action"><Button variant="secondary" onClick={() => setTaught(!taught)}>{taught ? "설명하기 전과 비교" : "한 문장 가르쳐 보기"}</Button><p>후배의 오답에서 내가 빠뜨린 설명을 발견할 수 있어요.</p></div>
   </div>;
 }
@@ -110,15 +111,13 @@ export function Orientation() {
           <div className="ko-welcome-art">
             <span className="ko-welcome-lettering" aria-hidden="true">HELLO,<br />SENIOR.</span>
             <span className="ko-welcome-note">가르친 만큼 배우는 AI 후배들</span>
-            <JuniorAvatar character="MALE_EASY" size={330} className="ko-welcome-male" />
-            <JuniorAvatar character="FEMALE_NORMAL" size={310} className="ko-welcome-female" />
-            <JuniorAvatar character="KU_HARD" size={210} className="ko-welcome-ku" />
+            <JuniorTrio className="ko-welcome-characters" />
           </div>
           <div className="ko-role"><div><p className="editorial-label">오늘의 역할</p><p>설명하는 선배</p></div><span>자료를 내 말로<br />풀어 주는 사람</span><span aria-hidden="true">↗</span></div>
         </div>}
         {step === 1 && <TeachingDemo />}
         {step === 2 && <CharacterLesson />}
-        {step === 3 && <ol className="ko-flow" aria-label="자료 업로드부터 후배 졸업까지의 학습 흐름">{FLOW.map((item, index) => <li key={item.label} className={clsx(index === FLOW.length - 1 && "ko-flow-finale")}><span className="ko-flow-number">0{index + 1}</span><div><p>{item.label}</p><p>{item.detail}</p></div>{index < FLOW.length - 1 ? <span className="ko-flow-direction" aria-hidden="true">↗</span> : <JuniorAvatar character="MALE_EASY" size={126} mood="graduate" />}</li>)}</ol>}
+        {step === 3 && <ol className="ko-flow" aria-label="자료 업로드부터 후배 졸업까지의 학습 흐름">{FLOW.map((item, index) => <li key={item.label} className={clsx(index === FLOW.length - 1 && "ko-flow-finale")}><span className="ko-flow-number">0{index + 1}</span><div><p>{item.label}</p><p>{item.detail}</p></div>{index < FLOW.length - 1 ? <span className="ko-flow-direction" aria-hidden="true">↗</span> : <JuniorTrio graduation className="ko-graduation-characters" />}</li>)}</ol>}
       </div>
     </div>
     {error && <p className="mt-5 rounded-sm bg-danger-soft p-3 text-sm text-danger" role="alert">{error}</p>}

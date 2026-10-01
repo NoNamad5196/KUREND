@@ -19,6 +19,7 @@ export function SpeechBubble({
   tone = "default",
   size = "md",
   tail = "none",
+  tailAnchor = "50%",
   className,
   children,
 }: {
@@ -26,6 +27,8 @@ export function SpeechBubble({
   tone?: BubbleTone;
   size?: "md" | "lg";
   tail?: "left" | "top" | "bottom" | "none";
+  /** Horizontal position for top/bottom tails, relative to the bubble's own width. */
+  tailAnchor?: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -42,12 +45,14 @@ export function SpeechBubble({
       {tail !== "none" && (
         <span
           aria-hidden
+          data-bubble-tail={tail}
+          style={tail === "top" || tail === "bottom" ? { left: `calc(${tailAnchor} - 7px)` } : undefined}
           className={clsx(
             "absolute h-3.5 w-3.5 rotate-45 border",
             t.tail,
             tail === "left" && "-left-[8px] top-6 border-r-0 border-t-0",
-            tail === "top" && "-top-[8px] left-8 border-b-0 border-r-0",
-            tail === "bottom" && "-bottom-[8px] left-8 border-l-0 border-t-0",
+            tail === "top" && "-top-[8px] border-b-0 border-r-0",
+            tail === "bottom" && "-bottom-[8px] border-l-0 border-t-0",
           )}
         />
       )}

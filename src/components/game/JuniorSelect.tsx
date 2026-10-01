@@ -21,7 +21,7 @@ export function JuniorSelect({
   onSelect,
   busy,
   title = "함께 공부할 후배를 골라보세요",
-  subtitle = "후배마다 설명하는 방식과 시험 형식이 달라요. 자료와 진도를 유지하면서 후배를 바꿀 수 있어요. 모든 챕터를 통과하면 객관식·서술형 10문항의 졸업시험에 도전합니다.",
+  subtitle = "후배마다 설명하는 방식과 시험 형식이 달라요. 자료와 진도를 유지하면서 후배를 바꿀 수 있어요. 모든 챕터를 통과하면 객관식·서술형 5문항의 졸업시험에 도전합니다.",
 }: {
   onSelect: (character: JuniorCharacter) => void | Promise<void>;
   busy?: JuniorCharacter | null;

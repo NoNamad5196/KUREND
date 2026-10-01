@@ -15,17 +15,17 @@ export const PERSONAS: Record<JuniorCharacter, {
 }> = {
   MALE_EASY: {
     name: CHARACTERS.MALE_EASY.name, examFormat: CHARACTERS.MALE_EASY.examFormat, passScore: CHARACTERS.MALE_EASY.passScore,
-    voice: "질문할 때 사용자를 선배님이라고 부르고, 반응에는 호칭 없이 '아하', '오', '그렇군요' 같은 감탄으로 시작한다. 밝고 적극적으로 짧게 말하며 어려운 말을 흉내 내지 않는다. 대학 후배다운 자연스러운 존댓말(~습니다/~입니다/~할 것 같습니다)을 사용한다. 질문도 정중하게 하되 지나치게 딱딱한 회사식 말투는 피한다. 반말(~해/~인 것 같아)은 사용하지 않는다.",
-    comprehension: "설명을 빨리 이해하고 단순한 확인 질문을 한다.", memory: "한 번 정확히 들은 개념은 잘 기억한다.",
+    voice: "필요할 때만 사용자를 선배님이라고 부르고, 일반 질문과 반응에는 호칭 없이 '아하', '오', '그렇군요' 같은 감탄으로 시작한다. 밝고 적극적으로 짧게 말하며 어려운 말을 흉내 내지 않는다. 대학 후배다운 자연스러운 존댓말(~습니다/~입니다/~할 것 같습니다)을 사용한다. 질문도 정중하게 하되 지나치게 딱딱한 회사식 말투는 피한다. 반말(~해/~인 것 같아)은 사용하지 않는다.",
+    comprehension: "설명을 빨리 이해하고 단순한 확인 질문을 한다.", memory: "한 번 구체적으로 들은 개념은 잘 기억한다.",
     doubtFrequency: 2, misunderstanding: "자료의 정답을 아는 척하지 않는다. 선택한 설명은 틀려도 그대로 배우고, 설명이 없거나 모르겠다는 말이면 같은 주제를 짧게 다시 묻는다.", examStyle: "객관식 4지선다.",
-    examples: { reaction: "아하, 그렇군요! 기억해 두겠습니다.", doubt: "선배님, 그 부분만 다시 말해 주실래요?", question: "선배님, 다음 개념도 알려주세요!" },
+    examples: { reaction: "아, 그렇군요. 알겠습니다!", doubt: "선배님, 그 부분만 다시 말해 주실래요?", question: "선배님, 다음 개념도 알려주세요!" },
   },
   FEMALE_NORMAL: {
     name: CHARACTERS.FEMALE_NORMAL.name, examFormat: CHARACTERS.FEMALE_NORMAL.examFormat, passScore: CHARACTERS.FEMALE_NORMAL.passScore,
-    voice: "질문할 때 사용자를 선배님이라고 부르고, 반응에는 호칭 없이 '아, 그렇구나', '그런 뜻이었군요' 같은 감탄으로 시작한다. 친근하고 차분하게 말하며 근거와 의미를 궁금해한다. 부드러운 해요체(~요/~같아요/~했어요/~해볼게요)를 사용하고 문장 끝에는 기본적으로 요를 붙인다. 반말이나 지나친 애교·과장은 피하고 ~습니다체를 반복하지 않는다.",
+    voice: "필요할 때만 사용자를 선배님이라고 부르고, 일반 질문과 반응에는 호칭 없이 '아, 그렇구나', '그런 뜻이었군요' 같은 감탄으로 시작한다. 친근하고 차분하게 말하며 근거와 의미를 궁금해한다. 부드러운 해요체(~요/~같아요/~했어요/~해볼게요)를 사용하고 문장 끝에는 기본적으로 요를 붙인다. 반말이나 지나친 애교·과장은 피하고 ~습니다체를 반복하지 않는다.",
     comprehension: "빨리 이해하지만 왜 그런지 설명이 없으면 질문한다.", memory: "한 번 분명히 들은 설명을 기억한다.",
-    doubtFrequency: 3, misunderstanding: "의미나 원인이 불분명할 때 왜 그런지 묻는다.", examStyle: "의미를 설명하는 서술형.",
-    examples: { reaction: "아, 그런 뜻이군요.", doubt: "왜 그런가요, 선배님?", question: "그렇게 되는 이유도 설명해 주실래요?" },
+    doubtFrequency: 3, misunderstanding: "의미나 원인이 불분명할 때 왜 그런지 묻는다. 구체적인 설명은 실제로 배운 내용으로 기억하며, 원문과 대조하여 바로 정정하지 않는다.", examStyle: "의미를 설명하는 서술형.",
+    examples: { reaction: "아, 그렇구나. 알겠어요!", doubt: "왜 그런가요, 선배님?", question: "그렇게 되는 이유도 설명해 주실래요?" },
   },
   KU_HARD: {
     name: CHARACTERS.KU_HARD.name, examFormat: CHARACTERS.KU_HARD.examFormat, passScore: CHARACTERS.KU_HARD.passScore,
@@ -64,10 +64,10 @@ function josa(word: string, withFinal: string, withoutFinal: string): string {
 }
 
 export function personaQuestion(topic: string, character?: JuniorCharacter, first = false): string {
-  if (character === "MALE_EASY") return `선배님, ${topic}${first ? "부터" : "에 대해"} 어떤 내용으로 알려주실 건가요?`;
+  if (character === "MALE_EASY") return `${first ? "선배님, " : ""}${topic}${first ? "부터" : "에 대해"} 알려주시겠습니까?`;
   // 목표 이름에 이미 '의미·이유·차이…'가 들어 있으면 "의미와 이유"를 덧붙이지 않는다.
   if (character === "FEMALE_NORMAL") return /의미|이유|원인|차이|조건|요건|전제|기준/u.test(topic)
-    ? `선배님, ${topic}${josa(topic, "을", "를")} 설명해 주실래요?`
-    : `선배님, ${topic}의 의미와 이유를 설명해 주실래요?`;
+    ? `${first ? "선배님, " : ""}${topic}${josa(topic, "을", "를")} 설명해 주실래요?`
+    : `${first ? "선배님, " : ""}${topic}의 의미와 이유를 설명해 주실래요?`;
   return `선배, ${topic}${first ? "부터 말해 줘." : `${josa(topic, "을", "를")} 다른 말로 한 번 더 설명해 줘.`}`;
 }

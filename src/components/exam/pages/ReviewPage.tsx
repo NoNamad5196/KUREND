@@ -9,6 +9,7 @@ import { StepperHeader } from "@/components/session/StepperHeader";
 import { SourceDrawer } from "@/components/session/SourceDrawer";
 import { SpeechBubble } from "@/components/session/SpeechBubble";
 import { Button, Card, Chip, EmptyState, ProgressBar } from "@/components/session/ui";
+import { LearningErrorFeedback } from "../LearningErrorFeedback";
 import { PageError, PageLoading, stream, useResultData, useTask } from "./shared";
 
 export function ReviewPage({ sessionId }: { sessionId: string }) {
@@ -64,7 +65,7 @@ function ReviewContent({ session, initialResult, reload }: { session: SessionDto
           {expanded[gap.gapId] && <div id={`gap-${gap.gapId}`} className="mt-6 space-y-7 sm:pl-12">
             <section><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-xs font-semibold tracking-wide text-muted">자료에서는</h4><Button variant="ghost" className="min-h-11" onClick={() => setSource(gap)}>자료에서 보기 ↗</Button></div><blockquote className="mt-2 break-words whitespace-pre-wrap border-l-2 border-primary bg-paper px-5 py-4 text-sm leading-7 text-paper-ink">{gap.sourceExcerpt}</blockquote></section>
             <section><h4 className="text-xs font-semibold tracking-wide text-muted">진단</h4><p className="mt-3 break-words whitespace-pre-wrap text-sm leading-7">{gap.diagnosis}</p></section>
-            <section><h4 className="text-xs font-semibold tracking-wide text-muted">원인이 된 내 설명</h4><blockquote className="mt-3 break-words whitespace-pre-wrap border-l-2 border-line pl-5 text-sm leading-7 text-muted">{gap.evidenceQuote || "이 부분은 설명하지 않았습니다"}</blockquote></section>
+            <LearningErrorFeedback {...gap} answer={result.items.find((item) => item.qid === gap.qid)?.answer} />
             <div className="flex flex-wrap gap-2">{gap.concepts.map((concept) => <span key={concept} className="max-w-full break-words rounded-sm bg-primary-soft px-3 py-1 text-xs text-primary">{concept}</span>)}</div>
             <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" className="min-h-11" aria-pressed={selectedId === gap.gapId} onClick={() => setSelectedId(gap.gapId)}>이 부분 튜터에게 묻기</Button><Button className="min-h-11" disabled={busy || gap.status === "REVIEWED"} loading={busy && reviewingId === gap.gapId} onClick={() => markReviewed(gap)}>이해했어요 ✓</Button></div>
           </div>}

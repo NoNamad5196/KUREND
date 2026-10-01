@@ -33,6 +33,6 @@ export function JuniorAvatar({ character, mood = "idle", view = "front", outfit,
   style?: CSSProperties;
 }) {
   const resolvedOutfit = outfit ?? (mood === "graduate" ? "grad" : "default");
-  const name = character === "KU_HARD" ? "KU" : character === "MALE_EASY" ? "남학생 후배" : "여학생 후배";
+  const name = character === "KU_HARD" ? "KU" : character === "MALE_EASY" ? "컴돌이 후배" : "컴순이 후배";
   return <StaticCharacter character={CHARACTER[character]} skin={SKIN[resolvedOutfit]} view={view === "back" ? "side" : view} height={size} width={Math.round(size * .8)} flip={flip} label={label ?? name} className={`jr ${className ?? ""}`} style={style} />;
 }
