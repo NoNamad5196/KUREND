@@ -13,3 +13,5 @@ JSON 객체 하나만 출력하세요.
 - 질문에 답할 내용을 배우지 못했으면 unlearned=true, sentences=[{"quote":null,"ref":null,"level":"NONE"}]입니다. 질문과 무관한 인용을 답안처럼 쓰지 마세요. 서버가 '이 부분은 선배한테 못 들어서 모르겠습니다.'를 출력합니다.
 - 학습한 인용이 하나라도 있으면 unlearned=false입니다. thought는 답안 작성 상태에 대한 한국어 30자 이하 표현이며 정답이나 자세한 추론을 노출하지 않습니다.
 - JSON 밖의 문장, 코드 블록, 추가 필드는 금지합니다.`;
+
+export const OBJECTIVE_ANSWER_PROMPT = `\n객관식이면 입력 choices의 ①~④ 중 하나를 선택해 JSON choice 필드에 번호만 넣으세요. 보기의 사실 자체를 근거로 삼지 마세요. 반드시 taught의 사용자 설명에서 확인한 내용만으로 선택하세요. 배우지 못했어도 번호 하나를 고르되 unlearned=true와 근거 없음 표시를 유지하세요.`;

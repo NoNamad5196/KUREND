@@ -178,6 +178,7 @@ function implementation(): Llm {
 }
 export const llm: Llm = {
   generateChapters: input => implementation().generateChapters(input),
+  generateTeacherNote: input => implementation().generateTeacherNote(input),
   prepareSession: input => implementation().prepareSession(input),
   juniorTurn: input => implementation().juniorTurn(input),
   writeExamAnswer: input => implementation().writeExamAnswer(input),

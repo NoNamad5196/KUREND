@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { llm, type Llm, type TaughtMsg } from "../src/lib/llm";
 import { providerName } from "../src/lib/llm/provider";
+import { CHARACTERS, type JuniorCharacter } from "../src/contracts/game";
+import { DEMO_COMPLETE_EXPLANATION } from "../src/lib/llm/fixtures/demo-script";
 
 // Offline is the reproducible default. Explicit openai/anthropic selections run
 // those actual providers and fail on missing credentials; they never fall back.
@@ -121,11 +123,46 @@ async function evaluateFixture(domain: "os" | "economics") {
   console.log(`${domain}: PASS | chapters=${generated.chapters.length}, questions=${prepared.questions.length}, doubt=yes, q3=unlearned, score=${total}/100, correct=${outcomes.correct}, partial=${outcomes.partial}, wrong=${outcomes.wrong}, gaps=${gaps.length}`);
 }
 
+async function evaluatePersonas() {
+  const metadata = await json<FixtureChapters>("chapters.economics.json");
+  const text = await readFile(path.join(process.cwd(), "fixtures", metadata.fileName), "utf8");
+  const first = metadata.chapters[0];
+  const chapter = { title: "수요의 이해", points: ["수요량과 수요", "수요 법칙", "곡선 위 이동 vs 이동"],
+    text: text.slice(first.startOffset, first.endOffset) };
+  for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
+    const spec = CHARACTERS[persona];
+    const prepared = await llm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat });
+    assert.equal(prepared.questions.length, 3);
+    assert.equal(prepared.questions.every((question) => question.choices?.length === 4), spec.examFormat === "OBJECTIVE");
+    for (const [label, content, expectedPass] of [
+      ["pass", DEMO_COMPLETE_EXPLANATION, true], ["fail", "아직 잘 모르겠어.", false],
+    ] as const) {
+      const taught = [{ ref: 1, content }];
+      const answers = [];
+      for (const question of prepared.questions) {
+        const events = await collect(llm.writeExamAnswer({ question: question.question, taught, heardConcepts: [], persona, choices: question.choices }));
+        const final = events.find((event) => event.type === "final");
+        assert.ok(final?.type === "final");
+        answers.push({ qid: question.qid, answer: final.answer });
+      }
+      const events = await collect(llm.gradeExam({ chapter, questions: prepared.questions, answers, taught, persona }));
+      const grades = events.filter((event) => event.type === "grade");
+      const gaps = events.filter((event) => event.type === "gap");
+      assert.equal(grades.length, 3);
+      assert.equal(gaps.length, grades.filter((grade) => grade.verdict !== "CORRECT").length);
+      const score = grades.reduce((sum, grade) => sum + grade.score, 0);
+      assert.equal(score >= spec.passScore, expectedPass, `${persona} ${label} score=${score}`);
+      console.log(`${persona} ${label}: ${score}/100 (${spec.passScore} pass line)`);
+    }
+  }
+}
+
 async function main() {
   console.log(`LLM evaluation provider=${providerName()}${providerName() === "stub" ? " (offline fixtures; live provider quality is not verified)" : " (live API)"}`);
   await evaluateFixture("os");
   await evaluateFixture("economics");
-  console.log("PASS: 2/2 fixture materials passed P1–P5 and §7-3 assertions (a)–(e).");
+  await evaluatePersonas();
+  console.log("PASS: 2/2 fixture materials and 3 personas × pass/fail cases.");
 }
 
 void main().catch((error: unknown) => {
