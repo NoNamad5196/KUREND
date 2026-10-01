@@ -222,10 +222,13 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           const key = question.rubric.match(/^정답 ([①②③④]);근거:/u)?.[1];
           if (!key || !question.choices.some((choice) => choice.startsWith(key))) throw new Error("객관식 정답 번호가 올바르지 않습니다.");
           const selected = answer.answer.match(/^([①②③④])/u)?.[1];
-          const correct = selected === key;
+          // Rule 2: 가르친 근거 없이(못 배웠다고 답한) 고른 번호는 찍은 것이므로 맞아도 점수를 주지 않는다.
+          const guessed = answer.answer.includes(UNLEARNED_ANSWER);
+          const correct = selected === key && !guessed;
           yield { type: "grade", qid: question.qid, score: correct ? question.points : 0,
             maxScore: question.points, verdict: correct ? "CORRECT" : "WRONG",
-            comment: correct ? "선배에게 배운 내용과 일치하는 보기를 골랐습니다." : "선택한 보기가 자료의 정답과 다릅니다." };
+            comment: correct ? "선배에게 배운 내용과 일치하는 보기를 골랐습니다."
+              : guessed ? "배운 근거 없이 보기를 찍었습니다. 이 부분은 아직 가르치지 않았어요." : "선택한 보기가 자료의 정답과 다릅니다." };
           if (!correct) {
             const { gap } = await calls.completeJSON(OBJECTIVE_GAP_PROMPT, JSON.stringify({
               chapter: boundedChapter, question, answer: answer.answer, taught: messages,

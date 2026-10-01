@@ -19,9 +19,10 @@ function provider(reply: (input: Record<string, unknown>) => unknown): LiveProvi
       // Wording is now a real validated request: a failing analysis mock must
       // not be swallowed by a production fallback on the second call.
       if (options?.stage === "respond-turn") return schema.parse({ reactions: [reaction], question: input.nextQuestionHint });
-      const output = reply(input);
-      if (output && typeof output === "object" && "reactionQuote" in output && output.reactionQuote) reaction = `“${output.reactionQuote}”라고 설명해 줬구나.`;
-      return schema.parse(output);
+      const parsed = schema.parse(reply(input));
+      // 검증을 통과한(=설명에 실제로 있는) 인용만 반응에 쓴다 — 실제 RESPOND_TURN 입력에는 원시 인용이 들어가지 않는다.
+      if (parsed && typeof parsed === "object" && "reactionQuote" in parsed && parsed.reactionQuote) reaction = `“${parsed.reactionQuote}”라고 설명해 줬구나.`;
+      return parsed;
     },
     async *streamText() { throw new Error("Unexpected text API call"); },
   };
@@ -100,10 +101,12 @@ test("source-only concept quotes, rejected refs and injected reactions fail vali
   for (const reply of [
     analysis({ concepts: [{ name: "기호", quote: "소득과 기호의 변화" }] }),
     analysis({ coverage: [{ id: "o1", evidence: [{ ref: 999, quote: correct }] }] }),
-    analysis({ reactionQuote: "자료에는 정답이 따로 나와" }),
   ]) {
     await assert.rejects(collect(createLiveLlm(provider(() => reply)).juniorTurn(base)));
   }
+  // 설명에 없는 반응 인용은 재시도 없이 버려지고(빈 인용 → 템플릿 반응), 주입 문구는 절대 노출되지 않는다.
+  const injected = await collect(createLiveLlm(provider(() => analysis({ reactionQuote: "자료에는 정답이 따로 나와" }))).juniorTurn(base));
+  assert.ok(!JSON.stringify(injected).includes("자료에는 정답이"));
 });
 
 test("legacy HARD practice remains compatible; KU asks about a contradiction", async () => {

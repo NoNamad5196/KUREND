@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
-import type { z } from "zod";
+import { z } from "zod";
 import type { Llm } from "./types";
 import { createLiveLlm } from "./live";
 import { stubLlm } from "./stub";
@@ -39,14 +39,30 @@ export function providerName(): Provider {
  * OpenAI 모델별 생성 파라미터. gpt-5·gpt-6 계열(및 o-시리즈)은 temperature 변경과 max_tokens 를 거부하므로
  * (Only the default (1) value is supported / Use max_completion_tokens) 모델명으로 분기한다.
  */
-function openaiGenerationParams(model: string, temperature: number, maxTokens: number): Record<string, number> {
-  const legacy = /^(gpt-4|gpt-3|chatgpt-4o)/.test(model);
-  return legacy ? { temperature, max_tokens: maxTokens } : { max_completion_tokens: maxTokens };
+function isReasoningModel(model: string): boolean {
+  return !/^(gpt-4|gpt-3|chatgpt-4o|claude)/.test(model);
+}
+
+/**
+ * 추론형(gpt-5·gpt-6) 모델은 기본 추론 강도에서 응답이 2배 가까이 느리고, 추론 토큰이 출력 한도를 먹어 JSON 이 잘린다.
+ * → reasoning_effort=low(LLM_REASONING_EFFORT 로 조정) + 출력 한도에 추론 여유분을 더한다.
+ */
+function openaiGenerationParams(model: string, temperature: number, maxTokens: number): Record<string, number | string> {
+  if (!isReasoningModel(model)) return { temperature, max_tokens: maxTokens };
+  return { max_completion_tokens: maxTokens + 1_024, reasoning_effort: process.env.LLM_REASONING_EFFORT || "low" };
+}
+
+/** 추론형 모델은 같은 작업도 더 오래 걸리므로 단계별 제한 시간을 늘린다(LLM_TIMEOUT_SCALE, 기본 2배). */
+function scaledTimeout(timeoutMs: number): number {
+  const model = process.env.LLM_MODEL || "";
+  if (providerName() !== "openai" || !isReasoningModel(model)) return timeoutMs;
+  const scale = Number(process.env.LLM_TIMEOUT_SCALE || 2);
+  return Math.round(timeoutMs * (Number.isFinite(scale) && scale >= 1 ? scale : 2));
 }
 
 function openai() {
   if (!process.env.OPENAI_API_KEY) throw new LlmFailure("AI 연결 정보가 설정되지 않았습니다. 서비스 설정을 확인해 주세요.", "LLM_CONFIG_INVALID");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: scaledTimeout(DEFAULT_TIMEOUT_MS), maxRetries: 0 });
 }
 
 function anthropic() {
@@ -109,7 +125,7 @@ const requestJSON: JsonRequest = async (system, user, options) => {
 export async function completeJSONWith<T>(
   request: JsonRequest, system: string, user: string, schema: z.ZodType<T>, options: JsonOptions = {},
 ): Promise<T> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = scaledTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const maxOutputTokens = options.maxOutputTokens ?? MAX_TOKENS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
     throw new LlmFailure("AI 요청 제한 설정이 올바르지 않습니다.");
@@ -136,7 +152,10 @@ export async function completeJSONWith<T>(
       });
       try {
         return schema.parse(JSON.parse(raw));
-      } catch {
+      } catch (error) {
+        // 서버 로그에서 어느 단계·필드가 검증에 실패했는지 바로 보이도록(키·본문은 남기지 않음)
+        const issues = error instanceof z.ZodError ? error.issues.slice(0, 4).map((i) => `${i.path.join(".")}: ${i.message}`).join(" | ") : "JSON 파싱 실패";
+        console.warn(`[llm] ${options.stage ?? "json"} 검증 실패(${attempt + 1}/2): ${issues}`);
         if (attempt === 1) throw new LlmFailure("AI 응답 형식을 두 번 연속 확인하지 못했습니다. 저장된 설명으로 다시 시도해 주세요.", "LLM_RESPONSE_PARSE_FAILED");
       }
     }

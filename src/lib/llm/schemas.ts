@@ -96,7 +96,8 @@ export function analyzeTurnSchema(explanation: string, objectiveIds: string[], t
       id: nonempty.refine((id) => objectiveIds.includes(id), "존재하는 목표 ID만 사용하세요."),
       evidence: z.array(citation).min(1).max(3),
     })).max(objectiveIds.length),
-    reactionQuote: z.string().max(26).refine((quote) => !quote || explanation.includes(quote), "반응은 이번 설명에서 그대로 인용하세요."),
+    // 반응 인용은 부가 정보라 형식이 어긋나면 재시도 대신 비운다(빈 문자열이면 템플릿 반응).
+    reactionQuote: z.string().transform((quote) => (quote.length <= 26 && explanation.includes(quote) ? quote : "")),
   });
 }
 
@@ -112,7 +113,16 @@ export function doubtSchema(allowedDoubt: string) {
 export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
   return z.object({
     thought: nonempty.max(30),
-    choice: z.enum(["①", "②", "③", "④"]).optional(),
+    // "③", "3", "(3)", "③ 보기 문장" 처럼 와도 번호 하나로 정규화한다.
+    choice: z.preprocess((value) => {
+      if (typeof value === "number") value = String(value);
+      if (typeof value !== "string") return value;
+      const text = value.trim();
+      const mark = text.match(/[①②③④]/u)?.[0];
+      if (mark) return mark;
+      const digit = text.match(/[1-4]/u)?.[0];
+      return digit ? "①②③④"[Number(digit) - 1] : text;
+    }, z.enum(["①", "②", "③", "④"])).optional(),
     sentences: z.array(z.object({
       quote: nonempty.max(1_000).nullable(), ref: z.number().int().positive().nullable(),
       level: z.enum(["STRONG", "FAINT", "NONE"]),
