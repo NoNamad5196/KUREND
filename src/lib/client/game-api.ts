@@ -13,6 +13,7 @@ import type {
   ReteachResponse,
   RunDto,
   SessionGameDto,
+  StartFinalResponse,
   TeacherNoteDto,
   TeacherNoteListResponse,
   UpdateWrongNoteRequest,
@@ -33,6 +34,8 @@ export const gameApi = {
   getRun: (runId: string) => api.get<RunDto>(`/runs/${enc(runId)}`),
   /** 서버가 session.score 로 판정한다. 같은 세션에 두 번 부르면 applied:false 로 같은 결과를 돌려준다. */
   applyLife: (runId: string, sessionId: string) => api.post<ApplyLifeResponse>(`/runs/${enc(runId)}/life`, { sessionId }),
+  /** 졸업시험(자료 전체 · 10문항 객관식+서술형) 세션을 만들거나 진행 중인 것을 돌려준다 → /session/{id}/prepare */
+  startFinal: (runId: string) => api.post<StartFinalResponse>(`/runs/${enc(runId)}/final`),
   graduate: (runId: string) => api.post<GraduateResponse>(`/runs/${enc(runId)}/graduate`),
   getSessionGame: (sessionId: string) => api.get<SessionGameDto>(`/sessions/${enc(sessionId)}/game`),
   getTeacherNotes: (materialId: string) => api.get<TeacherNoteListResponse>(`/materials/${enc(materialId)}/teacher-note`),

@@ -2,14 +2,15 @@ import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./provider";
 import {
   analyzeTurnSchema, chaptersSchema, examAnswerSchema,
-  gradeExamSchema, prepareSessionSchema, respondTurnSchema, teacherNoteSchema, objectiveGapSchema,
+  gradeExamSchema, prepareSessionSchemaFor, respondTurnSchema, teacherNoteSchema, objectiveGapSchema,
 } from "./schemas";
 import {
   compactChapter, compactText, paragraphizeSources, rubricElements,
   uniqueStrings, UNLEARNED_ANSWER,
 } from "./text";
 import { GENERATE_CHAPTERS_PROMPT } from "./prompts/generate-chapters";
-import { PREPARE_SESSION_PROMPT, OBJECTIVE_EXAM_PROMPT, KU_EXAM_PROMPT, FEMALE_EXAM_PROMPT } from "./prompts/prepare-session";
+import { PREPARE_SESSION_PROMPT, OBJECTIVE_EXAM_PROMPT, KU_EXAM_PROMPT, FEMALE_EXAM_PROMPT, examPlanPrompt } from "./prompts/prepare-session";
+import { isObjectiveQuestion, pointsPlan } from "@/contracts/game";
 import { ANALYZE_TURN_PROMPT } from "./prompts/analyze-turn";
 import { RESPOND_TURN_PROMPT } from "./prompts/respond-turn";
 import { WRITE_EXAM_ANSWER_PROMPT, OBJECTIVE_ANSWER_PROMPT } from "./prompts/write-exam-answer";
@@ -61,13 +62,21 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       };
     },
 
-    async prepareSession({ chapter, level, persona, examFormat }) {
+    async prepareSession({ chapter, level, persona, examFormat, questionCount, kind }) {
       const spec = personaFor(persona);
-      const format = examFormat ?? spec?.examFormat;
+      const format = examFormat ?? spec?.examFormat ?? "DESCRIPTIVE";
+      const count = questionCount ?? 3;
+      const plan = pointsPlan(count);
+      const objectiveIndexes = plan.flatMap((_, i) => isObjectiveQuestion(format, i, count) ? [i] : []);
       const instruction = format === "OBJECTIVE" ? OBJECTIVE_EXAM_PROMPT : persona === "KU_HARD" ? KU_EXAM_PROMPT : persona === "FEMALE_NORMAL" ? FEMALE_EXAM_PROMPT : "";
-      return calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}`, JSON.stringify({
-        chapter: compactChapter(chapter), level, persona: spec, examFormat: format,
-      }), prepareSessionSchema, { temperature: 0.2, maxOutputTokens: 1_500, timeoutMs: 18_000, stage: "prepare-session" });
+      return calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}\n${examPlanPrompt(count, plan, objectiveIndexes, kind)}`, JSON.stringify({
+        chapter: compactChapter(chapter), level, persona: spec, examFormat: format, questionCount: count, kind: kind ?? "CHAPTER",
+      }), prepareSessionSchemaFor(count, objectiveIndexes), {
+        temperature: 0.2, stage: "prepare-session",
+        // 문항당 출력이 늘어난다(객관식 보기 포함). 10문항 혼합 ≈ 5천 토큰
+        maxOutputTokens: Math.max(1_500, 500 + count * (objectiveIndexes.length ? 480 : 320)),
+        timeoutMs: Math.max(18_000, 8_000 + count * 4_000),
+      });
     },
 
     async *juniorTurn(input) {

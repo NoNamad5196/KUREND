@@ -1,3 +1,4 @@
+import { isObjectiveQuestion } from "@/contracts/game";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
@@ -211,16 +212,20 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         }
         const started = Date.now();
         send("progress", { step: "OBJECTIVES", message: "이 목차의 학습 목표를 정하고 있어요.", elapsedMs: 0 });
+        // 문항 수: 후배별(남 3 · 여 5 · KU 7), 졸업시험 10(객관식+서술형), 연습 모드 3
+        const questionCount = session.game?.questionCount ?? 3;
+        const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
-          persona: session.game?.character, examFormat: session.game?.examFormat });
+          persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
         if (prepared.objectives.length !== 3 || new Set(prepared.objectives.map((item) => item.id)).size !== 3
-          || prepared.questions.length !== 3 || new Set(prepared.questions.map((item) => item.qid)).size !== 3
+          || prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount
           || prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100
           || prepared.questions.some((item) => !Number.isInteger(item.points) || item.points < 1
             || !prepared.objectives.some((objective) => objective.id === item.objectiveRef))
           || !prepared.firstQuestion.trim()
-          || (session.game?.examFormat === "OBJECTIVE" && prepared.questions.some((item) =>
-            item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric)))) modelFailure();
+          || prepared.questions.some((item, index) => isObjectiveQuestion(examFormat, index, questionCount)
+            ? (item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric))
+            : Boolean(item.choices))) modelFailure();
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
         const firstQuestion = message("JUNIOR", "QUESTION", prepared.firstQuestion);
         send("progress", { step: "GREETING", message: "새내기가 선배의 설명을 기다리고 있어요.", elapsedMs: Date.now() - started });
@@ -347,7 +352,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
       const session = await loadSession(request, id);
       const exam = session.exam;
       if (session.status !== "EXAM_IN_PROGRESS" || !exam || exam.status !== "IN_PROGRESS"
-        || exam.questions.length !== 3 || exam.answers.length !== 3
+        || exam.questions.length < 1 || exam.answers.length !== exam.questions.length
         || !exam.questions.every((question) => exam.answers.some((answer) => answer.qid === question.qid))) invalidState();
       const release = acquire(`session:${id}`);
       let evaluating: SessionRecord;

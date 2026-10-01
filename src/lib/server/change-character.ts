@@ -13,6 +13,11 @@ export async function changeCharacter(userId: string, runId: string, input: Chan
     if (input.chapterId && !run.material.chapters.some((chapter) => chapter.id === input.chapterId)) {
       throw new ApiError("NOT_FOUND", "이 자료의 학습 범위를 찾지 못했습니다.", 404, { reason: "CHAT_SESSION_INVALID" });
     }
+    let requested = input.sessionId ? await tx.session.findFirst({ where: { id: input.sessionId, runId, userId } }) : null;
+    if (requested?.replacementSessionId) requested = await tx.session.findFirst({ where: { id: requested.replacementSessionId, runId, userId } });
+    if (input.sessionId && (!requested || requested.status === "COMPLETED" || (input.chapterId && input.chapterId !== requested.chapterId))) {
+      throw new ApiError("INVALID_STATE", "현재 학습 범위를 다시 불러와 주세요.", 409, { reason: "CHAT_SESSION_INVALID" });
+    }
 
     const changed = run.character !== input.character;
     if (changed) {
@@ -29,19 +34,28 @@ export async function changeCharacter(userId: string, runId: string, input: Chan
       where: { runId, userId, replacementSessionId: null, status: { not: "COMPLETED" } },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
     });
-    const chapters = new Set(changed ? open.map((session) => session.chapterId) : []);
-    if (input.chapterId) chapters.add(input.chapterId);
+    // A final exam and a focused reteach can share a chapter FK. Their scopes
+    // must remain distinct when creating conversations for the next persona.
+    type Scope = { chapterId: string; kind: string; focusConceptsJson: string | null };
+    const scopeKey = (scope: Scope) => JSON.stringify([scope.chapterId, scope.kind, scope.focusConceptsJson]);
+    const selected: Scope | null = requested ?? (input.chapterId
+      ? open.find((session) => session.chapterId === input.chapterId && session.kind === "CHAPTER")
+        ?? { chapterId: input.chapterId, kind: "CHAPTER", focusConceptsJson: null }
+      : null);
+    const scopes = new Map<string, Scope>(changed ? open.toReversed().map((session) => [scopeKey(session), session]) : []);
+    const selectedKey = selected ? scopeKey(selected) : null;
+    if (selected && selectedKey) { scopes.delete(selectedKey); scopes.set(selectedKey, selected); }
     let sessionId: string | null = null;
-    for (const chapterId of chapters) {
-      const previous = open.filter((session) => session.chapterId === chapterId);
+    for (const [key, scope] of scopes) {
+      const previous = open.filter((session) => scopeKey(session) === key);
       let nextId = previous[0]?.id;
       if (changed || !nextId) {
         nextId = newId("sess");
         await tx.session.create({ data: {
-          id: nextId, userId, runId, chapterId, character: input.character,
+          id: nextId, userId, runId, chapterId: scope.chapterId, character: input.character,
           juniorLevel: levelFor(input.character as JuniorCharacter),
-          kind: previous[0]?.kind ?? "CHAPTER",
-          focusConceptsJson: previous[0]?.focusConceptsJson ?? null,
+          kind: scope.kind,
+          focusConceptsJson: scope.focusConceptsJson,
         } });
         const previousIds = previous.map((session) => session.id);
         if (previousIds.length) {
@@ -53,7 +67,7 @@ export async function changeCharacter(userId: string, runId: string, input: Chan
           });
         }
       }
-      if (chapterId === input.chapterId) sessionId = nextId;
+      if (key === selectedKey) sessionId = nextId;
     }
     return { run: toRunDto((await loadRun(tx, runId))!), sessionId };
   });

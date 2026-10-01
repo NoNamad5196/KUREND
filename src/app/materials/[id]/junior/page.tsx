@@ -15,6 +15,7 @@ export default function JuniorSelectPage() {
   const router = useRouter();
   const search = useSearchParams();
   const chapterId = search.get("chapterId") || undefined;
+  const sessionId = search.get("sessionId") || undefined;
   const [busy, setBusy] = useState<JuniorCharacter | null>(null);
   const [run, setRun] = useState<RunDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,7 @@ export default function JuniorSelectPage() {
     try {
       const current = run ?? await gameApi.getCurrentRun(id);
       if (current) {
-        const changed = await gameApi.changeCharacter(current.runId, { character, chapterId });
+        const changed = await gameApi.changeCharacter(current.runId, { character, chapterId, sessionId });
         router.replace(changed.sessionId ? `/session/${changed.sessionId}/prepare` : `/materials/${id}`);
       } else {
         await gameApi.createRun({ materialId: id, character });

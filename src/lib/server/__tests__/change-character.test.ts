@@ -25,6 +25,7 @@ test("character changes preserve study data and replace only conversations, incl
     await db.session.create({ data: { id: sessionId, userId, runId, chapterId, status: "EXPLAINING", focusConceptsJson: '["수요"]', messages: {
       create: { id: `msg_${key}`, role: "USER", stage: "ANSWER", content: "남학생에게 설명한 내용" },
     } } });
+    await db.session.create({ data: { id: `${sessionId}_final`, userId, runId, chapterId, kind: "FINAL" } });
     await db.wrongNote.create({ data: { id: `wn_${key}`, userId, runId, sessionId, qid: "q1", userReason: "연습", aiDiagnosis: "이유 보완" } });
     const preserved = async () => ({
       material: await db.material.findUnique({ where: { id: materialId }, include: { sources: true, chapters: true } }),
@@ -57,6 +58,14 @@ test("character changes preserve study data and replace only conversations, incl
     assert.deepEqual(next.messages, []);
     assert.equal(next.exam, null);
     assert.equal((await backend.getSession(next.id, userId))?.game?.character, "FEMALE_NORMAL");
+    const final = await db.session.findFirstOrThrow({ where: { runId, kind: "FINAL", replacementSessionId: null } });
+    assert.notEqual(final.id, next.id, "chapter and final scope must not merge");
+    assert.equal(female.run.finalExam.sessionId, final.id);
+    const finalSnapshot = (await backend.getSession(final.id, userId))!;
+    assert.equal(finalSnapshot.game?.kind, "FINAL");
+    assert.equal(finalSnapshot.game?.examFormat, "MIXED");
+    assert.equal(finalSnapshot.game?.questionCount, 10);
+    assert.match(finalSnapshot.chapter.title, /졸업시험/);
     await assert.rejects(backend.commitSession(old, old), (e: unknown) => (e as { details?: { replacementSessionId?: string } }).details?.replacementSessionId === next.id);
     await assert.rejects(findOwnedSession(userId, sessionId), (e: unknown) => e instanceof ApiError && e.details.replacementSessionId === next.id);
     await assert.rejects(applyLife(userId, runId, sessionId), (e: unknown) => e instanceof ApiError && e.details.replacementSessionId === next.id);
@@ -71,6 +80,15 @@ test("character changes preserve study data and replace only conversations, incl
     assert.equal(historical.replacementSessionId, third.sessionId, "old bookmarks resolve directly after multiple switches");
     const material = toMaterialDto(await db.material.findUniqueOrThrow({ where: { id: materialId }, include: materialInclude }));
     assert.deepEqual(material.chapters[0].action, { kind: "CONTINUE", sessionId: third.sessionId, status: "PREPARING" });
+    assert.deepEqual(await preserved(), before);
+    const activeFinal = await db.session.findFirstOrThrow({ where: { runId, kind: "FINAL", replacementSessionId: null } });
+    const switchedFinal = await changeCharacter(userId, runId, { character: "FEMALE_NORMAL", chapterId, sessionId: activeFinal.id });
+    assert.ok(switchedFinal.sessionId);
+    assert.equal((await db.session.findUniqueOrThrow({ where: { id: switchedFinal.sessionId } })).kind, "FINAL");
+    assert.equal(switchedFinal.run.finalExam.sessionId, switchedFinal.sessionId);
+    const chapterAction = toMaterialDto(await db.material.findUniqueOrThrow({ where: { id: materialId }, include: materialInclude })).chapters[0].action;
+    assert.equal(chapterAction.kind, "CONTINUE");
+    if (chapterAction.kind === "CONTINUE") assert.notEqual(chapterAction.sessionId, switchedFinal.sessionId);
     assert.deepEqual(await preserved(), before);
   } finally {
     await db.material.deleteMany({ where: { userId } });

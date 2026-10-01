@@ -7,6 +7,16 @@ import { createRouteHandlers } from "../routes/handlers";
 import { createStubBackend, D_STUB_IDS } from "../routes/backend-stub";
 import { PERSONAS } from "../personas";
 
+test("final exam preparation keeps a bounded budget large enough for ten questions", async () => {
+  const { z } = await import("zod");
+  for (const [requested, expected] of [[5_300, 5_300], [100_000, 6_000]]) {
+    await completeJSONWith(async (_system, _user, options) => {
+      assert.equal(options.maxOutputTokens, expected);
+      return '{"ok":true}';
+    }, "", "", z.object({ ok: z.boolean() }), { stage: "prepare-session", maxOutputTokens: requested });
+  }
+});
+
 test("selected persona reaches the live response system prompt and payload", async () => {
   for (const character of ["MALE_EASY", "FEMALE_NORMAL"] as const) {
     const calls: Array<{ system: string; body: Record<string, unknown> }> = [];

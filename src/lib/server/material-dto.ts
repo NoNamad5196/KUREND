@@ -21,7 +21,7 @@ export const materialInclude = {
     orderBy: { order: "asc" },
     include: {
       sessions: {
-        where: { replacementSessionId: null },
+        where: { replacementSessionId: null, kind: "CHAPTER" },
         orderBy: { updatedAt: "desc" },
         select: { id: true, runId: true, status: true, score: true, updatedAt: true, completedAt: true, gaps: { select: { status: true } } },
       },
@@ -107,7 +107,7 @@ export const homeMaterialInclude = {
       id: true,
       title: true,
       taughtAt: true,
-      sessions: { where: { replacementSessionId: null }, orderBy: { updatedAt: "desc" }, select: { id: true, runId: true, status: true, updatedAt: true } },
+      sessions: { where: { replacementSessionId: null, kind: "CHAPTER" }, orderBy: { updatedAt: "desc" }, select: { id: true, runId: true, status: true, updatedAt: true } },
     },
   },
 } satisfies Prisma.MaterialInclude;

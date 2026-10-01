@@ -3,6 +3,7 @@
  */
 import {
   CHARACTERS,
+  FINAL_QUESTION_COUNT,
   type GraduationSummaryDto,
   type JuniorCharacter,
   type LifeEventDto,
@@ -11,7 +12,7 @@ import {
   type RunStatus,
 } from "@/contracts/game";
 import { db, Prisma } from "@/lib/server/db";
-import { canGraduate, daysBetween, progressSummary, type ProgressRow } from "@/lib/server/run-rules";
+import { allChaptersCleared, canGraduate, daysBetween, progressSummary, type ProgressRow } from "@/lib/server/run-rules";
 
 type Tx = Prisma.TransactionClient | typeof db;
 
@@ -25,6 +26,7 @@ export const runInclude = {
     },
   },
   progress: true,
+  sessions: { where: { kind: "FINAL", replacementSessionId: null }, select: { id: true, status: true, score: true, updatedAt: true }, orderBy: { updatedAt: "desc" } },
 } satisfies Prisma.JuniorRunInclude;
 export type RunWithRelations = Prisma.JuniorRunGetPayload<{ include: typeof runInclude }>;
 
@@ -58,7 +60,27 @@ export function toRunDto(run: RunWithRelations): RunDto {
     endedAt: iso(run.endedAt),
     progress: { cleared: summary.cleared, total: summary.total, chapters: summary.chapters },
     next: run.status === "ACTIVE" ? summary.next : null,
-    canGraduate: canGraduate(run.status, rows),
+    finalExam: finalExamOf(run, rows),
+    canGraduate: canGraduate(run.status, rows, !!run.finalPassedAt),
+  };
+}
+
+const OPEN = ["PREPARING", "EXPLAINING", "EXAM_IN_PROGRESS", "EVALUATING"];
+
+/** 졸업시험 상태: 통과 → PASSED, 진행 중 세션 → IN_PROGRESS, 챕터 남음 → LOCKED, 그 외 READY */
+export function finalExamOf(run: RunWithRelations, rows: ProgressRow[]): RunDto["finalExam"] {
+  const finals = run.sessions;
+  const open = finals.find((s) => OPEN.includes(s.status));
+  const scored = finals.filter((s) => s.score !== null).map((s) => s.score!);
+  const status: RunDto["finalExam"]["status"] = run.finalPassedAt ? "PASSED"
+    : open ? "IN_PROGRESS"
+    : allChaptersCleared(run.status, rows) ? "READY" : "LOCKED";
+  return {
+    status,
+    sessionId: open?.id ?? finals[0]?.id ?? null,
+    bestScore: scored.length ? Math.max(...scored) : null,
+    attempts: scored.length,
+    questionCount: FINAL_QUESTION_COUNT,
   };
 }
 

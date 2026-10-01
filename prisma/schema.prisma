@@ -197,6 +197,7 @@ model JuniorRun {
   updatedAt   DateTime          @updatedAt
   endedAt     DateTime?
   summaryJson String? // 졸업/게임오버 시점 통계 스냅샷 (GraduationSummaryDto)
+  finalPassedAt DateTime? // 졸업시험 통과 시각 (통과해야 졸업 가능)
   progress    ChapterProgress[]
   lifeEvents  LifeEvent[]
   mastery     ConceptMastery[]
