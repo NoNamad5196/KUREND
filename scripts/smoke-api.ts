@@ -29,7 +29,8 @@ import { z } from "zod";
 import {
   ApplyLifeResponseSchema,
   CurrentRunResponseSchema,
-  GraduationSummarySchema,
+  GraduateResponseSchema,
+  TeacherNoteListResponseSchema,
   RunSchema,
   SessionGameSchema,
   type RunDto,
@@ -491,6 +492,13 @@ async function gameSmoke() {
   validate("GET /runs/{id}", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
   expectError("GET /runs/없는id", await call("GET", "/runs/run_nope"), 404, "NO_RUN");
 
+  console.log("\n[game: 강의노트]");
+  const tn = validate("GET /materials/{id}/teacher-note", TeacherNoteListResponseSchema, (await call("GET", `/materials/${osId}/teacher-note`)).data);
+  ok("챕터 6개 행 (note 는 있거나 null)", tn?.chapters.length === 6 && tn.chapters.every((c) => c.note === null || c.note.chapterId === c.chapterId), tn?.chapters.map((c) => [c.title, !!c.note]));
+  expectError("teacher-note: 남의/없는 자료", await call("GET", "/materials/mat_nope/teacher-note"), 404, "NOT_FOUND");
+  expectError("teacher-note POST: 다른 자료의 챕터", await call("POST", `/materials/${osId}/teacher-note`, { chapterId: run.progress.chapters[0].chapterId }), 404, "NOT_FOUND");
+  expectError("teacher-note POST: 본문 없음", await call("POST", `/materials/${osId}/teacher-note`, {}), 400, "VALIDATION");
+
   console.log("\n[game: 세션 연결]");
   const ch = run.progress.chapters;
   const s1 = (await call("POST", "/sessions", { chapterId: ch[0].chapterId, juniorLevel: "HARD" })).data as { sessionId: string };
@@ -547,10 +555,12 @@ async function gameSmoke() {
     last = ApplyLifeResponseSchema.parse((await call("POST", `/runs/${run.runId}/life`, { sessionId: sid })).data);
   }
   ok("마지막 챕터 통과 → canGraduate true", last?.canGraduate === true, last);
-  const grad = validate("POST /runs/{id}/graduate", GraduationSummarySchema, (await call("POST", `/runs/${run.runId}/graduate`)).data);
+  const gradRes = validate("POST /runs/{id}/graduate", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data);
+  const grad = gradRes?.summary;
+  ok("graduate 응답 run = GRADUATED", gradRes?.run.status === "GRADUATED" && gradRes.run.runId === run.runId, gradRes?.run);
   ok("졸업 요약: 챕터 5, 시험 7, PERFECT 2, 최종 ♥5/5", grad?.chapters === 5 && grad.exams === 7 && grad.perfectCount === 2 && grad.finalLives === 5 && grad.maxLives === 5 && grad.character === "MALE_EASY" && grad.days >= 1, grad);
   ok("졸업 요약 평균 = 시험 점수 평균", grad?.averageScore === Math.round((55 + 100 + 100 + 60 + 75 * 3) / 7), grad?.averageScore);
-  const grad2 = validate("graduate 재호출", GraduationSummarySchema, (await call("POST", `/runs/${run.runId}/graduate`)).data);
+  const grad2 = validate("graduate 재호출", GraduateResponseSchema, (await call("POST", `/runs/${run.runId}/graduate`)).data)?.summary;
   ok("재호출 = 같은 요약", grad2?.graduatedAt === grad?.graduatedAt);
   const runGrad = validate("GET /runs/{id} (졸업)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
   ok("Run GRADUATED, endedAt, next null", runGrad?.status === "GRADUATED" && !!runGrad.endedAt && runGrad.next === null && !runGrad.canGraduate, runGrad);

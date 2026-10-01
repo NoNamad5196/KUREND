@@ -6,6 +6,7 @@ import {
   lifeOutcomeFor,
   passScoreFor,
   type ApplyLifeResponse,
+  type GraduateResponse,
   type GraduationSummaryDto,
   type JuniorCharacter,
   type LifeOutcome,
@@ -15,7 +16,7 @@ import { db, Prisma } from "@/lib/server/db";
 import { ApiError, invalidState } from "@/lib/server/http";
 import { newId } from "@/lib/server/ids";
 import { canGraduate, isCleared } from "@/lib/server/run-rules";
-import { computeRunSummary, loadRun, progressRows } from "@/lib/server/run-dto";
+import { computeRunSummary, loadRun, progressRows, toRunDto } from "@/lib/server/run-dto";
 import { noRun } from "@/lib/server/run-access";
 
 const LIFE_STATUSES = ["RESULT_READY", "REVIEWING", "COMPLETED"];
@@ -132,11 +133,13 @@ export async function applyLife(userId: string, runId: string, sessionId: string
   }
 }
 
-export async function graduate(userId: string, runId: string): Promise<GraduationSummaryDto> {
+export async function graduate(userId: string, runId: string): Promise<GraduateResponse> {
   return db.$transaction(async (tx) => {
     const run = await loadRun(tx, runId);
     if (!run || run.userId !== userId) throw noRun();
-    if (run.status === "GRADUATED" && run.summaryJson) return JSON.parse(run.summaryJson) as GraduationSummaryDto;
+    if (run.status === "GRADUATED" && run.summaryJson) {
+      return { run: toRunDto(run), summary: JSON.parse(run.summaryJson) as GraduationSummaryDto };
+    }
     if (run.status !== "ACTIVE") throw new ApiError("NOT_READY", "이미 끝난 후배 기록입니다.");
     const rows = progressRows(run);
     if (!canGraduate(run.status, rows)) {
@@ -149,6 +152,6 @@ export async function graduate(userId: string, runId: string): Promise<Graduatio
       where: { id: run.id },
       data: { status: "GRADUATED", endedAt: now, summaryJson: JSON.stringify(summary) },
     });
-    return summary;
+    return { run: toRunDto((await loadRun(tx, run.id))!), summary };
   });
 }

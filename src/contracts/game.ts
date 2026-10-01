@@ -164,6 +164,10 @@ export const GraduationSummarySchema = z.object({
 });
 export type GraduationSummaryDto = z.infer<typeof GraduationSummarySchema>;
 
+/** POST /runs/{id}/graduate 응답: 졸업한 Run + 요약 */
+export const GraduateResponseSchema = z.object({ run: RunSchema, summary: GraduationSummarySchema });
+export type GraduateResponse = z.infer<typeof GraduateResponseSchema>;
+
 /** ② generateTeacherNote 출력 shape 그대로 */
 export const TeacherNoteSchema = z.object({
   chapterId: z.string(),
