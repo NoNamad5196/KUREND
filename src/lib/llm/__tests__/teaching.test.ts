@@ -5,8 +5,9 @@ import chapters from "../../../../fixtures/chapters.economics.json";
 import { CHARACTERS } from "@/contracts/game";
 import { stubLlm } from "../stub";
 import { createLiveLlm } from "../live";
-import { normalizePersonaAddress } from "../personas";
-import { teachingChoicesFor, selectedTeachingObjective } from "../teaching-choices";
+import { normalizePersonaAddress, PERSONAS } from "../personas";
+import { teachingChoicesFor, teachingFactFor, selectedTeachingObjective, teachingDistractorsSchema } from "../teaching-choices";
+import { sourceLearningConcepts } from "../learning-plan";
 import { createRouteHandlers } from "../routes/handlers";
 import { createDefaultStubSeed, createStubBackend, D_STUB_IDS } from "../routes/backend-stub";
 import type { Llm } from "../types";
@@ -33,7 +34,9 @@ test("source-grounded teaching options are distinct from exam options and carry 
   assert.ok(options.length >= 2);
   const statement = options.find((choice) => choice.id === "teach_statement")!;
   assert.ok(chapter.text.includes(statement.text));
-  assert.ok(options.find((choice) => choice.id === "teach_alternative")!.text.includes(statement.text.replace(/[.!?]+$/u, "")));
+  assert.equal(options.length, 4);
+  assert.ok(options.filter((choice) => choice.id !== "teach_statement").every((choice) => choice.text !== statement.text && choice.text.includes("수요 법칙")));
+  assert.ok(options.every((choice) => !/맞지 않|모르겠|옳지 않/u.test(choice.text)));
   for (const choice of options) assert.deepEqual(Object.keys(choice).sort(), ["id", "text"]);
   for (const persona of ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const) {
     const prepared = await stubLlm.prepareSession({ chapter, level: CHARACTERS[persona].level, persona });
@@ -105,7 +108,7 @@ test("KU requires distinct repeated explanations while female remembers one clea
   assert.equal(female.mastery?.[0].mastery, 100);
   assert.deepEqual(female.coveredObjectives, ["o1"]);
   assert.match(female.content, /의미와 이유/u);
-  assert.doesNotMatch(female.content, /^선배님/u);
+  assert.doesNotMatch(female.content, /선배님/u);
   assert.equal(female.teachingChoices, undefined);
 });
 
@@ -114,6 +117,7 @@ test("live male learns source contradictions without passing the source or alter
   const objectives = [{ id: "o1", text: "수요 법칙을 설명할 수 있다" }, { id: "o2", text: "수요량의 변화를 설명할 수 있다" }];
   const llm = createLiveLlm({ async completeJSON(_prompt, user, schema) {
     const input = JSON.parse(user);
+    if (input.statement) return schema.parse({ distractors: [] });
     if (input.chapter) return schema.parse({ concepts: [{ name: "수요 법칙", quote: explanation }], contradictions: [{ claim: explanation }],
       coverage: [{ id: "o1", evidence: [{ ref: input.currentRef, quote: explanation }] }], reactionQuote: "" });
     assert.equal(input.chapter, undefined);
@@ -123,7 +127,9 @@ test("live male learns source contradictions without passing the source or alter
   }, async *streamText() { throw new Error("unused"); } });
   const events = await collect(llm.juniorTurn({ chapter, level: "EASY", persona: "MALE_EASY", objectives, history: [], heardConcepts: [], explanation }));
   assert.ok(events.some((event) => event.type === "concepts" && event.heardConcepts.includes("수요 법칙")));
-  assert.ok(events.some((event) => event.type === "reaction" && !event.content.includes("선배님")));
+  // Human juniors retain what was taught without adding an address or correcting it.
+  assert.ok(events.some((event) => event.type === "reaction" && event.content === PERSONAS.MALE_EASY.examples.reaction));
+  assert.ok(!events.some((event) => event.type === "reaction" && /선배/u.test(event.content)));
   assert.ok(!events.some((event) => event.type === "doubt"));
   assert.ok(events.some((event) => event.type === "question" && event.teachingChoices?.length));
 });
@@ -139,7 +145,7 @@ test("choosing unknown keeps the current topic unlearned in both stub and live p
   const { backend, handlers, id } = maleBackend();
   await (await handlers.prepare(request(), id)).text();
   const prepared = (await backend.getSession(id, D_STUB_IDS.user))!;
-  const explanation = prepared.messages.at(-1)!.teachingChoices!.find((choice) => choice.id === "teach_unknown")!.text;
+  const explanation = "수요 법칙에 대해서는 아직 잘 모르겠어요.";
   await (await handlers.explanations(request(explanation), id)).text();
   const next = (await backend.getSession(id, D_STUB_IDS.user))!;
   assert.deepEqual(next.heardConcepts, []);
@@ -203,7 +209,8 @@ test("overlapping objective names preserve the specific legacy question and cred
 
 test("an unrelated fallback source sentence does not automatically master the requested topic", async () => {
   const unrelated = { title: "프로세스", points: ["스레드"], text: "프로세스는 실행 중인 프로그램이며 독립적인 주소 공간을 가진다." };
-  const selected = teachingChoicesFor(unrelated, "스레드").find((choice) => choice.id === "teach_statement")!.text;
+  assert.deepEqual(teachingChoicesFor(unrelated, "스레드"), []);
+  const selected = unrelated.text;
   const events = await collect(stubLlm.juniorTurn({ chapter: unrelated, level: "EASY", persona: "MALE_EASY",
     objectives: [{ id: "o1", text: "스레드를 설명할 수 있다" }], heardConcepts: [], explanation: selected,
     history: [{ role: "JUNIOR", stage: "QUESTION", content: "선배님, 스레드에 대해 어떤 내용으로 알려주실 건가요?" }],
@@ -219,7 +226,7 @@ test("OS unknown teaching is never exam evidence or credit even when the guessed
   const first = metadata.chapters[0];
   const osChapter = { ...first, text: osSource.slice(first.startOffset, first.endOffset) };
   const prepared = await stubLlm.prepareSession({ chapter: osChapter, level: "EASY", persona: "MALE_EASY" });
-  const unknown = teachingChoicesFor(osChapter, "선점과 비선점").find((choice) => choice.id === "teach_unknown")!.text;
+  const unknown = "선점과 비선점에 대해서는 아직 잘 모르겠어요.";
   const question = prepared.questions[1];
   const input = { question: question.question, choices: question.choices, persona: "MALE_EASY" as const,
     heardConcepts: [], taught: [{ ref: 7, content: unknown }] };
@@ -256,7 +263,7 @@ test("teaching choices omit material directions and favor substantive explanatio
     objectives: [{ id: "o1", text: "수요 결정요인을 설명할 수 있다" }], heardConcepts: [], explanation: statement,
     history: [{ role: "JUNIOR", stage: "QUESTION", content: "선배님, 수요 결정요인에 대해 알려주세요." }],
   });
-  assert.equal(automatic, undefined, "a heuristic relationship ranking cannot itself grant mastery");
+  assert.equal(automatic, "o1", "a selected substantive explanation is recorded as taught, without judging correctness");
   assert.match(teachingChoicesFor(chapter, "수요 법칙").find((choice) => choice.id === "teach_statement")!.text, /^수요 법칙은 다른 조건이 일정할 때/u);
   const directionsOnly = { title: "수업 안내", points: ["프로세스"],
     text: "이 장의 설명 목표는 프로세스와 프로세스 상태를 서로 구별하는 것이다. 이 자료는 관련 개념을 익히기 위해 작성한 강의노트다." };
@@ -279,4 +286,76 @@ test("live objective grading rejects a guessed choice even with a longer persona
     assert.equal(grade.score, 0);
     assert.equal(grade.verdict, "WRONG");
   }
+});
+
+test("human juniors keep a wrong readiness explanation and move on even if the model tries to correct it", async () => {
+  const explanation = "준비 상태는 입출력이 끝나기를 기다리는 상태야.";
+  const readiness = { title: "프로세스 상태", points: ["준비 상태", "CPU 스케줄링"],
+    text: "준비 상태는 CPU 할당을 기다리는 상태이다. CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이다." };
+  const objectives = [{ id: "o1", text: "준비 상태를 설명할 수 있다" }, { id: "o2", text: "CPU 스케줄링을 설명할 수 있다" }];
+  for (const persona of ["MALE_EASY", "FEMALE_NORMAL"] as const) {
+    const llm = createLiveLlm({ async completeJSON(_prompt, user, schema) {
+      const input = JSON.parse(user);
+      if (input.statement) return schema.parse({ distractors: [] }); // use the validated offline options
+      if (input.chapter) return schema.parse({ concepts: [{ name: "준비 상태", quote: explanation }],
+        contradictions: [{ claim: explanation }], coverage: [], reactionQuote: "" });
+      assert.equal(input.chapter, undefined, "the learner response never sees the source");
+      assert.equal(input.explanation, explanation);
+      return schema.parse({ reactions: ["그런데 CPU 할당을 기다리는 상태예요."], question: "사실은 CPU 할당을 기다리지 않나요?" });
+    }, async *streamText() { throw new Error("unused"); } });
+    const events = await collect(llm.juniorTurn({ chapter: readiness, level: "EASY", persona, objectives,
+      history: [{ role: "JUNIOR", stage: "QUESTION", content: "준비 상태를 설명해 주실래요?" }], heardConcepts: [], explanation }));
+    assert.ok(!events.some((event) => event.type === "doubt"));
+    const reaction = events.find((event) => event.type === "reaction")!;
+    assert.equal(reaction.content, PERSONAS[persona].examples.reaction);
+    const question = events.find((event) => event.type === "question")!;
+    assert.deepEqual(question.coveredObjectives, ["o1"]);
+    assert.match(question.content, /CPU 스케줄링/u);
+    assert.doesNotMatch(question.content, /사실은|준비 상태|신뢰|믿/u);
+  }
+});
+
+test("MCQ authoring rejects meta negation, unrelated options, duplicates and length cues", () => {
+  const correct = "준비 상태는 CPU 할당을 기다리는 상태이다.";
+  const distractors = ["준비 상태는 입출력 완료를 기다리는 상태이다.", "준비 상태는 이미 CPU를 사용하고 있는 상태이다.", "준비 상태는 프로세스 실행이 종료된 상태이다."];
+  const schema = teachingDistractorsSchema(correct, "준비 상태");
+  assert.ok(schema.safeParse({ distractors }).success);
+  for (const invalid of ["준비 상태는 맞지 않다.", "준비 상태의 설명은 옳지 않다.", "운영체제는 파일을 디스크에 저장하는 역할이다.", correct,
+    "준비 상태는 " + "오직 그 상태에 대한 매우 구체적인 조건을 가진 ".repeat(4)]) {
+    assert.equal(schema.safeParse({ distractors: [invalid, ...distractors.slice(1)] }).success, false, invalid);
+  }
+});
+
+test("teaching MCQ authoring receives a literal source assertion, without a persona or hidden exam key", async () => {
+  const readiness = { title: "프로세스 상태", points: ["준비 상태"], text: "준비 상태는 CPU 할당을 기다리는 상태이다." };
+  const llm = createLiveLlm({ async completeJSON(_prompt, user, schema) {
+    const input = JSON.parse(user);
+    assert.equal(input.statement, teachingFactFor(readiness, "준비 상태"));
+    assert.equal(input.source.text, readiness.text);
+    for (const key of ["persona", "rubric", "exam", "answers"]) assert.equal(input[key], undefined);
+    return schema.parse({ distractors: ["준비 상태는 입출력 완료를 기다리는 상태이다.", "준비 상태는 이미 CPU를 사용하고 있는 상태이다.", "준비 상태는 프로세스 실행이 종료된 상태이다."] });
+  }, async *streamText() { throw new Error("unused"); } });
+  const choices = await llm.generateTeachingChoices!({ chapter: readiness, topic: "준비 상태" });
+  assert.equal(choices.length, 4);
+  assert.equal(choices.filter((choice) => choice.text === readiness.text).length, 1);
+  assert.equal(new Set(choices.map((choice) => choice.text)).size, 4);
+});
+
+test("quiz preparation separates five formal questions from the human junior persona", async () => {
+  const concepts = sourceLearningConcepts(chapter, 5);
+  const llm = createLiveLlm({ async completeJSON(prompt, user, schema) {
+    const input = JSON.parse(user);
+    assert.equal(input.persona, undefined);
+    assert.equal(input.voice, undefined);
+    assert.equal(input.questionCount, 5);
+    assert.doesNotMatch(prompt, /부드러운 해요체|반말을 사용|반응에는|말투:/u);
+    return schema.parse({ objectives: concepts.map((concept, i) => ({ id: `o${i + 1}`, text: `${concept.topic}을 설명할 수 있다`, sourceQuote: concept.sourceQuote })),
+      questions: Array.from({ length: 5 }, (_, i) => ({ qid: `q${i + 1}`, order: i + 1, points: 20, question: `개념 ${i + 1}을 설명하시오.`, objectiveRef: `o${i + 1}`, rubric: "첫째 사실;둘째 사실" })),
+      firstQuestion: "첫 개념을 설명하시오." });
+  }, async *streamText() { throw new Error("unused"); } });
+  const prepared = await llm.prepareSession({ chapter, level: "EASY", persona: "FEMALE_NORMAL" });
+  assert.equal(prepared.questions.length, 5);
+  assert.match(prepared.firstQuestion, /주실래요/u);
+  assert.doesNotMatch(prepared.firstQuestion, /^선배님/u);
+  assert.ok(prepared.questions.every((question) => !/선배|요\?|\*\*/u.test(question.question)));
 });

@@ -4,7 +4,7 @@ export type SourceLearningConcept = { topic: string; sourceQuote: string };
 const compact = (text: string) => text.replace(/[\s*_`]/gu, "").toLocaleLowerCase();
 const cleanTopic = (text: string) => text.replace(/[*_`]/gu, "").replace(/\s+/gu, " ").trim();
 function isDirection(text: string): boolean {
-  return /(?:학습|설명|수업|교육)\s*목표|(?:이|본)\s*(?:자료|노트|문서|강의노트)|(?:이|본)\s*(?:장|절|단원).{0,45}(?:목표|목적|작성|다룬다|소개|익히|설명한다|집중한다)|설명 연습|시험 직전/u.test(text);
+  return /^(?:별도 표시가 없으면|따라서 .+구분해야 한다)/u.test(text) || /(?:학습|설명|수업|교육)\s*목표|(?:이|본)\s*(?:자료|노트|문서|강의노트)|(?:이|본)\s*(?:장|절|단원).{0,45}(?:목표|목적|작성|다룬다|소개|익히|설명한다|집중한다)|설명 연습|시험 직전/u.test(text);
 }
 function validTopic(topic: string): boolean {
   return topic.length >= 2 && topic.length <= 55 && !isDirection(topic)
@@ -56,9 +56,11 @@ export function sourceLearningConcepts(chapter: ChapterText, count: number, pref
   const subjectCandidates: Array<SourceLearningConcept & { priority: number }> = [];
   for (const sourceQuote of sentences) {
     const cleaned = sourceQuote.replace(/^\s*(?:[-*+•▪◦]|\d+[.)])\s+/u, "");
-    const subject = /^(.{2,55}?)(?:이란|란|은|는)\s/u.exec(cleaned)?.[1];
-    if (subject) subjectCandidates.push({ topic: subject.replace(/에서$/u, ""), sourceQuote,
-      priority: /(?:관계|수량|상태|일|방식|정책|집합|과정|방법|비율|시간|재화|개념|구성 요소)(?:이)?다[.!]?$/u.test(sourceQuote) ? 1 : 0 });
+    for (const subject of cleaned.matchAll(/(?:^|,\s*)([^,]{2,55}?)(?:이란|란|은|는)\s/gu)) {
+      if (subject.index! > 0 && /(?:면|때|고|서)\s/u.test(subject[1])) continue;
+      subjectCandidates.push({ topic: subject[1].replace(/에서$/u, ""), sourceQuote,
+        priority: /(?:관계|수량|상태|일|방식|정책|집합|과정|방법|비율|시간|재화|개념|구성 요소)(?:이)?다[.!]?$/u.test(sourceQuote) ? 1 : 0 });
+    }
   }
   for (const { topic, sourceQuote } of subjectCandidates.sort((a, b) => b.priority - a.priority)) add(topic, sourceQuote);
   // A heading is useful only when nearby content actually names its topic.

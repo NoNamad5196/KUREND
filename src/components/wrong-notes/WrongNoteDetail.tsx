@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { WrongNoteDto } from "@/contracts/game";
 import { gameApi } from "@/lib/client/game-api";
+import { LearningErrorFeedback } from "@/components/exam/LearningErrorFeedback";
 import { Choices } from "@/components/exam/Choices";
 import { Mascot } from "@/components/mascot/Mascot";
 import { Button, Card, Chip } from "@/components/shell/ui";
@@ -78,19 +79,14 @@ export function WrongNoteDetail({ id }: { id: string }) {
               <p className="text-xs font-bold text-muted">새내기의 답</p>
               <p className="mt-3 whitespace-pre-wrap break-words text-xl leading-8">{stripMarkdownBold(note.answer) || "(답하지 못함)"}</p>
             </div>
-            {note.evidenceQuote && (
-              <div className="wn-evidence mt-6 text-sm">
-                <p className="text-xs font-bold text-warn">이 답이 나온 내 설명</p>
-                <p className="mt-1 break-words">“{note.evidenceQuote}”</p>
-              </div>
-            )}
+            <LearningErrorFeedback errorReason={note.errorReason} evidenceQuote={note.evidenceQuote} sourceExcerpt={note.sourceExcerpt} />
           </Card>
 
           {/* 선배가 먼저 쓰는 이유 */}
           <Card className="wn-reflection wn-rise [animation-delay:.08s]">
             <p className="editorial-label mb-4">01 / YOUR REFLECTION</p>
             <h2 className="text-2xl font-semibold tracking-tight">왜 틀렸을까요?</h2>
-            <p className="mt-1 text-sm text-muted">AI 분석을 보기 전에, 내 설명에서 무엇이 빠졌거나 잘못됐는지 먼저 적어 보세요.</p>
+            <p className="mt-1 text-sm text-muted">위 근거를 살펴보고, 내 설명에서 무엇이 빠졌거나 잘못됐는지 적어 보세요. 이유를 저장하면 내 생각과 분석을 비교할 수 있어요.</p>
             {unlocked ? (
               <div className="mt-3 rounded-sm bg-primary-soft p-4">
                 <p className="text-xs font-bold text-primary">내가 쓴 이유</p>

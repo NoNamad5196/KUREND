@@ -50,11 +50,7 @@
 .editorial-home-welcome::before { content: ""; position: absolute; height: 290px; width: 290px; border-radius: 50%; right: -50px; top: 142px; background: #d9ed92; z-index: -1; }
 .editorial-home-welcome > .editorial-label { color: #3d5646; font-size: 10px; }
 .editorial-welcome-word { display: block; margin-top: 32px; font-size: clamp(54px, 6vw, 83px); font-weight: 850; letter-spacing: -.07em; line-height: .98; color: var(--primary); }
-.editorial-welcome-characters { position: absolute; inset: 0; }
-.editorial-welcome-characters > .jr { position: absolute; bottom: 89px; width: 45% !important; max-width: 220px; }
-.editorial-welcome-characters > .jr:nth-child(1) { left: 1%; }
-.editorial-welcome-characters > .jr:nth-child(2) { right: 2%; }
-.editorial-welcome-characters > .jr:nth-child(3) { bottom: 43px; width: 35% !important; left: 32%; z-index: 1; }
+.editorial-welcome-characters { position: absolute; left: 0; bottom: 71px; }
 .editorial-welcome-caption { position: absolute; left: 28px; right: 28px; bottom: 21px; border-top: 1px solid #24463840; padding-top: 15px; font-size: 12px; color: #3d5646; }
 .editorial-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid var(--ink); }
 .editorial-section-heading .editorial-label { margin-bottom: 14px; font-size: 10px; }
@@ -154,8 +150,6 @@
   .junior-spotlight-details h2 { font-size: 21px; }
   .editorial-home-welcome { min-height: 525px; padding: 22px; }
   .editorial-welcome-word { font-size: 54px; }
-  .editorial-welcome-characters > .jr { bottom: 78px; }
-  .editorial-welcome-characters > .jr:nth-child(3) { bottom: 43px; }
   .editorial-home-journal { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; }
   .editorial-statistics { padding: 24px 21px 14px; }
   .editorial-statistics > h2 { font-size: 29px; }
@@ -194,8 +188,7 @@
   .junior-spotlight-details h2 { font-size: 24px; }
   .editorial-home-welcome { min-height: 460px; }
   .editorial-welcome-word { font-size: 62px; margin-top: 27px; }
-  .editorial-welcome-characters > .jr { height: 240px !important; bottom: 71px; }
-  .editorial-welcome-characters > .jr:nth-child(3) { height: 150px !important; }
+  .editorial-welcome-characters { --trio-male-size: 240px; --trio-female-size: 240px; --trio-ku-size: 150px; }
   .editorial-section-heading { gap: 14px; }
   .editorial-section-heading h2 { font-size: 27px; }
   .editorial-section-heading > a { font-size: 11px; }

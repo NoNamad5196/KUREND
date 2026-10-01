@@ -220,7 +220,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
               ?? session.objectives.find((item) => !session.heardConcepts.includes(objectiveTopic(item)));
             if (objective) {
               const topic = objectiveTopic(objective);
-              const teachingChoices = teachingChoicesFor(session.chapter, topic);
+              const teachingChoices = llm.generateTeachingChoices ? await llm.generateTeachingChoices({ chapter: session.chapter, topic }) : teachingChoicesFor(session.chapter, topic);
               if (teachingChoices.length) resumed = await saveSession(request, session, { ...session,
                 messages: session.messages.map((item) => item.messageId === last.messageId ? {
                   ...item, content: personaQuestion(topic, "MALE_EASY"), teachingChoices,
@@ -414,8 +414,8 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
             if (gaps.some((gap) => gap.qid === event.qid)
               || !session.chapter.text.includes(event.sourceExcerpt) || !event.sourceExcerpt.trim()
               || (event.evidenceQuote && !taughtMessages(session).some((item) => item.content.includes(event.evidenceQuote)))) modelFailure();
-            const { qid, title, diagnosis, evidenceQuote, concepts, sourceExcerpt } = event;
-            const gap: GapDto = { gapId: `gap_${nanoid(14)}`, qid, title, diagnosis, evidenceQuote, concepts, sourceExcerpt, status: "FOUND", tutorMessages: [] };
+            const { qid, title, diagnosis, evidenceQuote, errorReason, concepts, sourceExcerpt } = event;
+            const gap: GapDto = { gapId: `gap_${nanoid(14)}`, qid, title, diagnosis, evidenceQuote, errorReason, concepts, sourceExcerpt, status: "FOUND", tutorMessages: [] };
             gaps.push({ ...gap, sourceOffset: session.chapter.startOffset + session.chapter.text.indexOf(sourceExcerpt) });
             send("gap", gap);
           }

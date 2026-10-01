@@ -9,7 +9,7 @@ import { createLiveLlm } from "../live";
 import { stubLlm } from "../stub";
 import { prepareSessionSchemaFor } from "../schemas";
 import { sourceLearningConcepts } from "../learning-plan";
-import { objectiveTopic } from "../teaching-choices";
+import { objectiveTopic, matchQuestionObjective } from "../teaching-choices";
 import { DEMO_COMPLETE_EXPLANATION } from "../fixtures/demo-script";
 import type { Llm } from "../types";
 
@@ -108,7 +108,7 @@ test("five source-taught concepts produce five credited answers without matching
       const events = await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices, taught, heardConcepts: [] }));
       const final = events.find((event) => event.type === "final")!;
       const sentences = events.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []);
-      assert.ok(sentences.every((sentence) => !sentence.unlearned));
+      assert.ok(sentences.every((sentence) => !sentence.unlearned), JSON.stringify({ persona, question, sentences }));
       if (question.order === 4) assert.equal(sentences[0].ref, 4);
       if (question.order === 5) assert.equal(sentences[0].ref, 7);
       answers.push({ qid: question.qid, answer: final.answer, sentences });
@@ -146,10 +146,11 @@ test("uploaded sample supports labelled definitions, natural repetitions and com
   for (const persona of ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const) {
     const level = CHARACTERS[persona].level;
     const prepared = await stubLlm.prepareSession({ chapter: uploaded, persona, level });
-    assert.deepEqual(prepared.objectives.map(objectiveTopic), ["수요", "수요량", "수요 법칙", "개인 수요", "기본 모형"]);
+    assert.deepEqual(prepared.objectives.map(objectiveTopic), ["수요", "수요량", "수요 법칙", "개인 수요", "시장 수요"]);
     const concepts = sourceLearningConcepts(uploaded, 5, prepared.objectives.map(objectiveTopic));
     const history: Parameters<Llm["juniorTurn"]>[0]["history"] = [{ role: "JUNIOR", stage: "QUESTION", content: prepared.firstQuestion }];
     const taught: Parameters<Llm["gradeExam"]>[0]["taught"] = [];
+    const askedObjectives = new Set<string>();
     let mastery: Parameters<Llm["juniorTurn"]>[0]["mastery"];
     let heardConcepts: string[] = [];
     let choices = prepared.firstTeachingChoices;
@@ -158,11 +159,19 @@ test("uploaded sample supports labelled definitions, natural repetitions and com
         ? [choices!.find((choice) => choice.id === "teach_statement")!.text]
         : [`${concept.topic}: ${concept.sourceQuote}`, ...(persona === "KU_HARD" ? [`다시 정리하면, ${concept.sourceQuote} 즉 ${concept.topic}의 의미는 이와 같습니다.`] : [])];
       for (const [repeat, explanation] of explanations.entries()) {
+        const actualQuestion = history.filter((message) => message.role === "JUNIOR" && message.stage === "QUESTION").at(-1)!;
+        const asked = matchQuestionObjective(prepared.objectives, actualQuestion.content);
+        if (repeat === 0 || !mastery?.some((entry) => entry.concept === concept.topic && entry.mastery === 100)) {
+          assert.equal(asked?.id, prepared.objectives[index].id, "Every selected concept must receive an actual learning question");
+        }
+        if (asked) askedObjectives.add(asked.id);
         const events = await collect(stubLlm.juniorTurn({ chapter: uploaded, level, persona, objectives: prepared.objectives, history, explanation, mastery, heardConcepts }));
         const question = events.find((event) => event.type === "question")!;
         assert.ok(question, JSON.stringify(events));
         const expected = persona === "KU_HARD" && repeat === 0 ? index : index + 1;
-        assert.deepEqual(question.coveredObjectives, prepared.objectives.slice(0, expected).map((objective) => objective.id));
+        for (const objective of prepared.objectives.slice(0, expected)) assert.ok(question.coveredObjectives.includes(objective.id));
+        assert.ok(question.coveredObjectives.every((id) => prepared.objectives.some((objective) => objective.id === id)),
+          "A source sentence can teach multiple definitions together, but cannot invent an objective");
         history.push({ role: "USER", stage: "ANSWER", content: explanation }, { role: "JUNIOR", stage: "QUESTION", content: question.content });
         taught.push({ ref: taught.length + 1, content: explanation });
         mastery = question.mastery;
@@ -171,10 +180,12 @@ test("uploaded sample supports labelled definitions, natural repetitions and com
       }
     }
     assert.equal(mastery!.filter((entry) => entry.mastery === 100).length, 5);
+    assert.equal(askedObjectives.size, 5, "Five mastered targets still require five distinct learning questions");
     const answers: Parameters<Llm["gradeExam"]>[0]["answers"] = [];
     for (const question of prepared.questions) {
       if (question.order === 5 && question.choices) {
-        assert.ok(question.choices[1].includes("기본 모형에서는"), "The correct option must use the model explanation, never an unrelated document introduction");
+        const key = examChoiceIndex(question.rubric.match(/^정답 ([①②③④])/u)![1]);
+        assert.ok(question.choices[key].includes("시장 수요는"), "The correct option must use the selected concept definition, never an unrelated document introduction");
       }
       const events = await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices, taught, heardConcepts }));
       const sentences = events.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []);

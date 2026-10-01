@@ -505,7 +505,7 @@ async function gameSmoke() {
   ok("POST /runs 201", newRun.status === 201, newRun);
   const run = validate("POST /runs 응답", RunSchema, newRun.data) as RunDto;
   created.runs.push(run.runId);
-  ok("남학생: ♥5/5, 0/5, 합격선 60, 객관식", run.lives === 5 && run.maxLives === 5 && run.progress.cleared === 0 && run.progress.total === 5 && run.passScore === 60 && run.examFormat === "OBJECTIVE", run);
+  ok("컴돌이: ♥5/5, 0/5, 합격선 60, 객관식", run.lives === 5 && run.maxLives === 5 && run.progress.cleared === 0 && run.progress.total === 5 && run.passScore === 60 && run.examFormat === "OBJECTIVE", run);
   ok("next = 첫 챕터", run.next?.chapterId === run.progress.chapters[0].chapterId);
   validate("GET /runs/{id}", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
   expectError("GET /runs/없는id", await call("GET", "/runs/run_nope"), 404, "NO_RUN");
@@ -683,7 +683,7 @@ async function gameSmoke() {
   const runGrad = validate("GET /runs/{id} (졸업)", RunSchema, (await call("GET", `/runs/${run.runId}`)).data);
   ok("Run GRADUATED, endedAt, next null", runGrad?.status === "GRADUATED" && !!runGrad.endedAt && runGrad.next === null && !runGrad.canGraduate, runGrad);
   const album1 = validate("GET /runs/album (체험1)", AlbumResponseSchema, (await call("GET", "/runs/album")).data);
-  ok("앨범: 졸업생 1 (남학생·경제학원론)", album1?.graduated.length === 1 && album1.graduated[0].runId === run.runId && album1.graduated[0].character === "MALE_EASY" && album1.graduated[0].summary?.chapters === 5, album1);
+  ok("앨범: 졸업생 1 (컴돌이·경제학원론)", album1?.graduated.length === 1 && album1.graduated[0].runId === run.runId && album1.graduated[0].character === "MALE_EASY" && album1.graduated[0].summary?.chapters === 5, album1);
   const curAfter = validate("current (졸업 후)", CurrentRunResponseSchema, (await call("GET", `/runs/current?materialId=${econId}`)).data);
   ok("졸업 후 그 자료 current = null", curAfter?.run === null);
   const after = await gradedSession(ch[0].chapterId, 40);
@@ -713,7 +713,7 @@ async function gameSmoke() {
   expectError("graduate (GAME_OVER)", await call("POST", `/runs/${r2!.runId}/graduate`), 409, "NOT_READY");
   const reborn = await call("POST", "/runs", { materialId: r2!.materialId, character: "FEMALE_NORMAL" });
   const rebornRun = validate("게임오버 뒤 새 Run", RunSchema, reborn.data);
-  ok("새 후배는 진행도 0부터, 여학생 합격선 70", reborn.status === 201 && rebornRun?.progress.cleared === 0 && rebornRun.passScore === 70 && rebornRun.lives === 3, rebornRun);
+  ok("새 후배는 진행도 0부터, 컴순이 합격선 70", reborn.status === 201 && rebornRun?.progress.cleared === 0 && rebornRun.passScore === 70 && rebornRun.lives === 3, rebornRun);
   const matKeep = await db.chapter.count({ where: { materialId: r2!.materialId } });
   ok("게임오버 후 자료·챕터 유지", matKeep === 5);
   const album2 = validate("GET /runs/album (체험2)", AlbumResponseSchema, (await call("GET", "/runs/album")).data);

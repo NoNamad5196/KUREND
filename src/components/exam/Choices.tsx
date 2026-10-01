@@ -1,5 +1,5 @@
 /**
- * [③] 객관식 보기(①~④). answer 가 보기 번호/문구로 시작하면 그 보기를 강조한다(남학생 EASY 시험).
+ * [③] 객관식 보기(①~④). answer 가 보기 번호/문구로 시작하면 그 보기를 강조한다(컴돌이 EASY 시험).
  */
 import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { examChoiceIndex } from "@/lib/shared/exam-format";
@@ -37,7 +37,7 @@ export function Choices({ choices, answer, correctIndex, className }: { choices:
               isPicked && isCorrect !== false && correctIndex === undefined && "border-primary bg-primary-soft font-semibold",
               isPicked && correctIndex !== undefined && (isCorrect ? "border-ok bg-ok-soft font-semibold" : "border-danger bg-danger-soft font-semibold line-through decoration-danger/60"),
               !isPicked && isCorrect && "border-ok/60 bg-ok-soft/60",
-              !isPicked && !isCorrect && "border-paper-rule bg-surface/40",
+              !isPicked && !isCorrect && "border-paper-rule bg-surface",
             )}
           >
             <span className="shrink-0 font-bold">{CIRCLED[i] ?? `${i + 1}.`}</span>

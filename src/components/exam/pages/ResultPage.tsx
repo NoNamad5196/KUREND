@@ -9,6 +9,7 @@ import { useSession } from "@/components/session/useSession";
 import { SpeechBubble } from "@/components/session/SpeechBubble";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { Button, Chip, ProgressBar } from "@/components/session/ui";
+import { LearningErrorFeedback } from "../LearningErrorFeedback";
 import { AnswerSheet } from "../AnswerSheet";
 import { ReportCard } from "../ReportCard";
 import { GradeBox, GradeVerdictChip } from "../verdict";
@@ -54,8 +55,8 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const result = data.result;
   const character = session.character ?? juniorRun?.character;
   const resultReaction = character === "MALE_EASY"
-    ? "배운 내용은 모두 작성했습니다. 쓰지 못한 부분은 아직 배우지 못한 내용입니다."
-    : character === "FEMALE_NORMAL" ? "배운 내용은 모두 썼어요. 쓰지 못한 부분은 아직 배우지 못한 내용이에요."
+    ? "배운 내용을 바탕으로 답했습니다. 틀린 부분은 함께 확인하고 싶습니다."
+    : character === "FEMALE_NORMAL" ? "배운 내용을 바탕으로 답했어요. 틀린 부분은 함께 확인해 보고 싶어요."
       : "배운 건 다 썼어. 못 쓴 데는 아직 못 들은 부분이야.";
   const questions = [...(session.exam?.questions ?? [])].sort((a, b) => a.order - b.order);
 
@@ -105,8 +106,8 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
       <div className="min-w-0 space-y-6 lg:pt-2">
         <p className="editorial-label text-muted">WHAT WE LEARNED</p>
         <div className="flex justify-center"><JuniorOrMascot character={character} identityPending={identityPending} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={168} /></div>
-        <SpeechBubble speaker={juniorLabel(character)} tail="top">{resultReaction}</SpeechBubble>
-        {wrongNotes.length > 0 && <div className="border-y border-line py-5"><p className="text-sm font-semibold">틀린 문항 {wrongNotes.length}개가 오답노트에 저장됐어요</p><p className="mt-2 text-xs leading-6 text-muted">왜 틀렸는지 먼저 써 보면 AI 분석이 열려요.</p><Link href={`/wrong-notes/${encodeURIComponent(wrongNotes[0].wrongNoteId)}`} className="mt-3 inline-block text-sm font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition hover:decoration-primary">오답노트 쓰러 가기 →</Link></div>}
+        <SpeechBubble speaker={juniorLabel(character)} tail="top" tailAnchor="50%">{resultReaction}</SpeechBubble>
+        {wrongNotes.length > 0 && <div className="border-y border-line py-5"><p className="text-sm font-semibold">틀린 문항 {wrongNotes.length}개가 오답노트에 저장됐어요</p><p className="mt-2 text-xs leading-6 text-muted">문항별로 학습한 설명과 실제 답안, 틀린 이유를 확인할 수 있어요.</p><Link href={`/wrong-notes/${encodeURIComponent(wrongNotes[0].wrongNoteId)}`} className="mt-3 inline-block text-sm font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition hover:decoration-primary">오답노트 쓰러 가기 →</Link></div>}
         <div className="flex flex-col gap-3">
           {result.gaps.length > 0 && <Button size="lg" onClick={() => router.push(`/session/${encodeURIComponent(session.sessionId)}/review`)}>왜 틀렸는지 보기 →</Button>}
           <Button size="lg" variant={result.gaps.length ? "secondary" : "primary"} loading={busy} onClick={complete}>{result.gaps.some((gap) => gap.status !== "REVIEWED") ? "놓친 곳 남기고 끝내기" : "학습 마치기 →"}</Button>
@@ -130,7 +131,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
       <AnswerSheet studentName={juniorLabel(character)} courseName={session.material.courseName} instant items={questions.map((question) => {
         const item = result?.items.find((value) => value.qid === question.qid);
         const grade = item?.grade ?? grades[question.qid];
-        return { ...question, text: item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer ?? "", status: "done", unlearned: item?.sentences.some((sentence) => sentence.unlearned), badge: grade ? <GradeVerdictChip verdict={grade.verdict} /> : <Chip tone="muted">채점 전</Chip>, extra: <><GradeBox grade={grade ?? null} state={grade ? "done" : grading === question.qid ? "grading" : "pending"} />{(() => { const note = wrongNotes.find((n) => n.qid === question.qid); return note ? <Link href={`/wrong-notes/${encodeURIComponent(note.wrongNoteId)}`} className="mt-2 inline-flex items-center gap-1 font-sans text-sm font-bold text-primary hover:underline">✎ 오답노트{note.userReason ? " 보기" : "에 이유 쓰기"} →</Link> : null; })()}</> };
+        return { ...question, text: item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer ?? "", status: "done", unlearned: item?.sentences.some((sentence) => sentence.unlearned), badge: grade ? <GradeVerdictChip verdict={grade.verdict} /> : <Chip tone="muted">채점 전</Chip>, extra: <><GradeBox grade={grade ?? null} state={grade ? "done" : grading === question.qid ? "grading" : "pending"} />{(() => { const gap = (result?.gaps ?? gaps).find((entry) => entry.qid === question.qid); return gap ? <LearningErrorFeedback {...gap} answer={item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer} /> : null; })()}{(() => { const note = wrongNotes.find((n) => n.qid === question.qid); return note ? <Link href={`/wrong-notes/${encodeURIComponent(note.wrongNoteId)}`} className="mt-2 inline-flex items-center gap-1 font-sans text-sm font-bold text-primary hover:underline">✎ 오답노트{note.userReason ? " 보기" : "에 이유 쓰기"} →</Link> : null; })()}</> };
       })} />
     </div>
     {(result?.gaps ?? gaps).length > 0 && <section className="border-t border-line pt-7"><p className="editorial-label mb-3 text-muted">NEXT TO UNDERSTAND</p><h2 className="text-2xl font-semibold tracking-tight">놓친 곳 · {(result?.gaps ?? gaps).length}군데</h2><ol className="mt-6 divide-y divide-line">{(result?.gaps ?? gaps).map((gap, index) => <li key={gap.gapId} className="flex flex-wrap items-center gap-4 py-5 text-sm"><span className="text-xl font-medium tracking-tight text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 flex-1 break-words">{stripMarkdownBold(gap.title)}</span><Chip tone={gap.status === "REVIEWED" ? "ok" : "warn"}>{gap.status === "REVIEWED" ? "되짚기 완료" : "확인 필요"}</Chip></li>)}</ol></section>}

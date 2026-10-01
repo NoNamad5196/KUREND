@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { LearningErrorReasonSchema } from "@/contracts/types";
+import { META_CHOICE } from "./teaching-choices";
 import { objectiveRefFor, pointsPlan } from "@/contracts/game";
 import type { SourceParagraph } from "./text";
 import { isUnlearnedAnswer } from "./text";
@@ -53,7 +55,10 @@ export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[], 
         const items = value.split(";").filter((item) => item.trim());
         return items.length >= 2 && items.length <= 3;
       }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
-      choices: z.array(nonempty.max(200).transform((value) => stripMarkdownBold(value))).length(4).refine((items) => new Set(items).size === 4, "보기는 서로 다른 4개여야 합니다.").optional(),
+      choices: z.array(nonempty.max(200).transform((value) => stripMarkdownBold(value)).pipe(nonempty)
+        .refine((value) => !META_CHOICE.test(value), "같은 개념의 구체적인 보기를 쓰세요. 메타 부정이나 모르겠다는 보기는 금지합니다."))
+        .length(4).refine((items) => new Set(items.map((item) => item.replace(/^[①②③④]\s*/u, "").replace(/[\s.!?]/gu, ""))).size === 4, "보기는 서로 다른 4개여야 합니다.")
+        .refine((items) => { const lengths = items.map((item) => item.replace(/^[①②③④]\s*/u, "").length); return Math.max(...lengths) <= Math.max(8, Math.min(...lengths)) * 2; }, "보기의 길이와 구체성을 비슷하게 맞추세요.").optional(),
     })).length(count),
     firstQuestion: z.string().max(200).default(""),
   }).superRefine((result, ctx) => {
@@ -156,6 +161,7 @@ export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
 }
 
 const gapSchema = z.object({
+  errorReason: LearningErrorReasonSchema.optional(),
   title: nonempty.max(25), diagnosis: nonempty.max(1_000), evidenceQuote: z.string().max(2_000),
   concepts: z.array(nonempty.max(80)).min(1).max(10), sourceExcerpt: nonempty.max(2_000),
 });

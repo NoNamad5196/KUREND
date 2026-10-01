@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { sourceLearningConcepts } from "../learning-plan";
+import { objectiveTopic } from "../teaching-choices";
+import { stubLlm } from "../stub";
 
 for (const domain of ["economics", "os"]) {
   test(`${domain} source supplies five distinct chapter concepts and ten full-material concepts`, () => {
@@ -34,4 +36,29 @@ test("short or instructional sources fail instead of inventing placeholder objec
   for (const text of ["자료가 짧다.", "이 자료의 학습 목표는 핵심 개념 다섯 가지를 설명하는 것이다.", "수요는 각 가격에서 구매할 의사와 능력이 있는 수량의 관계이다."]) {
     assert.throws(() => sourceLearningConcepts({ title: "자료", points: ["핵심 내용", "개념 1", "개념 2"], text }, 5), /확인하지 못했습니다/u);
   }
+});
+
+test("OS preparation separates ready and waiting states without teaching document assumptions", async () => {
+  const metadata = JSON.parse(readFileSync(new URL("../../../../fixtures/chapters.os.json", import.meta.url), "utf8"));
+  const demo = JSON.parse(readFileSync(new URL("../../../../fixtures/demo.os.json", import.meta.url), "utf8"));
+  const source = readFileSync(new URL("../../../../fixtures/operating-systems.md", import.meta.url), "utf8");
+  const first = metadata.chapters[0];
+  const chapter = { ...first, text: source.slice(first.startOffset, first.endOffset) };
+  const preferred = demo.prepare.objectives.map(objectiveTopic);
+  const concepts = sourceLearningConcepts(chapter, 5, preferred);
+  assert.deepEqual(concepts.map(({ topic }) => topic), [...preferred, "준비 상태", "대기 상태"]);
+  for (const { topic, sourceQuote } of concepts) {
+    assert.ok(chapter.text.includes(sourceQuote), `verbatim source evidence for ${topic}`);
+    assert.doesNotMatch(`${topic}\n${sourceQuote}`, /별도 표시가 없으면|따라서 .+구분해야 한다/u);
+  }
+  const ready = concepts.find(({ topic }) => topic === "준비 상태")!;
+  const waiting = concepts.find(({ topic }) => topic === "대기 상태")!;
+  assert.match(ready.sourceQuote, /준비 상태는 CPU만 받으면 실행할 수 있는 상태/u);
+  assert.match(waiting.sourceQuote, /대기 상태는 입출력 완료 같은 사건을 기다려 아직 실행할 수 없는 상태/u);
+  const prepared = await stubLlm.prepareSession({ chapter, level: "EASY", persona: "FEMALE_NORMAL", examFormat: "DESCRIPTIVE", questionCount: 5 });
+  assert.deepEqual(prepared.objectives.map(objectiveTopic), concepts.map(({ topic }) => topic));
+  assert.equal(prepared.questions.length, 5);
+  assert.equal(new Set(prepared.questions.map(({ question }) => question)).size, 5);
+  assert.deepEqual(prepared.questions.map(({ objectiveRef }) => objectiveRef), prepared.objectives.map(({ id }) => id));
+  assert.deepEqual(prepared.objectives.map(({ id }) => id), ["o1", "o2", "o3", "o4", "o5"]);
 });

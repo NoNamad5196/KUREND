@@ -19,7 +19,7 @@ JSON 객체 하나를 출력하세요.
 - Do not use Markdown bold syntax (**text**) under any circumstances.
 - firstQuestion이나 캐릭터 대사는 생성하지 마세요. 학습 대화의 첫 질문은 시험 출제와 별도로 생성합니다.`;
 
-export const OBJECTIVE_EXAM_PROMPT = `객관식 4지선다 문제를 출제합니다. choices:["① …","② …","③ …","④ …"] 네 보기는 서로 다르고 자료에 근거한 정답은 하나만 있어야 합니다. rubric은 "정답 ②;근거: 자료의 사실" 형식입니다. 문제 문장은 '~고르시오.'로 끝내세요.`;
+export const OBJECTIVE_EXAM_PROMPT = `객관식 4지선다 문제를 출제합니다. choices:["① …","② …","③ …","④ …"] 네 보기는 서로 다르고 자료에 근거한 정답은 하나만 있어야 합니다. 모든 보기는 같은 개념 범위에서 동일한 질문에 답해야 합니다. 오답은 혼동 가능한 상태·역할·조건·인과관계를 구체적으로 바꾼 문장이며 문장 길이·문법 구조·구체성을 비슷하게 맞춥니다. '이 설명은 맞지 않다', '관계없다', '모르겠다' 같은 메타 보기나 정답만 긴 보기는 금지합니다. rubric은 "정답 ②;근거: 자료의 사실" 형식입니다. 문제 문장은 '~고르시오.'로 끝내세요.`;
 export const KU_EXAM_PROMPT = `높은 난이도의 서술형에는 자료에 있는 이유·비교·적용을 묻는 문제가 하나 이상 있어야 합니다. 문항마다 배정된 학습 개념의 범위를 지키세요. 어려운 문제를 만들기 위해 자료 밖의 지식을 요구하지 마세요.`;
 export const FEMALE_EXAM_PROMPT = `서술형은 배정된 개념의 의미와 이유를 설명하는 문제로 출제하세요.`;
 
@@ -29,6 +29,6 @@ export function examPlanPrompt(count: number, plan: number[], objectiveIndexes: 
   return `
 [이번 시험 구성]
 - 서로 다른 학습 목표 ${count}개와 그 목표에 일대일로 대응하는 문제 ${count}개를 만드세요. 목표는 o1~o${count}, 문항은 q1~q${count}, 순서는 1~${count}, 배점 합계는 100입니다.
-${lines.map((line) => `- ${line}`).join("\n")}
+${lines.map((line) => `- ${line}`).join("\n")}${objectiveIndexes.length ? "\n- 객관식 오답은 정답과 같은 개념 범위의 혼동 가능한 구체적인 주장입니다. 메타 부정·모르겠다는 보기·다른 주제는 금지하고 네 보기의 문장 구조·길이·구체성을 비슷하게 맞추세요." : ""}
 - 학습 목표와 문제에 같은 개념을 중복 배정하지 마세요. 객관식 문제는 네 보기 중 하나를 고르는 정식 문장, 서술형은 정식 서술 지시문으로 작성합니다.${kind === "FINAL" ? "\n- 졸업시험입니다. chapter.text는 전체 자료이고 chapter.points는 각 챕터 제목입니다. 이미 다룬 챕터의 핵심 개념을 고르게 선정해 전체 범위를 평가하세요." : ""}`;
 }

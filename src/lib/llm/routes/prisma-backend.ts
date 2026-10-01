@@ -1,3 +1,4 @@
+import { decodeGapConcepts, encodeGapConcepts } from "@/lib/learning/error-reason";
 import { parseTeachingChoices } from "../teaching-choices";
 /**
  * D's adapter for C's frozen Prisma schema. This file deliberately imports no
@@ -282,7 +283,7 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
       },
       gaps: raw.gaps.map((gap) => ({
         gapId: gap.id, qid: gap.qid, title: gap.title, diagnosis: gap.diagnosis,
-        evidenceQuote: gap.evidenceQuote, concepts: json(gap.conceptsJson),
+        evidenceQuote: gap.evidenceQuote, ...decodeGapConcepts(gap.conceptsJson),
         sourceExcerpt: gap.sourceExcerpt, sourceOffset: gap.sourceOffset, status: gap.status,
         tutorMessages: gap.tutorMessages.map((message) => ({ id: message.id, request: message.request, response: message.response, createdAt: iso(message.createdAt) })),
       })),
@@ -455,7 +456,7 @@ async function persistSessionChildren(tx: PrismaTransaction, current: PrismaSess
   }
   for (const gap of next.gaps) {
     const data = { sessionId: next.sessionId, qid: gap.qid, title: gap.title, diagnosis: gap.diagnosis,
-      evidenceQuote: gap.evidenceQuote, conceptsJson: JSON.stringify(gap.concepts),
+      evidenceQuote: gap.evidenceQuote, conceptsJson: encodeGapConcepts(gap.concepts, gap.errorReason),
       sourceExcerpt: gap.sourceExcerpt, sourceOffset: gap.sourceOffset ?? null, status: gap.status };
     await tx.gap.upsert({ where: { id: gap.gapId }, create: { id: gap.gapId, ...data }, update: data });
     for (const message of gap.tutorMessages) {

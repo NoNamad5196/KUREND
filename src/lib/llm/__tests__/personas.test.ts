@@ -29,6 +29,7 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
 
 async function score(taught: string, persona: JuniorCharacter): Promise<number> {
   const spec = CHARACTERS[persona];
+  // Preserve this recorded three-question scoring fixture while new sessions use five.
   const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: 3 }));
   const messages = [{ ref: 1, content: taught }];
   const answers = [];
@@ -80,7 +81,7 @@ test("demo partial teaching scores 58 and complete teaching scores 100", async (
 test("three personas have distinct exam behavior and pass thresholds", async () => {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
-    const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, questionCount: 3 }));
+    const prepared = prepareSessionSchemaFor(5).parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona }));
     assert.equal(prepared.questions.every((question) => Boolean(question.choices)), spec.examFormat === "OBJECTIVE");
     assert.equal((await score(DEMO_COMPLETE_EXPLANATION, persona)) >= spec.passScore, true);
     assert.equal((await score("아직 잘 모르겠어.", persona)) < spec.passScore, true);
@@ -150,7 +151,9 @@ test("live objective grading skips the model for a correct choice and diagnoses 
   });
   const question = { qid: "q1", question: "수요 법칙은?", points: 34, rubric: "정답 ②;근거: 자료의 가격과 수요량 관계",
     choices: ["① 늘어난다", "② 줄어든다", "③ 같다", "④ 알 수 없다"] };
-  const correct = await collect(llm.gradeExam({ chapter, questions: [question], answers: [{ qid: "q1", answer: "② 배운 내용" }], taught: [] }));
+  const correct = await collect(llm.gradeExam({ chapter, questions: [question], answers: [{ qid: "q1", answer: "2번",
+    sentences: [{ sentence: "2번", ref: 1, level: "STRONG", unlearned: false }] }],
+    taught: [{ ref: 1, content: "가격이 오르면 수요량은 줄어든다." }] }));
   assert.equal(calls, 0);
   assert.deepEqual(correct.map((event) => event.type), ["grade"]);
   const wrong = await collect(llm.gradeExam({ chapter, questions: [question], answers: [{ qid: "q1", answer: "① 모르겠어요" }], taught: [] }));

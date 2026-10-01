@@ -104,7 +104,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
         <p className="editorial-label text-muted">TIME TO REMEMBER</p>
         <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tighter sm:text-4xl">가르친 만큼,<br />기억한 만큼.</h2>
         <div className="mt-6"><SpeechBubble speaker={juniorLabel(character)} tail="none">{character ? EXAM_INTRO[character] : "배운 내용을 바탕으로 시험을 시작할게요."}</SpeechBubble></div>
-        <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? "객관식" : "서술형"} {questions.length || 3}문항 · 총 100점</p>
+        <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? questions.every((q) => q.choices?.length) ? "객관식" : "객관식+서술형" : "서술형"} {questions.length}문항 · 총 100점</p>
         <Button size="lg" className="mt-5 w-full sm:w-auto" loading={busy} onClick={startExam}>시험 시작 →</Button>
         {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
       </div>

@@ -124,7 +124,7 @@ export function achievementStats({ home, sessions, album, wrongNotes, run }: Ach
 /* ───────── 업적 정의 ───────── */
 type Def = Omit<Achievement, "progress" | "unlocked"> & { value: (s: AchievementStats) => number };
 
-const NAMES: Record<JuniorCharacter, string> = { MALE_EASY: "남학생", FEMALE_NORMAL: "여학생", KU_HARD: "KU" };
+const NAMES: Record<JuniorCharacter, string> = { MALE_EASY: "컴돌이", FEMALE_NORMAL: "컴순이", KU_HARD: "KU" };
 
 function defs(stats: AchievementStats): Def[] {
   const missing = JUNIOR_CHARACTERS.filter((c) => !stats.graduatedCharacters.includes(c)).map((c) => NAMES[c]);
@@ -141,7 +141,7 @@ function defs(stats: AchievementStats): Def[] {
     { id: "first-graduation", icon: "🎓", category: "graduation", title: "첫 졸업", description: "후배 1명 졸업시키기", goal: 1, unlockedHint: "모든 챕터와 졸업시험을 통과해 보세요.", value: (s) => s.graduated },
     { id: "crisis", icon: "💪", category: "graduation", title: "위기 탈출", description: "LIFE 1개 남기고 졸업", goal: 1, unlockedHint: "하트가 하나 남아도 포기하지 마세요.", value: (s) => s.crisisGraduations },
     { id: "ku-graduation", icon: "🐂", category: "graduation", title: "KU 길들이기", description: "HARD 후배 KU 졸업", goal: 1, unlockedHint: "가장 까다로운 KU를 끝까지 가르쳐 보세요.", value: (s) => (s.graduatedCharacters.includes("KU_HARD") ? 1 : 0) },
-    { id: "all-graduation", icon: "🏆", category: "graduation", title: "세 후배 모두 졸업", description: "남학생·여학생·KU 모두 졸업", goal: 3, unlockedHint: missing.length ? `아직 남은 후배: ${missing.join(", ")}` : "세 후배를 모두 졸업시켜 보세요.", value: (s) => s.graduatedCharacters.length },
+    { id: "all-graduation", icon: "🏆", category: "graduation", title: "세 후배 모두 졸업", description: "컴돌이·컴순이·KU 모두 졸업", goal: 3, unlockedHint: missing.length ? `아직 남은 후배: ${missing.join(", ")}` : "세 후배를 모두 졸업시켜 보세요.", value: (s) => s.graduatedCharacters.length },
   ];
 }
 

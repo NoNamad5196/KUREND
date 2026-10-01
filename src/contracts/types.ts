@@ -354,12 +354,17 @@ export const TutorMessageSchema = z.object({
 });
 export type TutorMessageDto = z.infer<typeof TutorMessageSchema>;
 
+export const LEARNING_ERROR_REASONS = ["WRONG_KNOWLEDGE", "INSUFFICIENT_LEARNING", "CONFUSION", "UNKNOWN"] as const;
+export const LearningErrorReasonSchema = z.enum(LEARNING_ERROR_REASONS);
+export type LearningErrorReason = z.infer<typeof LearningErrorReasonSchema>;
+
 export const GapSchema = z.object({
   gapId: z.string(),
   qid: z.string(),
   title: z.string(),
   diagnosis: z.string(),
   evidenceQuote: z.string(),
+  errorReason: LearningErrorReasonSchema.optional(),
   concepts: z.array(z.string()),
   sourceExcerpt: z.string(),
   status: z.enum(GAP_STATUSES),

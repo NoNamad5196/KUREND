@@ -1,3 +1,4 @@
+import { decodeGapConcepts } from "@/lib/learning/error-reason";
 import { parseTeachingChoices } from "@/lib/llm/teaching-choices";
 import { formatExamChoice, formatExamQuestion } from "@/lib/shared/exam-format";
 import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
@@ -98,13 +99,15 @@ export function toExamDto(exam: SessionWithRelations["exam"]): ExamDto | null {
 }
 
 export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
+  const decoded = decodeGapConcepts(g.conceptsJson);
   return {
     gapId: g.id,
     qid: g.qid,
     title: stripMarkdownBold(g.title),
     diagnosis: stripMarkdownBold(g.diagnosis),
     evidenceQuote: g.evidenceQuote,
-    concepts: parseStringArray(g.conceptsJson).map((concept) => stripMarkdownBold(concept)),
+    ...decoded,
+    concepts: decoded.concepts.map((concept) => stripMarkdownBold(concept)),
     sourceExcerpt: g.sourceExcerpt,
     status: g.status as GapDto["status"],
     tutorMessages: g.tutorMessages.map((t) => ({

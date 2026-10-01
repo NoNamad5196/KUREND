@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { toExamDto, toMessageDto, toResultDto, type SessionWithRelations } from "../session-dto";
+import { toExamDto, toGapDto, toMessageDto, toResultDto, type SessionWithRelations } from "../session-dto";
+import { encodeGapConcepts } from "@/lib/learning/error-reason";
 
 test("saved exams display formal questions and plain answers without rewriting stored records", () => {
   const exam = {
@@ -41,7 +42,7 @@ test("result formatting preserves score, verdict, citation evidence and saved so
       grades: [{ qid: "q1", score: 0, maxScore: 100, verdict: "WRONG", comment: "**근거가 없습니다.**" }],
     },
     gaps: [{ id: "gap", qid: "q1", title: "**상태**", diagnosis: "**설명이 누락되었습니다.**", evidenceQuote: evidence,
-      sourceExcerpt: evidence, conceptsJson: '["**프로세스**"]', status: "OPEN", tutorMessages: [] }],
+      sourceExcerpt: evidence, conceptsJson: encodeGapConcepts(["**프로세스**"], "INSUFFICIENT_LEARNING"), status: "OPEN", tutorMessages: [] }],
   } as unknown as SessionWithRelations;
   const before = structuredClone(session);
   const result = toResultDto(session);
@@ -52,5 +53,23 @@ test("result formatting preserves score, verdict, citation evidence and saved so
   assert.deepEqual(result.items[0].sentences, sentences);
   assert.equal(result.gaps[0].evidenceQuote, evidence);
   assert.equal(result.gaps[0].sourceExcerpt, evidence);
+  assert.deepEqual(result.gaps[0].concepts, ["프로세스"]);
+  assert.equal(result.gaps[0].errorReason, "INSUFFICIENT_LEARNING");
   assert.deepEqual(session, before);
+});
+
+test("legacy gap concepts stay readable and invalid reason metadata never invents a diagnosis", () => {
+  for (const conceptsJson of ['["**준비 상태**"]', '["**준비 상태**", {"learningErrorReason":"unsupported"}]']) {
+    const stored = {
+      id: "gap_saved", qid: "q1", title: "상태", diagnosis: "설명 확인", evidenceQuote: "**원문**",
+      sourceExcerpt: "`ready` 원문", conceptsJson, status: "FOUND", tutorMessages: [],
+    } as unknown as SessionWithRelations["gaps"][number];
+    const before = structuredClone(stored);
+    const gap = toGapDto(stored);
+    assert.deepEqual(gap.concepts, ["준비 상태"]);
+    assert.equal(gap.errorReason, undefined);
+    assert.equal(gap.evidenceQuote, stored.evidenceQuote);
+    assert.equal(gap.sourceExcerpt, stored.sourceExcerpt);
+    assert.deepEqual(stored, before);
+  }
 });

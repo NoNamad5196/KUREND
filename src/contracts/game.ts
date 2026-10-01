@@ -4,7 +4,7 @@
  * 상수 + 순수 함수 + zod 스키마 + 타입을 한 파일에 둔다.
  */
 import { z } from "zod";
-import type { JuniorLevel } from "./types";
+import { LearningErrorReasonSchema, type JuniorLevel } from "./types";
 
 /* ───────── 열거형 ───────── */
 export const JUNIOR_CHARACTERS = ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const;
@@ -44,8 +44,8 @@ export type CharacterSpec = {
 };
 
 export const CHARACTERS: Record<JuniorCharacter, CharacterSpec> = {
-  MALE_EASY: { name: "남학생", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 5, tagline: "이해가 빠른 후배 · 객관식 5문항" },
-  FEMALE_NORMAL: { name: "여학생", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
+  MALE_EASY: { name: "컴돌이", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 5, tagline: "이해가 빠른 후배 · 객관식 5문항" },
+  FEMALE_NORMAL: { name: "컴순이", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
   KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 5, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 5문항" },
 };
 
@@ -242,6 +242,7 @@ export const WrongNoteSchema = z.object({
   aiDiagnosis: z.string(),
   aiComparison: z.string().nullable(),
   evidenceQuote: z.string(),
+  errorReason: LearningErrorReasonSchema.optional(),
   sourceExcerpt: z.string(),
   missedConcepts: z.array(z.string()),
   createdAt: z.string(),

@@ -1,7 +1,7 @@
 "use client";
 /**
  * [③] 졸업 단계 버튼 — Run 상태에 따라 [졸업시험 보기] / [졸업시험 이어하기] / [졸업하기] 중 하나.
- * 모든 챕터 통과 → 졸업시험(10문항, 객관식+서술형) → 통과하면 졸업식.
+ * 모든 챕터 통과 → 졸업시험(객관식+서술형) → 통과하면 졸업식.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";

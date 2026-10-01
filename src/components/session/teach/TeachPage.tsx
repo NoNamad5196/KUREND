@@ -434,7 +434,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                 ) : choicesLoading ? (
                   <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 자료에서 가르칠 선택지를 준비하고 있어요…</p>
                 ) : teachingChoices.length > 0 ? (
-                  <fieldset disabled={interactionBusy}>
+                  <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
                     <legend className="mb-2 text-sm font-semibold">후배에게 알려줄 내용을 골라 주세요</legend>
                     <div className="grid gap-2">
                       {teachingChoices.map((choice) => (
