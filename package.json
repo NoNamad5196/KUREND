@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "rm -f prisma/dev.db && prisma db push && tsx prisma/seed.ts",
+    "db:reset": "node -e \"require('fs').rmSync('prisma/dev.db', { force: true })\" && prisma db push && tsx prisma/seed.ts",
     "eval:llm": "tsx scripts/eval-llm.ts"
   },
   "dependencies": {
