@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
+/* §8-15 디자인 토큰 (A 소유, 설계서 원문 그대로) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #F6F5F0; --surface: #FFFFFF; --ink: #1E2330; --muted: #6B7280; --line: #E3DFD5;
+  --primary: #1F6F5B; --primary-ink: #FFFFFF; --primary-soft: #E3F1EC;
+  --accent: #F4B942; --accent-soft: #FFF4D6; --danger: #C0392B; --danger-soft: #FBE9E7; --warn: #D97706; --ok: #2E7D32;
+  --paper: #FBF7EA; --paper-rule: #D9D0B8; --paper-ink: #2B2A26;
+  --radius: 16px; --radius-sm: 10px; --shadow: 0 1px 0 var(--line), 0 6px 20px rgba(30, 35, 48, .06);
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", sans-serif;
+  --font-hand: "Nanum Pen Script", cursive; /* 답안지 손글씨 */
 }
 
+/* Tailwind v4 테마 매핑: bg-primary, text-ink, border-line, rounded-card, shadow-card … */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --color-paper: var(--paper);
+  --color-paper-rule: var(--paper-rule);
+  --color-paper-ink: var(--paper-ink);
+  --radius-card: var(--radius);
+  --radius-sm: var(--radius-sm);
+  --shadow-card: var(--shadow);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@utility font-hand {
+  font-family: var(--font-hand);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 접근성: 움직임 줄이기 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

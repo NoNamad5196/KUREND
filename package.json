@@ -1,23 +1,28 @@
 {
-  "name": "kku_hackerton",
+  "name": "kurend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "rm -f prisma/dev.db && prisma db push && tsx prisma/seed.ts",
+    "eval:llm": "tsx scripts/eval-llm.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/client": "7.10.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "nanoid": "^6.0.1",
     "next": "15.5.27",
     "openai": "^7.25.0",
     "pdf-parse": "^2.4.5",
-    "prisma": "8.0.0-rc.19",
+    "prisma": "7.10.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "^4.6.5"
