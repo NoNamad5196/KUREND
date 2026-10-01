@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { SourceParagraph } from "./text";
 import { UNLEARNED_ANSWER } from "./text";
+import type { TaughtMsg } from "./types";
 
 const nonempty = z.string().trim().min(1);
 const gradeVerdict = z.enum(["CORRECT", "PARTIAL", "WRONG"]);
@@ -57,14 +58,23 @@ export const prepareSessionSchema = z.object({
   });
 });
 
-export function analyzeTurnSchema(explanation: string, objectiveIds: string[]) {
+export function analyzeTurnSchema(explanation: string, objectiveIds: string[], taught: TaughtMsg[]) {
+  const citation = z.object({ ref: z.number().int().positive(), quote: nonempty.max(600) })
+    .refine(({ ref, quote }) => taught.some((message) => message.ref === ref && message.content.includes(quote)),
+      "실제 사용자 설명의 ref와 그 설명에 있는 연속된 원문을 인용하세요.");
   return z.object({
-    heardConcepts: z.array(nonempty.max(80)).max(30),
+    concepts: z.array(z.object({
+      name: nonempty.max(80),
+      quote: nonempty.max(300).refine((quote) => explanation.includes(quote), "이번 설명의 근거를 그대로 인용하세요."),
+    })).max(10),
     contradictions: z.array(z.object({
       claim: nonempty.refine((claim) => explanation.includes(claim), "사용자 설명을 그대로 인용해야 합니다."),
-      why: nonempty.max(500),
-    })).max(10),
-    coveredObjectives: z.array(nonempty.refine((id) => objectiveIds.includes(id), "존재하는 목표 ID만 사용하세요.")).max(objectiveIds.length),
+    })).max(3),
+    coverage: z.array(z.object({
+      id: nonempty.refine((id) => objectiveIds.includes(id), "존재하는 목표 ID만 사용하세요."),
+      evidence: z.array(citation).min(1).max(3),
+    })).max(objectiveIds.length),
+    reactionQuote: z.string().max(26).refine((quote) => !quote || explanation.includes(quote), "반응은 이번 설명에서 그대로 인용하세요."),
   });
 }
 
@@ -77,23 +87,24 @@ export function doubtSchema(allowedDoubt: string) {
   return z.object({ doubt: z.literal(allowedDoubt) });
 }
 
-export function examAnswerSchema(refs: number[]) {
+export function examAnswerSchema(taught: TaughtMsg[]) {
   return z.object({
     thought: nonempty.max(30),
     sentences: z.array(z.object({
-      text: nonempty.max(1_000), ref: z.number().int().positive().nullable(),
+      quote: nonempty.max(1_000).nullable(), ref: z.number().int().positive().nullable(),
       level: z.enum(["STRONG", "FAINT", "NONE"]),
     })).min(1).max(4),
     unlearned: z.boolean(),
   }).superRefine((result, ctx) => {
     if (result.unlearned) {
-      if (result.sentences.length !== 1 || result.sentences[0].text !== UNLEARNED_ANSWER || result.sentences[0].ref !== null || result.sentences[0].level !== "NONE") {
-        ctx.addIssue({ code: "custom", path: ["sentences"], message: `못 배웠으면 ref:null, level:NONE인 문장 하나만 쓰세요: ${UNLEARNED_ANSWER}` });
+      if (result.sentences.length !== 1 || result.sentences[0].quote !== null || result.sentences[0].ref !== null || result.sentences[0].level !== "NONE") {
+        ctx.addIssue({ code: "custom", path: ["sentences"], message: "못 배웠으면 quote:null, ref:null, level:NONE인 항목 하나만 쓰세요." });
       }
     } else {
       for (const [index, sentence] of result.sentences.entries()) {
-        if (sentence.ref === null || !refs.includes(sentence.ref) || sentence.level === "NONE") {
-          ctx.addIssue({ code: "custom", path: ["sentences", index], message: "배운 문장은 실제 사용자 설명 ref와 STRONG 또는 FAINT 근거가 있어야 합니다." });
+        if (sentence.quote === null || sentence.ref === null || sentence.level === "NONE"
+          || !taught.some((message) => message.ref === sentence.ref && message.content.includes(sentence.quote!))) {
+          ctx.addIssue({ code: "custom", path: ["sentences", index], message: "실제 ref의 사용자 설명에 존재하는 연속된 quote와 STRONG 또는 FAINT 근거가 있어야 합니다." });
         }
       }
     }
@@ -106,15 +117,19 @@ const gapSchema = z.object({
 });
 
 export function gradeExamSchema(input: {
-  qid: string; rubricCount: number; chapterText: string; taught: { content: string }[];
+  qid: string; rubricCount: number; chapterText: string; taught: { content: string }[]; answer: string;
 }) {
   return z.object({
     qid: z.literal(input.qid), score: z.number().finite(), verdict: gradeVerdict,
     comment: nonempty.max(120), rubricChecks: z.array(z.boolean()).length(input.rubricCount),
     contradictsSource: z.boolean(), gap: gapSchema.nullable(),
   }).superRefine((result, ctx) => {
+    if (input.answer.trim() === UNLEARNED_ANSWER && (result.rubricChecks.some(Boolean) || result.contradictsSource)) {
+      ctx.addIssue({ code: "custom", path: ["rubricChecks"], message: "미학습 응답은 충족한 요소가 없으며 자료와 모순된 주장도 아닙니다." });
+    }
     const correct = !result.contradictsSource && result.rubricChecks.every(Boolean);
     if (!correct && !result.gap) ctx.addIssue({ code: "custom", path: ["gap"], message: "정답이 아니면 놓친 곳 진단이 필요합니다." });
+    if (correct && result.gap) ctx.addIssue({ code: "custom", path: ["gap"], message: "모든 요소를 충족한 정답에는 놓친 곳 진단이 없어야 합니다." });
     if (result.gap) {
       if (!input.chapterText.includes(result.gap.sourceExcerpt)) ctx.addIssue({ code: "custom", path: ["gap", "sourceExcerpt"], message: "자료 본문의 연속된 문장을 그대로 인용하세요." });
       if (result.gap.evidenceQuote && !input.taught.some((message) => message.content.includes(result.gap!.evidenceQuote))) {

@@ -38,11 +38,26 @@ function acquire(key: string): () => void {
   return () => { routeLocks.delete(key); };
 }
 
+function routeFailure(error: unknown, fallbackMessage: string): RouteError {
+  // C's adapter may use another module instance (instrumentation vs. routes),
+  // so its RouteError has a different constructor. Validate the public shape
+  // before using its fields in either an HTTP response or an SSE error event.
+  if (error !== null && typeof error === "object") {
+    const { name, status, code, message } = error as Record<string, unknown>;
+    if ((error instanceof RouteError || name === "RouteError")
+      && (status === 400 || status === 401 || status === 404 || status === 409 || status === 502)
+      && (code === "VALIDATION" || code === "UNAUTHORIZED" || code === "NOT_FOUND"
+        || code === "INVALID_STATE" || code === "LLM_FAILED")
+      && typeof message === "string" && message.trim()) {
+      return new RouteError(status, code, message);
+    }
+  }
+  return new RouteError(502, "LLM_FAILED", fallbackMessage);
+}
+
 function failureResponse(error: unknown): Response {
   if (error instanceof Response) return error;
-  const failure = error instanceof RouteError
-    ? error
-    : new RouteError(502, "LLM_FAILED", "요청을 처리하지 못했습니다. 다시 시도해 주세요.");
+  const failure = routeFailure(error, "요청을 처리하지 못했습니다. 다시 시도해 주세요.");
   return Response.json({ error: { code: failure.code, message: failure.message } }, { status: failure.status });
 }
 
@@ -79,9 +94,7 @@ function stream(
     } catch (error) {
       // Recovery is a CAS transaction too: never overwrite an external update.
       try { await recover?.(); } catch { /* The adapter rejects a stale recovery. */ }
-      const failure = error instanceof RouteError ? error : new RouteError(
-        502, "LLM_FAILED", "모델 응답을 처리하지 못했습니다. 다시 시도해 주세요.",
-      );
+      const failure = routeFailure(error, "모델 응답을 처리하지 못했습니다. 다시 시도해 주세요.");
       channel.send("error", { code: failure.code, message: failure.message });
     } finally {
       // createSse.close emits exactly one terminal done, including error paths.

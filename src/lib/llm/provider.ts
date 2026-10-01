@@ -4,11 +4,15 @@ import type { z } from "zod";
 import type { Llm } from "./types";
 import { createLiveLlm } from "./live";
 import { stubLlm } from "./stub";
+import { loadLocalEnvironment } from "./environment";
+
+loadLocalEnvironment();
 
 type Provider = "openai" | "anthropic" | "stub";
-type JsonOptions = { temperature?: number };
-type JsonRequest = (system: string, user: string, options: JsonOptions) => Promise<string>;
+type JsonOptions = { temperature?: number; maxOutputTokens?: number; timeoutMs?: number };
+type JsonRequest = (system: string, user: string, options: JsonOptions & { signal?: AbortSignal }) => Promise<string>;
 const MAX_TOKENS = 1_500;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 export class LlmFailure extends Error {
   readonly code = "LLM_FAILED";
@@ -28,16 +32,33 @@ export function providerName(): Provider {
 
 function openai() {
   if (!process.env.OPENAI_API_KEY) throw new LlmFailure("OPENAI_API_KEY가 설정되지 않았습니다.");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 45_000, maxRetries: 1 });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
 }
 
 function anthropic() {
   if (!process.env.ANTHROPIC_API_KEY) throw new LlmFailure("ANTHROPIC_API_KEY가 설정되지 않았습니다.");
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 45_000, maxRetries: 1 });
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
+}
+
+function providerFailure(error: unknown): LlmFailure {
+  if (error instanceof LlmFailure) return error;
+  if (error && typeof error === "object") {
+    if ("status" in error && (error.status === 401 || error.status === 403)) {
+      return new LlmFailure("AI 제공자 접근이 거부되었습니다. API 키·권한·네트워크 허용 설정을 확인해 주세요.");
+    }
+    if ("status" in error && error.status === 429) {
+      return new LlmFailure("AI 제공자 사용 한도에 도달했습니다. 잔액 또는 요청 한도를 확인해 주세요.");
+    }
+    if ("name" in error && typeof error.name === "string" && /Timeout|Abort/.test(error.name)) {
+      return new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.");
+    }
+  }
+  return new LlmFailure("AI 제공자 요청에 실패했습니다. 인증·네트워크·모델 설정을 확인해 주세요.");
 }
 
 const requestJSON: JsonRequest = async (system, user, options) => {
   const provider = providerName();
+  const requestOptions = { timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS, signal: options.signal };
   try {
     if (provider === "openai") {
       const response = await openai().chat.completions.create({
@@ -45,8 +66,8 @@ const requestJSON: JsonRequest = async (system, user, options) => {
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
         response_format: { type: "json_object" },
         temperature: options.temperature ?? 0.2,
-        max_tokens: MAX_TOKENS,
-      });
+        max_tokens: options.maxOutputTokens ?? MAX_TOKENS,
+      }, requestOptions);
       if (response.choices[0]?.finish_reason === "length") throw new LlmFailure("AI 응답이 길이 제한에 도달했습니다.");
       return response.choices[0]?.message.content ?? "";
     }
@@ -56,8 +77,8 @@ const requestJSON: JsonRequest = async (system, user, options) => {
         system: `${system}\n마크다운 없이 JSON 객체만 출력하세요.`,
         messages: [{ role: "user", content: user }],
         temperature: options.temperature ?? 0.2,
-        max_tokens: MAX_TOKENS,
-      });
+        max_tokens: options.maxOutputTokens ?? MAX_TOKENS,
+      }, requestOptions);
       const response = await stream.finalMessage();
       if (response.stop_reason === "max_tokens") throw new LlmFailure("AI 응답이 길이 제한에 도달했습니다.");
       return response.content.filter(block => block.type === "text").map(block => block.text).join("");
@@ -65,8 +86,7 @@ const requestJSON: JsonRequest = async (system, user, options) => {
     throw new LlmFailure("stub 모드에서는 외부 모델을 호출하지 않습니다.");
   } catch (error) {
     // Do not relay SDK payloads, headers, or possibly sensitive source text.
-    if (error instanceof LlmFailure) throw error;
-    throw new LlmFailure("AI 제공자 요청에 실패했습니다. 인증·네트워크·모델 설정을 확인해 주세요.");
+    throw providerFailure(error);
   }
 };
 
@@ -74,23 +94,49 @@ const requestJSON: JsonRequest = async (system, user, options) => {
 export async function completeJSONWith<T>(
   request: JsonRequest, system: string, user: string, schema: z.ZodType<T>, options: JsonOptions = {},
 ): Promise<T> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const instruction = attempt === 0 ? system : `${system}\n이전 응답이 형식 검증에 실패했습니다. 지정된 스키마에 맞는 JSON 객체만 출력하세요. 설명이나 코드 펜스는 넣지 마세요.`;
-    const raw = await request(instruction, user, options);
-    try {
-      return schema.parse(JSON.parse(raw));
-    } catch {
-      if (attempt === 1) throw new LlmFailure("AI JSON 응답이 두 번 연속 검증에 실패했습니다.");
-    }
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxOutputTokens = options.maxOutputTokens ?? MAX_TOKENS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new LlmFailure("AI 요청 제한 설정이 올바르지 않습니다.");
   }
-  throw new LlmFailure();
+  const controller = new AbortController();
+  const deadline = Date.now() + timeoutMs;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요."));
+    }, timeoutMs);
+  });
+  const run = async (): Promise<T> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0 || controller.signal.aborted) throw new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.");
+      const instruction = attempt === 0 ? system : `${system}\n이전 응답이 형식 또는 근거 검증에 실패했습니다. 인용은 입력의 원문과 정확히 일치해야 합니다. 모든 제약을 다시 확인하고 지정된 스키마에 맞는 JSON 객체만 출력하세요. 설명이나 코드 펜스는 넣지 마세요.`;
+      const raw = await request(instruction, user, {
+        ...options, maxOutputTokens: Math.min(MAX_TOKENS, maxOutputTokens),
+        timeoutMs: remainingMs, signal: controller.signal,
+      });
+      try {
+        return schema.parse(JSON.parse(raw));
+      } catch {
+        if (attempt === 1) throw new LlmFailure("AI JSON 응답이 두 번 연속 검증에 실패했습니다.");
+      }
+    }
+    throw new LlmFailure();
+  };
+  try {
+    return await Promise.race([run(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function completeJSON<T>(system: string, user: string, schema: z.ZodType<T>, options: JsonOptions = {}): Promise<T> {
   return completeJSONWith(requestJSON, system, user, schema, options);
 }
 
-/** Tutor output alone is streamed as text, as specified by P6. */
+/** Low-level text streaming; the tutor uses validated JSON before emitting its public events. */
 export async function* streamText(system: string, user: string): AsyncIterable<string> {
   try {
     if (providerName() === "openai") {

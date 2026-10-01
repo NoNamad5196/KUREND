@@ -35,25 +35,21 @@ test("live P1 asks for paragraph indexes and converts them to the correct source
     sources.map(({ sourceId }) => ({ sourceId, startOffset: 0, endOffset: 400 })));
 });
 
-test("live P3 doubt does not disclose source content or analysis reason to the response model", async () => {
+test("live P3 doubt uses one call and never discloses source facts", async () => {
   let calls = 0;
-  const model = createLiveLlm(provider((input) => {
+  const model = createLiveLlm(provider(() => {
     calls += 1;
-    if (calls === 1) return {
-      heardConcepts: ["수요량"], coveredObjectives: [],
-      contradictions: [{ claim: "가격이 오르면 수요량도 늘어", why: "원문_전용_정답은 반대" }],
+    return {
+      concepts: [{ name: "수요량", quote: "수요량" }], coverage: [], reactionQuote: "",
+      contradictions: [{ claim: "가격이 오르면 수요량도 늘어" }],
     };
-    assert.ok(!JSON.stringify(input).includes("원문_전용_정답"));
-    assert.ok(!JSON.stringify(input).includes('"why"'));
-    assert.ok(!("chapter" in input));
-    return { doubt: input.allowedDoubt };
   }));
   const events = await collect(model.juniorTurn({
     chapter: { title: "수요", points: ["수요량"], text: "원문_전용_정답: 가격이 오르면 수요량은 감소한다." },
     level: "EASY", objectives: [{ id: "o1", text: "수요 설명" }], heardConcepts: ["이미 들은 개념"], history: [],
     explanation: "가격이 오르면 수요량도 늘어",
   }));
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
   assert.deepEqual(events.map((event) => event.type), ["concepts", "doubt"]);
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["이미 들은 개념"], added: [] });
   assert.ok(!JSON.stringify(events).includes("감소한다"));
@@ -63,7 +59,7 @@ test("live P4 request contains only question, taught messages and heard concepts
   const model = createLiveLlm(provider((input) => {
     assert.deepEqual(Object.keys(input).sort(), ["heardConcepts", "question", "taught"]);
     assert.ok(!JSON.stringify(input).includes("DO_NOT_LEAK"));
-    return { thought: "들은 설명을 떠올려 보자.", sentences: [{ text: "가격이 오르면 수요량은 줄어듭니다.", ref: 2, level: "STRONG" }], unlearned: false };
+    return { thought: "들은 설명을 떠올려 보자.", sentences: [{ quote: "가격이 오르면 수요량은 줄어.", ref: 2, level: "STRONG" }], unlearned: false };
   }));
   const input = {
     question: "수요 법칙을 설명하세요.", taught: [{ ref: 2, content: "가격이 오르면 수요량은 줄어." }], heardConcepts: ["수요량"],
@@ -100,13 +96,21 @@ test("live P5 derives score from rubric checks and verifies quoted source/eviden
 });
 
 test("live P6 token chunks and final response preserve the same Unicode text", async () => {
-  const calls = provider(() => { throw new Error("Unexpected JSON API call"); });
-  calls.streamText = async function* () { yield "쉽게 "; yield "😀 설명"; yield "합니다."; };
+  const source = "다른 조건이 같을 때 가격이 오르면 수요량은 줄어든다.";
+  const calls = provider(() => ({
+    opening: "😀 가격과 수요량의 관계를 함께 살펴보겠습니다.",
+    explanation: { text: "가격이 오르면 수요량은 줄어듭니다.", sourceQuote: source },
+    clarification: { text: "이 관계에서는 다른 조건이 같다는 가정이 필요합니다.", sourceQuote: source },
+    analogy: "간식값이 오르면 사려던 개수를 줄이는 상황을 떠올리면 됩니다.",
+    takeaway: "다른 조건이 같으면 가격과 수요량은 반대로 움직입니다.",
+  }));
   const events = await collect(createLiveLlm(calls).tutorExplain({
-    chapter: { title: "개념", points: ["사례"], text: "자료 발췌" },
-    gap: { title: "개념", diagnosis: "설명 없음", sourceExcerpt: "자료 발췌" }, request: "설명해줘",
+    chapter: { title: "수요 법칙", points: ["수요량"], text: source },
+    gap: { title: "수요 법칙", diagnosis: "가격과 수요량의 관계가 잘못되었습니다.", sourceExcerpt: source }, request: "설명해줘",
   }));
   const joined = events.filter((event) => event.type === "token").map((event) => event.token).join("");
-  assert.equal(joined, "쉽게 😀 설명합니다.");
+  assert.ok(events.some((event) => event.type === "token" && event.token === "😀"));
+  assert.equal(joined.split(/(?<=[.!?])\s+/u).length, 5);
+  assert.match(joined, /이것만 기억하면 됩니다: 다른 조건이 같으면 가격과 수요량은 반대로 움직입니다\.$/u);
   assert.deepEqual(events.at(-1), { type: "final", response: joined });
 });

@@ -9,6 +9,7 @@ export const GRADE_EXAM_PROMPT = `당신은 한국어 강의자료를 근거로 
 채점 규칙:
 - qid는 question.qid와 완전히 같습니다.
 - rubricChecks는 rubricElements와 길이 및 순서가 정확히 같은 boolean 배열입니다. 답안이 해당 필수 요소를 자료와 일치하게 충분히 설명했을 때만 true입니다. 단순 용어 언급이나 질문 재진술은 충족이 아닙니다.
+- 답안이 '이 부분은 선배한테 못 들어서 모르겠습니다.'이면 rubricChecks는 전부 false, contradictsSource=false, score=0, verdict=WRONG입니다. 모른다는 말은 자료에 대한 틀린 주장이 아닙니다.
 - rubricElements를 추가, 삭제, 분리하거나 다른 기준으로 바꾸지 마세요. 배열이 2개면 boolean도 2개, 3개면 3개입니다.
 - contradictsSource는 답안이 chapter.text에 명시된 사실과 정반대이거나 동일 대상의 수치를 명백히 틀리게 말한 경우에만 true입니다. 누락이나 자료에 없는 보충 설명만으로 true로 만들지 마세요.
 - 기본 score는 충족한 요소 수 / rubricElements.length * question.points를 가장 가까운 정수로 반올림한 값입니다. 자료에 없는 서술은 가점도 감점도 하지 마세요.

@@ -40,3 +40,31 @@ test("transport failures are not mistaken for JSON repair requests", async () =>
   }, "", "", z.object({})), (error) => error === failure);
   assert.equal(attempts, 1);
 });
+
+test("a stalled provider is aborted within the total request budget without a retry", async () => {
+  let attempts = 0;
+  let signal: AbortSignal | undefined;
+  await assert.rejects(completeJSONWith(async (_system, _user, options) => {
+    attempts += 1;
+    signal = options.signal;
+    return new Promise<string>(() => {});
+  }, "", "", z.object({}), { timeoutMs: 30 }), /대기 시간을 초과/);
+  assert.equal(attempts, 1);
+  assert.equal(signal?.aborted, true);
+});
+
+test("JSON repair shares the original deadline and caps generated tokens", async () => {
+  const budgets: number[] = [];
+  const result = await completeJSONWith(async (_system, _user, options) => {
+    budgets.push(options.timeoutMs!);
+    assert.equal(options.maxOutputTokens, 1_500);
+    if (budgets.length === 1) {
+      await new Promise(resolve => setTimeout(resolve, 30));
+      return "invalid";
+    }
+    return '{"count":3}';
+  }, "", "", z.object({ count: z.number() }), { timeoutMs: 1_000, maxOutputTokens: 2_000 });
+  assert.deepEqual(result, { count: 3 });
+  assert.equal(budgets.length, 2);
+  assert.ok(budgets[1] < budgets[0]);
+});
