@@ -213,7 +213,8 @@ export const ExamQuestionSchema = z.object({
   order: z.number().int(),
   points: z.number().int(),
   question: z.string(),
-  objectiveRef: z.string(),
+  objectiveRef: z.string(),  /** [게임 확장 additive] 객관식 보기 4개 (OBJECTIVE 시험만) */
+  choices: z.array(z.string()).optional(),
 });
 export type ExamQuestionDto = z.infer<typeof ExamQuestionSchema>;
 
@@ -332,6 +333,8 @@ export const ResultItemSchema = z.object({
   answer: z.string(),
   sentences: z.array(AnswerSentenceSchema),
   grade: GradeSchema,
+  /** [게임 확장 additive] 객관식 보기 4개 (OBJECTIVE 시험만) */
+  choices: z.array(z.string()).optional(),
 });
 export type ResultItemDto = z.infer<typeof ResultItemSchema>;
 

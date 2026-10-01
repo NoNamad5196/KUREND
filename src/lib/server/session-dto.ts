@@ -23,6 +23,13 @@ import { finalVerdictFor, stageLabelFor } from "@/contracts/types";
 import { Prisma } from "@/lib/server/db";
 import { parseObjectives, parseSentences, parseStringArray } from "@/lib/server/json-fields";
 
+/** [게임 확장] ExamQuestion.choicesJson → choices (객관식만; 없으면 필드 생략) */
+export function parseChoices(raw: string | null | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const arr = parseStringArray(raw);
+  return arr.length ? arr : undefined;
+}
+
 export const sessionInclude = {
   chapter: { include: { material: { select: { id: true, title: true, courseName: true } } } },
   messages: { orderBy: { createdAt: "asc" } },
@@ -67,6 +74,7 @@ export function toExamDto(exam: SessionWithRelations["exam"]): ExamDto | null {
       points: q.points,
       question: q.question,
       objectiveRef: q.objectiveRef,
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
     })),
     answers: exam.answers.map((a) => ({ qid: a.qid, answer: a.answer })),
   };
@@ -157,6 +165,7 @@ export function toResultDto(s: SessionWithRelations): ResultDto {
       grade: g
         ? { score: g.score, maxScore: g.maxScore, verdict: g.verdict as GradeVerdict, comment: g.comment }
         : { score: 0, maxScore: q.points, verdict: "WRONG", comment: "채점 결과가 없습니다." },
+      ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
     };
   });
 
