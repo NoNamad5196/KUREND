@@ -1,0 +1,97 @@
+{
+  "title": "프로세스 스케줄링",
+  "courseName": "운영체제",
+  "fileName": "operating-systems.md",
+  "sourceId": "src_d_os",
+  "sourceSha256": "fd73af41bd133c1e19c0b3e90922d9aa96ff77d2811cbec66be836d90a6345c7",
+  "chapters": [
+    {
+      "title": "스케줄링의 출발점",
+      "points": [
+        "CPU 스케줄링",
+        "선점과 비선점",
+        "문맥 교환"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 0,
+      "endOffset": 1203
+    },
+    {
+      "title": "성능을 비교하는 지표",
+      "points": [
+        "이용률과 처리량",
+        "반환·대기·응답",
+        "목표와 절충"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 1203,
+      "endOffset": 2093
+    },
+    {
+      "title": "FCFS와 호위 효과",
+      "points": [
+        "도착 순서",
+        "호위 효과",
+        "비선점 실행"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 2093,
+      "endOffset": 2990
+    },
+    {
+      "title": "SJF와 실행 시간 예측",
+      "points": [
+        "짧은 작업 우선",
+        "버스트 예측",
+        "기아 가능성"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 2990,
+      "endOffset": 3891
+    },
+    {
+      "title": "라운드 로빈과 시간 할당량",
+      "points": [
+        "시간 할당량",
+        "응답과 전환 비용",
+        "순환 실행"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 3891,
+      "endOffset": 4768
+    },
+    {
+      "title": "우선순위와 기아 방지",
+      "points": [
+        "우선순위",
+        "에이징",
+        "기아와 교착"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 4768,
+      "endOffset": 5624
+    },
+    {
+      "title": "다단계 큐와 피드백",
+      "points": [
+        "다단계 큐",
+        "행동 피드백",
+        "승격과 강등"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 5624,
+      "endOffset": 6466
+    },
+    {
+      "title": "실험과 설명의 점검",
+      "points": [
+        "동일 조건 비교",
+        "실행 기록 검증",
+        "정책 설명"
+      ],
+      "sourceId": "src_d_os",
+      "startOffset": 6466,
+      "endOffset": 7310
+    }
+  ]
+}

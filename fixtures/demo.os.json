@@ -1,0 +1,246 @@
+{
+  "chapterIndex": 0,
+  "prepare": {
+    "objectives": [
+      {
+        "id": "o1",
+        "text": "CPU 스케줄링을 설명할 수 있다"
+      },
+      {
+        "id": "o2",
+        "text": "선점과 비선점을 설명할 수 있다"
+      },
+      {
+        "id": "o3",
+        "text": "문맥 교환을 설명할 수 있다"
+      }
+    ],
+    "questions": [
+      {
+        "qid": "q1",
+        "order": 1,
+        "points": 34,
+        "question": "CPU 스케줄링은 어떤 상태의 프로세스 중 무엇을 선택하는 일인지 설명하세요.",
+        "objectiveRef": "o1",
+        "rubric": "준비 큐의 프로세스가 후보;다음 CPU 실행 대상을 선택"
+      },
+      {
+        "qid": "q2",
+        "order": 2,
+        "points": 33,
+        "question": "선점형과 비선점형 스케줄링에서 실행 중인 프로세스의 CPU를 회수하는 조건을 비교하세요.",
+        "objectiveRef": "o2",
+        "rubric": "선점형은 실행 중 CPU를 회수 가능;비선점형은 종료 또는 자발적 대기를 기다림"
+      },
+      {
+        "qid": "q3",
+        "order": 3,
+        "points": 33,
+        "question": "문맥 교환 때 디스패처가 하는 일과 문맥 교환 비용을 설명하세요.",
+        "objectiveRef": "o3",
+        "rubric": "이전 실행 문맥 저장;다음 실행 문맥 복구;전환 시간은 유용한 사용자 계산이 아님"
+      }
+    ],
+    "firstQuestion": "선배, CPU 스케줄링부터 알려줄래?"
+  },
+  "wrongExplanation": "비선점형에서는 운영체제가 실행 중인 프로세스의 CPU를 강제로 빼앗을 수 있어.",
+  "correctedExplanation": "CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이야. 준비 상태는 CPU만 받으면 실행할 수 있는 상태야.",
+  "taught": [
+    {
+      "ref": 1,
+      "content": "비선점형에서는 운영체제가 실행 중인 프로세스의 CPU를 강제로 빼앗을 수 있어."
+    },
+    {
+      "ref": 2,
+      "content": "CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이야. 준비 상태는 CPU만 받으면 실행할 수 있는 상태야."
+    },
+    {
+      "ref": 3,
+      "content": "선점형에서는 실행 중인 프로세스의 CPU를 운영체제가 회수할 수 있어. 비선점형에서는 프로세스가 종료하거나 스스로 대기 상태로 들어갈 때까지 기다려."
+    }
+  ],
+  "heardConcepts": [
+    "CPU 스케줄링",
+    "선점과 비선점"
+  ],
+  "turns": {
+    "doubt": {
+      "explanation": "비선점형에서는 운영체제가 실행 중인 프로세스의 CPU를 강제로 빼앗을 수 있어.",
+      "events": [
+        {
+          "type": "concepts",
+          "heardConcepts": [],
+          "added": []
+        },
+        {
+          "type": "doubt",
+          "content": "어? 비선점형인데 실행 중에 강제로 빼앗는다고? 한 번만 더 설명해줄래?"
+        }
+      ]
+    },
+    "reaction": {
+      "explanation": "CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이야. 준비 상태는 CPU만 받으면 실행할 수 있는 상태야.",
+      "events": [
+        {
+          "type": "concepts",
+          "heardConcepts": [
+            "CPU 스케줄링"
+          ],
+          "added": [
+            "CPU 스케줄링"
+          ]
+        },
+        {
+          "type": "reaction",
+          "content": "응응, 지금 설명해 준 내용을 기억할게."
+        },
+        {
+          "type": "question",
+          "content": "선배, 선점과 비선점도 설명해줄래?",
+          "coveredObjectives": [
+            "o1"
+          ]
+        }
+      ]
+    }
+  },
+  "answers": [
+    {
+      "qid": "q1",
+      "answer": "“CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이야. 준비 상태는 CPU만 받으면 실행할 수 있는 상태야.”라고 배웠습니다.",
+      "sentences": [
+        {
+          "text": "“CPU 스케줄링은 준비 큐에 있는 프로세스 중 다음에 CPU를 사용할 프로세스를 선택하는 일이야. 준비 상태는 CPU만 받으면 실행할 수 있는 상태야.”라고 배웠습니다.",
+          "ref": 2,
+          "level": "STRONG",
+          "unlearned": false
+        }
+      ]
+    },
+    {
+      "qid": "q2",
+      "answer": "“선점형에서는 실행 중인 프로세스의 CPU를 운영체제가 회수할 수 있어. 비선점형에서는 프로세스가 종료하거나 스스로 대기 상태로 들어갈 때까지 기다려.”라고 배웠습니다.",
+      "sentences": [
+        {
+          "text": "“선점형에서는 실행 중인 프로세스의 CPU를 운영체제가 회수할 수 있어. 비선점형에서는 프로세스가 종료하거나 스스로 대기 상태로 들어갈 때까지 기다려.”라고 배웠습니다.",
+          "ref": 3,
+          "level": "STRONG",
+          "unlearned": false
+        }
+      ]
+    },
+    {
+      "qid": "q3",
+      "answer": "이 부분은 선배한테 못 들어서 모르겠습니다.",
+      "sentences": [
+        {
+          "text": "이 부분은 선배한테 못 들어서 모르겠습니다.",
+          "ref": null,
+          "level": "NONE",
+          "unlearned": true
+        }
+      ]
+    }
+  ],
+  "grades": [
+    {
+      "type": "grade",
+      "qid": "q1",
+      "score": 34,
+      "maxScore": 34,
+      "verdict": "CORRECT",
+      "comment": "자료의 채점 요소를 모두 설명했습니다."
+    },
+    {
+      "type": "grade",
+      "qid": "q2",
+      "score": 33,
+      "maxScore": 33,
+      "verdict": "CORRECT",
+      "comment": "자료의 채점 요소를 모두 설명했습니다."
+    },
+    {
+      "type": "grade",
+      "qid": "q3",
+      "score": 0,
+      "maxScore": 33,
+      "verdict": "WRONG",
+      "comment": "이 문항은 설명에서 다루지 않아 답하지 못했습니다."
+    }
+  ],
+  "expectedTotalScore": 67,
+  "expectedFinalVerdict": "NEEDS_WORK",
+  "rubricChecks": [
+    {
+      "qid": "q1",
+      "questionPatterns": [
+        "CPU 스케줄링.*상태",
+        "준비 큐.*선택"
+      ],
+      "checks": [
+        {
+          "label": "준비 큐의 프로세스가 후보",
+          "patterns": [
+            "준비.{0,4}(큐|상태)"
+          ]
+        },
+        {
+          "label": "다음 CPU 실행 대상을 선택",
+          "patterns": [
+            "CPU.{0,20}(선택|고르|고른)",
+            "다음.{0,20}(선택|고르|고른)"
+          ]
+        }
+      ]
+    },
+    {
+      "qid": "q2",
+      "questionPatterns": [
+        "선점형과 비선점형",
+        "선점.*비선점.*비교"
+      ],
+      "checks": [
+        {
+          "label": "선점형은 실행 중 CPU를 회수 가능",
+          "patterns": [
+            "(^|[ .。“\"\\n])선점.{0,45}(회수|빼앗|중단|뺏).{0,10}(수|가능)"
+          ]
+        },
+        {
+          "label": "비선점형은 종료 또는 자발적 대기를 기다림",
+          "patterns": [
+            "비선점.{0,60}(종료|대기).{0,25}(기다|때까지|계속)"
+          ]
+        }
+      ]
+    },
+    {
+      "qid": "q3",
+      "questionPatterns": [
+        "문맥 교환",
+        "디스패처"
+      ],
+      "checks": [
+        {
+          "label": "이전 실행 문맥 저장",
+          "patterns": [
+            "(이전|현재|기존).{0,12}(문맥|레지스터).{0,8}저장"
+          ]
+        },
+        {
+          "label": "다음 실행 문맥 복구",
+          "patterns": [
+            "다음.{0,20}(문맥|레지스터|카운터).{0,12}(복구|복원)"
+          ]
+        },
+        {
+          "label": "전환은 사용자 계산이 아님",
+          "patterns": [
+            "(전환|교환).{0,25}(계산|실행).{0,12}(늘지|아니|하지|못)",
+            "문맥 교환.{0,12}(비용|오버헤드)"
+          ]
+        }
+      ]
+    }
+  ]
+}
