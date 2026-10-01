@@ -15,8 +15,14 @@ services:
         value: "1"
       - key: DATABASE_URL
         value: file:./prisma/dev.db
+      # 실제 AI: Render 대시보드 > Environment 에 OPENAI_API_KEY 를 비밀값으로 넣는다(yaml 에는 절대 쓰지 않음).
+      # 키가 없으면 LLM_PROVIDER 를 stub 으로 되돌려야 서비스가 동작한다.
       - key: LLM_PROVIDER
-        value: stub
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-6.1-sol
+      - key: OPENAI_API_KEY
+        sync: false
       - key: D_STUB_BACKEND
         value: "0"
       - key: NEXT_PUBLIC_API_BASE

@@ -13,7 +13,8 @@ import { AnswerSheet } from "../AnswerSheet";
 import { ReportCard } from "../ReportCard";
 import { GradeBox, GradeVerdictChip } from "../verdict";
 import { PageError, PageLoading, stream, useResultData, useTask } from "./shared";
-import type { ApplyLifeResponse, RunDto } from "@/contracts/game";
+import type { ApplyLifeResponse, RunDto, WrongNoteDto } from "@/contracts/game";
+import Link from "next/link";
 import { gameApi } from "@/lib/client/game-api";
 import { ResultOverlay } from "@/components/game/ResultOverlay";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
@@ -35,8 +36,19 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const [grading, setGrading] = useState<string | null>(null);
   const [gaps, setGaps] = useState<GapDto[]>([]);
   const { run: juniorRun, reload: reloadGame } = useSessionGame(session.sessionId);
+  const juniorRunRef = useRef<RunDto | null>(null);
+  juniorRunRef.current = juniorRun;
   const [overlay, setOverlay] = useState<{ result: ApplyLifeResponse; run: RunDto } | null>(null);
   const initiated = useRef(false);
+  // 오답노트: 결과 조회 시 서버가 틀린 문항을 자동 저장한다 → 이 세션의 노트를 불러와 문항별 링크로 붙인다
+  const [wrongNotes, setWrongNotes] = useState<WrongNoteDto[]>([]);
+  const hasResult = !!data.result;
+  useEffect(() => {
+    if (!hasResult) return;
+    let alive = true;
+    gameApi.listWrongNotes(session.material.materialId).then((ns) => { if (alive) setWrongNotes(ns.filter((n) => n.sessionId === session.sessionId)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [hasResult, session.material.materialId, session.sessionId]);
   const answerSheet = useRef<HTMLDivElement>(null);
   const result = data.result;
   const questions = [...(session.exam?.questions ?? [])].sort((a, b) => a.order - b.order);
@@ -59,10 +71,12 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
         if (!receivedResult) throw new Error("채점 결과를 확인하지 못했어요. 다시 확인해 주세요.");
         setEvaluated(true);
         // 게임: 결과가 저장된 뒤 LIFE 판정(서버가 session.score 로 계산). Run 이 없으면 연습 모드.
-        const game = await gameApi.getSessionGame(session.sessionId).catch(() => null);
-        if (game?.run && !signal.aborted) {
-          const applied = await gameApi.applyLife(game.run.runId, session.sessionId).catch(() => null);
-          if (applied?.applied && !signal.aborted) setOverlay({ result: applied, run: game.run });
+        const retry = <T,>(work: () => Promise<T>) => work().catch(() => new Promise((r) => setTimeout(r, 1200)).then(work));
+        const game = await retry(() => gameApi.getSessionGame(session.sessionId)).catch(() => null);
+        const runForLife = game?.run ?? juniorRunRef.current;
+        if (runForLife && !signal.aborted) {
+          const applied = await retry(() => gameApi.applyLife(runForLife.runId, session.sessionId)).catch(() => null);
+          if (applied?.applied && !signal.aborted) setOverlay({ result: applied, run: runForLife });
           void reloadGame();
         }
       });
@@ -85,6 +99,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
       <div className="min-w-0 space-y-5">
         <div className="flex justify-center"><Mascot state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={120} /></div>
         <SpeechBubble speaker="새내기" tail="top">배운 건 다 썼어. 못 쓴 데는 아직 못 들은 부분이야.</SpeechBubble>
+        {wrongNotes.length > 0 && <Card className="kurend-pop border-accent bg-accent-soft p-4"><p className="text-sm font-bold">✎ 틀린 문항 {wrongNotes.length}개가 오답노트에 저장됐어요</p><p className="mt-1 text-xs text-muted">왜 틀렸는지 먼저 써 보면 AI 분석이 열려요.</p><Link href={`/wrong-notes/${encodeURIComponent(wrongNotes[0].wrongNoteId)}`} className="mt-2 inline-block text-sm font-bold text-primary hover:underline">오답노트 쓰러 가기 →</Link></Card>}
         <div className="flex flex-col gap-3">
           {result.gaps.length > 0 && <Button size="lg" onClick={() => router.push(`/session/${encodeURIComponent(session.sessionId)}/review`)}>왜 틀렸는지 보기 →</Button>}
           <Button size="lg" variant={result.gaps.length ? "secondary" : "primary"} loading={busy} onClick={complete}>{result.gaps.some((gap) => gap.status !== "REVIEWED") ? "놓친 곳 남기고 끝내기" : "학습 마치기 →"}</Button>
@@ -107,7 +122,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
       <AnswerSheet courseName={session.material.courseName} instant items={questions.map((question) => {
         const item = result?.items.find((value) => value.qid === question.qid);
         const grade = item?.grade ?? grades[question.qid];
-        return { ...question, text: item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer ?? "", status: "done", unlearned: item?.sentences.some((sentence) => sentence.unlearned), badge: grade ? <GradeVerdictChip verdict={grade.verdict} /> : <Chip tone="muted">채점 전</Chip>, extra: <GradeBox grade={grade ?? null} state={grade ? "done" : grading === question.qid ? "grading" : "pending"} /> };
+        return { ...question, text: item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer ?? "", status: "done", unlearned: item?.sentences.some((sentence) => sentence.unlearned), badge: grade ? <GradeVerdictChip verdict={grade.verdict} /> : <Chip tone="muted">채점 전</Chip>, extra: <><GradeBox grade={grade ?? null} state={grade ? "done" : grading === question.qid ? "grading" : "pending"} />{(() => { const note = wrongNotes.find((n) => n.qid === question.qid); return note ? <Link href={`/wrong-notes/${encodeURIComponent(note.wrongNoteId)}`} className="mt-2 inline-flex items-center gap-1 font-sans text-sm font-bold text-primary hover:underline">✎ 오답노트{note.userReason ? " 보기" : "에 이유 쓰기"} →</Link> : null; })()}</> };
       })} />
     </div>
     {(result?.gaps ?? gaps).length > 0 && <Card className="p-5"><h2 className="font-bold">놓친 곳 · {(result?.gaps ?? gaps).length}군데</h2><ol className="mt-4 space-y-3">{(result?.gaps ?? gaps).map((gap, index) => <li key={gap.gapId} className="flex flex-wrap items-center gap-3 text-sm"><span className="text-muted tabular-nums">{index + 1}.</span><span className="min-w-0 break-words">{gap.title}</span><Chip tone={gap.status === "REVIEWED" ? "ok" : "warn"}>{gap.status === "REVIEWED" ? "되짚기 완료" : "확인 필요"}</Chip></li>)}</ol></Card>}

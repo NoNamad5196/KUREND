@@ -30,6 +30,15 @@ export function providerName(): Provider {
   return name;
 }
 
+/**
+ * OpenAI 모델별 생성 파라미터. gpt-5·gpt-6 계열(및 o-시리즈)은 temperature 변경과 max_tokens 를 거부하므로
+ * (Only the default (1) value is supported / Use max_completion_tokens) 모델명으로 분기한다.
+ */
+function openaiGenerationParams(model: string, temperature: number, maxTokens: number): Record<string, number> {
+  const legacy = /^(gpt-4|gpt-3|chatgpt-4o)/.test(model);
+  return legacy ? { temperature, max_tokens: maxTokens } : { max_completion_tokens: maxTokens };
+}
+
 function openai() {
   if (!process.env.OPENAI_API_KEY) throw new LlmFailure("OPENAI_API_KEY가 설정되지 않았습니다.");
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
@@ -65,8 +74,7 @@ const requestJSON: JsonRequest = async (system, user, options) => {
         model: process.env.LLM_MODEL || "gpt-4.1-mini",
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
         response_format: { type: "json_object" },
-        temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxOutputTokens ?? MAX_TOKENS,
+        ...openaiGenerationParams(process.env.LLM_MODEL || "gpt-4.1-mini", options.temperature ?? 0.2, options.maxOutputTokens ?? MAX_TOKENS),
       }, requestOptions);
       if (response.choices[0]?.finish_reason === "length") throw new LlmFailure("AI 응답이 길이 제한에 도달했습니다.");
       return response.choices[0]?.message.content ?? "";
@@ -143,8 +151,7 @@ export async function* streamText(system: string, user: string): AsyncIterable<s
       const stream = await openai().chat.completions.create({
         model: process.env.LLM_MODEL || "gpt-4.1-mini",
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
-        max_tokens: MAX_TOKENS,
-        temperature: 0.3,
+        ...openaiGenerationParams(process.env.LLM_MODEL || "gpt-4.1-mini", 0.3, MAX_TOKENS),
         stream: true,
       });
       for await (const event of stream) {
