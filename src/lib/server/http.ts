@@ -7,7 +7,11 @@
  */
 import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
-import type { ApiErrorCode } from "@/contracts/types";
+import type { GameErrorCode } from "@/contracts/game";
+import type { ApiErrorCode as FrozenApiErrorCode } from "@/contracts/types";
+
+/** FROZEN 오류 코드 + 게임 확장 코드(RUN_ACTIVE·NOT_READY·NO_RUN) */
+export type ApiErrorCode = FrozenApiErrorCode | GameErrorCode;
 
 export const ERROR_STATUS: Record<ApiErrorCode, number> = {
   NOT_FOUND: 404,
@@ -16,6 +20,9 @@ export const ERROR_STATUS: Record<ApiErrorCode, number> = {
   UNAUTHORIZED: 401,
   VALIDATION: 400,
   LLM_FAILED: 502,
+  RUN_ACTIVE: 409,
+  NOT_READY: 409,
+  NO_RUN: 404,
 };
 
 export class ApiError extends Error {

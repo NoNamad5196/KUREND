@@ -99,6 +99,14 @@ function stamp(base: Date, i: number, stepMs = 60_000): Date {
 
 /* ───────── 메인 ───────── */
 async function wipe() {
+  // [게임 확장] 게임 테이블 먼저
+  await db.wrongNote.deleteMany();
+  await db.teacherNote.deleteMany();
+  await db.conceptMastery.deleteMany();
+  await db.lifeEvent.deleteMany();
+  await db.chapterProgress.deleteMany();
+  await db.session.updateMany({ data: { runId: null } });
+  await db.juniorRun.deleteMany();
   await db.tutorMessage.deleteMany();
   await db.gap.deleteMany();
   await db.grade.deleteMany();

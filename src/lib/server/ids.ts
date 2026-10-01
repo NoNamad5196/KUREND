@@ -4,7 +4,7 @@ import { customAlphabet } from "nanoid";
 const alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const nano = customAlphabet(alphabet, 14);
 
-export type IdPrefix = "usr" | "mat" | "src" | "chp" | "sess" | "msg" | "exam" | "gap" | "tm";
+export type IdPrefix = "usr" | "mat" | "src" | "chp" | "sess" | "msg" | "exam" | "gap" | "tm" | "run" | "lev" | "tn" | "wn";
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${nano()}`;

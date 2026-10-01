@@ -12,25 +12,28 @@ datasource db {
 }
 
 model User {
-  id        String   @id // usr_
-  nickname  String
-  createdAt DateTime @default(now())
-  materials Material[]
-  sessions  Session[]
+  id         String      @id // usr_
+  nickname   String
+  createdAt  DateTime    @default(now())
+  materials  Material[]
+  sessions   Session[]
+  runs       JuniorRun[] // [게임 확장] 관계 필드만(컬럼 없음)
+  wrongNotes WrongNote[]
 }
 
 model Material {
-  id         String    @id // mat_
+  id         String      @id // mat_
   userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
   courseName String // 캠퍼스 변주: 과목명 (예: "운영체제")
   examDate   DateTime? // 시험일 → 홈에서 D-day
   title      String // LLM이 지은 자료 제목 (생성 전엔 "새 자료")
-  status     String    @default("PENDING") // PENDING | READY | FAILED
+  status     String      @default("PENDING") // PENDING | READY | FAILED
   error      String?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime    @default(now())
   sources    Source[]
   chapters   Chapter[]
+  runs       JuniorRun[] // [게임 확장] 관계 필드만(컬럼 없음)
 }
 
 model Source {
@@ -45,19 +48,21 @@ model Source {
 }
 
 model Chapter {
-  id          String    @id // chp_
+  id          String            @id // chp_
   materialId  String
-  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  material    Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
   order       Int
   title       String
   pointsJson  String // string[] JSON (핵심 포인트 2~4개)
   sourceId    String
-  source      Source    @relation(fields: [sourceId], references: [id])
+  source      Source            @relation(fields: [sourceId], references: [id])
   startOffset Int // source.text 내 char 범위
   endOffset   Int
   taughtAt    DateTime? // 첫 COMPLETED 세션 시각 ("가르침")
   stableAt    DateTime? // 놓친 곳 0으로 COMPLETED 시각 ("안정")
   sessions    Session[]
+  progress    ChapterProgress[] // [게임 확장] 관계 필드만
+  teacherNote TeacherNote?
 }
 
 model Session {
@@ -77,6 +82,10 @@ model Session {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   completedAt    DateTime?
+  runId          String? // [게임 확장 additive] 연결된 후배 Run (null = 연습 모드)
+  run            JuniorRun?     @relation(fields: [runId], references: [id], onDelete: SetNull)
+  kind           String         @default("CHAPTER") // [게임 확장 additive] CHAPTER | FINAL(P1 졸업시험)
+  wrongNotes     WrongNote[]
   messages       Message[]
   exam           Exam?
   gaps           Gap[]
@@ -99,6 +108,7 @@ model Exam {
   sessionId String         @unique
   session   Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   status    String         @default("READY") // READY | IN_PROGRESS | EVALUATING | GRADED
+  format    String         @default("DESCRIPTIVE") // [게임 확장 additive] DESCRIPTIVE | OBJECTIVE
   createdAt DateTime       @default(now())
   questions ExamQuestion[]
   answers   ExamAnswer[]
@@ -106,15 +116,16 @@ model Exam {
 }
 
 model ExamQuestion {
-  id           String @id // 전역 id는 `${examId}:${qid}`
+  id           String  @id // 전역 id는 `${examId}:${qid}`
   examId       String
-  exam         Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam         Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
   qid          String // q1
   order        Int
   points       Int // 34/33/33
   question     String
   objectiveRef String // o1 | o2 | o3
   rubric       String // 채점 기준 (사용자에게 비공개)
+  choicesJson  String? // [게임 확장 additive] 객관식 보기 4개 string[] JSON
 }
 
 model ExamAnswer {
@@ -163,4 +174,98 @@ model TutorMessage {
   request   String
   response  String
   createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// [① 게임 코어] 게임 확장 모델 (docs/game-expansion-plan.md §1-2). 위 FROZEN 모델에는 nullable/default 컬럼만 추가했다.
+// ─────────────────────────────────────────────────────────────
+
+model JuniorRun {
+  id          String            @id // run_
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  character   String // MALE_EASY | FEMALE_NORMAL | KU_HARD
+  lives       Int
+  maxLives    Int               @default(3)
+  status      String            @default("ACTIVE") // ACTIVE | GAME_OVER | GRADUATED
+  startedAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  endedAt     DateTime?
+  summaryJson String? // 졸업/게임오버 시점 통계 스냅샷 (GraduationSummaryDto)
+  progress    ChapterProgress[]
+  lifeEvents  LifeEvent[]
+  mastery     ConceptMastery[]
+  sessions    Session[]
+  wrongNotes  WrongNote[]
+
+  @@index([userId, materialId, status])
+}
+
+model ChapterProgress {
+  runId     String
+  run       JuniorRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  chapterId String
+  chapter   Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  attempts  Int       @default(0)
+  bestScore Int?
+  cleared   Boolean   @default(false)
+  clearedAt DateTime?
+
+  @@id([runId, chapterId])
+}
+
+model LifeEvent {
+  id          String    @id // lev_
+  runId       String
+  run         JuniorRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sessionId   String    @unique // 멱등 키: 세션당 1회만 LIFE 적용 (세션이 지워져도 기록은 남긴다)
+  chapterId   String
+  outcome     String // CLEAR | FAILED | PERFECT
+  delta       Int
+  livesBefore Int
+  livesAfter  Int
+  score       Int
+  passScore   Int
+  createdAt   DateTime  @default(now())
+}
+
+model ConceptMastery {
+  runId         String
+  run           JuniorRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  chapterId     String
+  concept       String
+  exposureCount Int       @default(0)
+  mastery       Int       @default(0) // 0~100
+  updatedAt     DateTime  @updatedAt
+
+  @@id([runId, chapterId, concept])
+}
+
+model TeacherNote {
+  id         String   @id // tn_
+  materialId String
+  chapterId  String   @unique
+  chapter    Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  noteJson   String // {mustTeach, keyTakeaways, confusing, likelyQuestions}
+  createdAt  DateTime @default(now())
+}
+
+model WrongNote {
+  id                 String     @id // wn_
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runId              String?
+  run                JuniorRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  sessionId          String
+  session            Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  qid                String
+  userReason         String
+  aiDiagnosis        String
+  aiComparison       String?
+  missedConceptsJson String     @default("[]")
+  createdAt          DateTime   @default(now())
+
+  @@unique([sessionId, qid])
 }
