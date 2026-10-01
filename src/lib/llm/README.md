@@ -22,7 +22,7 @@ Next.js는 `dev`/`build`/`start` 시 `.env`를 읽습니다. 같은 이름의 �
 
 | 실행 방식 | 필요한 설정 |
 |---|---|
-| D 단독 데모(기본값) | `LLM_PROVIDER=stub`, `D_STUB_BACKEND=1`; 키와 DB 불필요 |
+| D 단독 CLI 평가 | `LLM_PROVIDER=stub`; 키와 DB 불필요 |
 | OpenAI 평가 | `LLM_PROVIDER=openai`, `OPENAI_API_KEY`; `LLM_MODEL`은 선택 |
 | Anthropic 평가 | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`; `LLM_MODEL`은 선택 |
 | 실제 HTTP 서비스 | 위 모델 설정 + `D_STUB_BACKEND=0`, C의 Prisma DB·인증 어댑터 등록 |
@@ -86,18 +86,19 @@ stub 회귀 검증은 `LLM_PROVIDER=stub LLM_STUB_DELAY_MS=0 node --import tsx f
 구체적인 연결 코드는 [routes/INTEGRATION.md](./routes/INTEGRATION.md)를 참고하세요.
 등록되지 않은 일반 실행은 명시적으로 실패하므로 임시 DB나 인증으로 바뀌지 않습니다.
 
-현재 main의 `src/instrumentation.ts`가 C의 어댑터를 등록합니다. 실제 서비스 실행에는
-C의 DB 초기화 및 인증 흐름이 필요합니다. D만 독립적으로 검증할 때는 `.env`의
-`LLM_PROVIDER=stub`과 `D_STUB_BACKEND=1`을 사용합니다.
+현재 main의 `src/instrumentation.ts`가 C의 어댑터를 등록합니다. 등록된 어댑터는
+`D_STUB_BACKEND=1`보다 우선하므로 HTTP 실행에는 C의 DB 초기화 및 인증 흐름이
+필요합니다. `LLM_PROVIDER=stub`은 모델만 fixture로 바꿉니다. DB 없이 D만 검증할 때는
+위 CLI 평가와 라우트 테스트를 사용하세요.
 
 ```bash
 corepack pnpm@10.30.3 dev --hostname 127.0.0.1
 ```
 
-이 모드는 메모리 저장소와 `tb_uid=usr_demo1` 데모 쿠키를 사용합니다.
-프로세스를 재시작하면 데이터가 초기화됩니다. 실제 인증·영속 저장소 검증을
-대체하지 않으며, CRUD·화면 전체 검증은 실제 DB·인증 설정으로 별도 실행해야 합니다.
-운영 실행에서 `D_STUB_BACKEND`를 설정하지 마세요.
+DB 설정은 기존 저장소 문서를 따르며, seed는 데이터를 지우므로 사용자 DB에
+검증 목적으로 실행하지 마세요. 별도의 테스트 DB와 데모 로그인을 사용합니다.
+`D_STUB_BACKEND=1`의 메모리 저장소는 C 어댑터가 등록되지 않은 독립 실행에만
+해당하며, 통합 앱에서는 인증·영속 저장소를 대체하지 않습니다.
 
 ## 지켜야 하는 동작
 
