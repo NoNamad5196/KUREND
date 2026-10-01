@@ -1,0 +1,16 @@
+/* 로그인 화면 모션 */
+@keyframes kl-orbit { to { transform: rotate(360deg); } }
+@keyframes kl-counter { to { transform: rotate(-360deg); } }
+@keyframes kl-in { from { opacity: 0; transform: translateY(40px) scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes kl-card { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes kl-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.kl-orbit { position: absolute; inset: 0; animation: kl-orbit 28s linear infinite; }
+.kl-orbit > span { position: absolute; left: 50%; top: 50%; }
+.kl-orbit > span > span { display: inline-block; animation: kl-counter 28s linear infinite; }
+.kl-mascot { animation: kl-in .8s cubic-bezier(.2,.9,.3,1.3) both; }
+.kl-card { animation: kl-card .6s .15s cubic-bezier(.2,.8,.2,1) both; }
+.kl-float { animation: kl-float 4s ease-in-out infinite; }
+.kl-demo { transition: transform .15s, border-color .15s, background-color .15s; }
+.kl-demo:hover { transform: translateX(4px); }
+.kl-demo:hover .kl-go { transform: translateX(3px); }
+.kl-go { transition: transform .15s; }
