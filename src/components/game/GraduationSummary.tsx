@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button, Card } from "@/components/session/ui";
 import { CHARACTER_META } from "./characters";
 import { LifeHearts } from "./LifeHearts";
+import { withJosa } from "./JuniorOrMascot";
 import type { GraduationSummary as Summary } from "./types";
 
 function Stat({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
@@ -20,7 +21,7 @@ export function GraduationSummary({ summary, albumHref, nextHref }: { summary: S
   const meta = CHARACTER_META[summary.character];
   return (
     <Card className="w-full max-w-md p-5 text-center">
-      <p className="text-xl font-black">{meta.name}가 졸업했습니다!</p>
+      <p className="text-xl font-black">{withJosa(meta.name, "이/가")} 졸업했습니다!</p>
       <p className="mt-1 text-sm text-muted">{summary.courseName ? `${summary.courseName} · ` : ""}{summary.materialTitle}</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Stat label="함께 공부한 기간" value={summary.days} unit="일" />

@@ -10,7 +10,13 @@ if (!url.startsWith("file:") || url.includes("?")) {
 const databasePath = resolve(url.slice("file:".length));
 
 if (existsSync(databasePath)) {
-  console.log("Existing demo database preserved.");
+  // 데이터는 지우지 않고 새 컬럼·테이블만 반영한다(--accept-data-loss 없음 → 파괴적 변경이면 실패하고 기존 DB 그대로 시작).
+  const pushed = spawnSync("corepack", ["pnpm@10.30.3", "db:push"], {
+    stdio: "inherit",
+    env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: "0" },
+  });
+  if (pushed.status === 0) console.log("Existing demo database preserved and schema synced (additive).");
+  else console.warn("Existing demo database preserved; schema sync skipped (non-additive change needs a manual migration).");
 } else {
   mkdirSync(dirname(databasePath), { recursive: true });
   const stagingDir = mkdtempSync(join(dirname(databasePath), ".render-init-"));
