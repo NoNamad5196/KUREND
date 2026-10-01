@@ -10,14 +10,14 @@ export const dynamic = "force-dynamic";
 export const GET = withApi<{ id: string }>(async (req, { params }) => {
   const { session } = await loadOwnedSession(req, params.id);
   const run = session.runId ? await loadRun(db, session.runId) : null;
-  const character = run?.character as JuniorCharacter | undefined;
+  const character = (session.character ?? run?.character) as JuniorCharacter | undefined;
   const [event, mastery] = await Promise.all([
     db.lifeEvent.findUnique({ where: { sessionId: session.id } }),
     run ? db.conceptMastery.findMany({ where: { runId: run.id, chapterId: session.chapterId }, orderBy: { concept: "asc" } }) : [],
   ]);
   const examFormat: ExamFormat = (session.exam?.format as ExamFormat | undefined) ?? (character ? examFormatFor(character) : "DESCRIPTIVE");
   const body: SessionGameDto = {
-    run: run ? toRunDto(run) : null,
+    run: run ? toRunDto({ ...run, character: character! }) : null,
     examFormat,
     passScore: character ? passScoreFor(character) : null,
     lifeEvent: event ? toLifeEventDto(event) : null,

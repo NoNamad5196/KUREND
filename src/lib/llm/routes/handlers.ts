@@ -8,12 +8,15 @@ import {
 import type { SseEvent } from "@/contracts/events";
 import type { Llm, TaughtMsg } from "@/lib/llm";
 import { createSse } from "@/lib/server/sse";
+import { errorDetails, type ErrorReason } from "@/contracts/errors";
+import { logRequestFailure, type RequestTrace } from "@/lib/server/request-diagnostics";
 import {
   getRouteBackend, RouteError, type MaterialRecord, type MessageRecord,
   type RouteBackend, type SessionRecord,
 } from "./backend";
 
 type Sse = ReturnType<typeof createSse>;
+const requestTraces = new WeakMap<Request, RequestTrace>();
 type Send = <E extends SseEvent["event"]>(
   event: E, data: Extract<SseEvent, { event: E }>["data"],
 ) => void;
@@ -29,7 +32,7 @@ function invalidState(message = "현재 상태에서는 이 작업을 진행할 
 }
 
 function modelFailure(): never {
-  throw new RouteError(502, "LLM_FAILED", "모델 응답을 처리하지 못했습니다. 다시 시도해 주세요.");
+  throw new RouteError(502, "LLM_FAILED", "모델 응답 형식을 확인하지 못했습니다. 다시 시도해 주세요.", { reason: "LLM_RESPONSE_PARSE_FAILED" });
 }
 
 function acquire(key: string): () => void {
@@ -43,13 +46,16 @@ function routeFailure(error: unknown, fallbackMessage: string): RouteError {
   // so its RouteError has a different constructor. Validate the public shape
   // before using its fields in either an HTTP response or an SSE error event.
   if (error !== null && typeof error === "object") {
-    const { name, status, code, message } = error as Record<string, unknown>;
+    const { name, status, code, message, details } = error as Record<string, unknown>;
+    if (name === "LlmFailure" && code === "LLM_FAILED" && typeof message === "string" && errorDetails(details).reason) {
+      return new RouteError(502, "LLM_FAILED", message, errorDetails(details));
+    }
     if ((error instanceof RouteError || name === "RouteError")
       && (status === 400 || status === 401 || status === 404 || status === 409 || status === 502)
       && (code === "VALIDATION" || code === "UNAUTHORIZED" || code === "NOT_FOUND"
         || code === "INVALID_STATE" || code === "LLM_FAILED")
       && typeof message === "string" && message.trim()) {
-      return new RouteError(status, code, message);
+      return new RouteError(status, code, message, errorDetails(details));
     }
   }
   return new RouteError(502, "LLM_FAILED", fallbackMessage);
@@ -58,7 +64,7 @@ function routeFailure(error: unknown, fallbackMessage: string): RouteError {
 function failureResponse(error: unknown): Response {
   if (error instanceof Response) return error;
   const failure = routeFailure(error, "요청을 처리하지 못했습니다. 다시 시도해 주세요.");
-  return Response.json({ error: { code: failure.code, message: failure.message } }, { status: failure.status });
+  return Response.json({ error: { code: failure.code, message: failure.message, ...failure.details } }, { status: failure.status });
 }
 
 async function readBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
@@ -79,7 +85,7 @@ function stream(
   request: Request,
   release: () => void,
   work: (send: Send) => Promise<void>,
-  recover?: () => Promise<void>,
+  recover?: (error: unknown) => Promise<void>,
 ): Response {
   let channel: Sse;
   try { channel = createSse(); } catch (error) { release(); throw error; }
@@ -93,9 +99,10 @@ function stream(
       await work(send);
     } catch (error) {
       // Recovery is a CAS transaction too: never overwrite an external update.
-      try { await recover?.(); } catch { /* The adapter rejects a stale recovery. */ }
+      try { await recover?.(error); } catch { /* The adapter rejects a stale recovery. */ }
+      logRequestFailure(error, requestTraces.get(request) ?? { stage: "stream-response" });
       const failure = routeFailure(error, "모델 응답을 처리하지 못했습니다. 다시 시도해 주세요.");
-      channel.send("error", { code: failure.code, message: failure.message });
+      channel.send("error", { code: failure.code, message: failure.message, ...failure.details });
     } finally {
       // createSse.close emits exactly one terminal done, including error paths.
       channel.close();
@@ -124,15 +131,17 @@ function safeSessionDto(backend: RouteBackend, session: SessionRecord) {
   return SessionSchema.parse(backend.toSessionDto(session));
 }
 
-function owned<T>(record: T | null): T {
-  if (!record) throw new RouteError(404, "NOT_FOUND", "자료나 세션을 찾을 수 없습니다.");
+function owned<T>(record: T | null, reason: ErrorReason): T {
+  if (!record) throw new RouteError(404, "NOT_FOUND", "학습 정보를 불러오지 못했습니다. 자료 화면에서 다시 시도해 주세요.", { reason });
   return record;
 }
 
 export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; llm: Llm }) {
   async function loadSession(request: Request, id: string): Promise<SessionRecord> {
     const user = await backend.requireUser(request);
-    return owned(await backend.getSession(id, user.id));
+    const session = owned(await backend.getSession(id, user.id), "SESSION_NOT_FOUND");
+    requestTraces.set(request, { ...requestTraces.get(request)!, sessionId: id, materialId: session.material.materialId, character: session.game?.character });
+    return session;
   }
 
   async function saveSession(request: Request, previous: SessionRecord, next: SessionRecord) {
@@ -143,7 +152,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
   const handlers = {
     async generate(request: Request, id: string): Promise<Response> {
       const user = await backend.requireUser(request);
-      const material = owned(await backend.getMaterial(id, user.id));
+      const material = owned(await backend.getMaterial(id, user.id), "MATERIAL_NOT_FOUND");
       if (material.status !== "PENDING" && material.status !== "FAILED") invalidState();
       if (!material.sources.length || material.sources.some((source) => !source.text.trim())) {
         throw new RouteError(400, "VALIDATION", "목차를 생성할 자료의 본문이 없습니다.");
@@ -185,6 +194,9 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           title: saved.title,
           chapters: saved.chapters.map(({ chapterId, order, title, points }) => ({ chapterId, order, title, points })),
         });
+      }, async (error) => {
+        const failure = routeFailure(error, "목차를 생성하지 못했습니다. 다시 시도해 주세요.");
+        await backend.commitMaterial(material, { ...material, status: "FAILED", error: failure.message });
       });
     },
 
@@ -425,12 +437,17 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
 
   // Keep pre-stream failures as ordinary contract-shaped HTTP errors. This
   // wrapper is also used by injected integration tests, not only Next routes.
-  const wrap = (handler: (request: Request, id: string) => Promise<Response>) => async (request: Request, id: string) => {
-    try { return await handler(request, id); } catch (error) { return failureResponse(error); }
+  const wrap = (handler: (request: Request, id: string) => Promise<Response>, stage: string) => async (request: Request, id: string) => {
+    requestTraces.set(request, { stage, ...(stage === "generate" ? { materialId: id } : { sessionId: id }),
+      provider: ["openai", "anthropic", "stub"].includes(process.env.LLM_PROVIDER || "") ? process.env.LLM_PROVIDER : undefined });
+    try { return await handler(request, id); } catch (error) {
+      logRequestFailure(error, requestTraces.get(request)!);
+      return failureResponse(error);
+    }
   };
   return {
-    generate: wrap(handlers.generate), prepare: wrap(handlers.prepare), explanations: wrap(handlers.explanations),
-    answers: wrap(handlers.answers), evaluate: wrap(handlers.evaluate), tutor: wrap(handlers.tutor),
+    generate: wrap(handlers.generate, "generate"), prepare: wrap(handlers.prepare, "prepare"), explanations: wrap(handlers.explanations, "explanations"),
+    answers: wrap(handlers.answers, "answers"), evaluate: wrap(handlers.evaluate, "evaluate"), tutor: wrap(handlers.tutor, "tutor"),
   };
 }
 

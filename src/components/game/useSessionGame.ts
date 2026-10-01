@@ -1,34 +1,37 @@
 "use client";
-/**
- * [③] 세션의 게임 상태(GET /api/sessions/{id}/game). ①의 라우트가 없거나(404) 실패하면 null = 연습 모드로 조용히 처리한다.
- */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionGameDto } from "@/contracts/game";
+import { ApiError } from "@/lib/client/api";
 import { gameApi } from "@/lib/client/game-api";
 
 export function useSessionGame(sessionId: string | null | undefined) {
-  const [game, setGame] = useState<SessionGameDto | null>(null);
+  const [state, setState] = useState<{ id: string; game: SessionGameDto } | null>(null);
   const [loading, setLoading] = useState(!!sessionId);
+  const [error, setError] = useState<ApiError | null>(null);
+  const version = useRef(0);
   const reload = useCallback(async () => {
-    if (!sessionId) return null;
+    const request = ++version.current;
+    setLoading(!!sessionId); setError(null);
+    if (!sessionId) { setState(null); return null; }
     try {
       const next = await gameApi.getSessionGame(sessionId);
-      setGame(next);
+      if (request === version.current) setState({ id: sessionId, game: next });
       return next;
-    } catch {
-      setGame(null);
+    } catch (failure) {
+      if (request === version.current) {
+        setState(null);
+        setError(failure instanceof ApiError ? failure : new ApiError("NETWORK", "후배 정보를 불러오지 못했습니다. 다시 시도해 주세요.", 0));
+      }
       return null;
     } finally {
-      setLoading(false);
+      if (request === version.current) setLoading(false);
     }
   }, [sessionId]);
   useEffect(() => {
-    let active = true;
-    setLoading(!!sessionId);
-    if (sessionId) {
-      gameApi.getSessionGame(sessionId).then((g) => active && setGame(g)).catch(() => active && setGame(null)).finally(() => active && setLoading(false));
-    }
-    return () => { active = false; };
-  }, [sessionId]);
-  return { game, run: game?.run ?? null, loading, reload };
+    setState(null);
+    void reload();
+    return () => { version.current += 1; };
+  }, [reload]);
+  const game = state && state.id === sessionId ? state.game : null;
+  return { game, run: game?.run ?? null, loading, error, reload };
 }

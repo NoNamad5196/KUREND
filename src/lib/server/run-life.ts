@@ -12,7 +12,8 @@ import {
   type LifeOutcome,
   type RunStatus,
 } from "@/contracts/game";
-import { db, Prisma } from "@/lib/server/db";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
+import { db } from "@/lib/server/db";
 import { ApiError, invalidState } from "@/lib/server/http";
 import { newId } from "@/lib/server/ids";
 import { canGraduate, isCleared } from "@/lib/server/run-rules";
@@ -28,15 +29,18 @@ export async function applyLife(userId: string, runId: string, sessionId: string
       if (!run || run.userId !== userId) throw noRun();
       const session = await tx.session.findFirst({
         where: { id: sessionId, userId },
-        select: { id: true, runId: true, chapterId: true, status: true, score: true },
+        select: { id: true, runId: true, chapterId: true, status: true, score: true, character: true, replacementSessionId: true },
       });
       if (!session) throw new ApiError("NOT_FOUND", "세션을 찾을 수 없습니다.");
       if (session.runId !== run.id) throw noRun("이 세션은 해당 후배 기록(Run)에 속하지 않습니다.");
+      if (session.replacementSessionId) throw new ApiError("INVALID_STATE", "선택한 후배의 학습 세션을 다시 불러오고 있어요.", 409, {
+        reason: "CHAT_SESSION_INVALID", replacementSessionId: session.replacementSessionId, materialId: run.materialId,
+      });
       if (!LIFE_STATUSES.includes(session.status) || session.score === null) {
         throw invalidState("채점이 끝난 세션에만 LIFE 를 적용할 수 있습니다.");
       }
 
-      const character = run.character as JuniorCharacter;
+      const character = (session.character ?? run.character) as JuniorCharacter;
       const passScore = passScoreFor(character);
       const progressBefore = run.progress.find((p) => p.chapterId === session.chapterId);
       const wasCleared = progressBefore?.cleared ?? false;
@@ -126,7 +130,7 @@ export async function applyLife(userId: string, runId: string, sessionId: string
     });
   } catch (err) {
     // 동시 요청이 먼저 LifeEvent 를 만든 경우 → 다시 읽어 applied:false 로 응답
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
       return applyLife(userId, runId, sessionId);
     }
     throw err;

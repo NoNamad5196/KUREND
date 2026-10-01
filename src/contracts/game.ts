@@ -250,6 +250,13 @@ export const CreateRunRequestSchema = z.object({
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
 
+export const ChangeCharacterRequestSchema = z.object({
+  character: JuniorCharacterSchema,
+  chapterId: z.string().min(1).optional(),
+});
+export type ChangeCharacterRequest = z.infer<typeof ChangeCharacterRequestSchema>;
+export type ChangeCharacterResponse = { run: RunDto; sessionId: string | null };
+
 export const ApplyLifeRequestSchema = z.object({ sessionId: z.string() });
 export type ApplyLifeRequest = z.infer<typeof ApplyLifeRequestSchema>;
 

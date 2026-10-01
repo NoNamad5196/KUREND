@@ -103,6 +103,7 @@ export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
 export function toSessionDto(s: SessionWithRelations): SessionDto {
   return {
     sessionId: s.id,
+    character: s.character as SessionDto["character"],
     status: s.status as SessionStatus,
     phase: s.phase as SessionPhase,
     juniorLevel: s.juniorLevel as JuniorLevel,

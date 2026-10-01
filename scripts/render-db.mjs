@@ -9,7 +9,18 @@ if (!url.startsWith("file:") || url.includes("?")) {
 }
 const databasePath = resolve(url.slice("file:".length));
 
+function runDatabaseCommand(command, databaseUrl) {
+  const result = spawnSync("corepack", ["pnpm@10.30.3", command], {
+    stdio: "inherit",
+    env: { ...process.env, DATABASE_URL: databaseUrl, COREPACK_ENABLE_AUTO_PIN: "0" },
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${command} failed; demo startup stopped.`);
+}
+
 if (existsSync(databasePath)) {
+  // Apply additive schema changes without reseeding or accepting data loss.
+  runDatabaseCommand("db:push", `file:${databasePath}`);
   console.log("Existing demo database preserved.");
 } else {
   mkdirSync(dirname(databasePath), { recursive: true });
@@ -25,12 +36,7 @@ if (existsSync(databasePath)) {
       client.close();
     }
     for (const command of ["db:push", "db:seed"]) {
-      const result = spawnSync("corepack", ["pnpm@10.30.3", command], {
-        stdio: "inherit",
-        env: { ...process.env, DATABASE_URL: stagingUrl, COREPACK_ENABLE_AUTO_PIN: "0" },
-      });
-      if (result.error) throw result.error;
-      if (result.status !== 0) throw new Error(`${command} failed; demo startup stopped.`);
+      runDatabaseCommand(command, stagingUrl);
     }
     // Publish only a fully seeded DB, and never overwrite an existing file.
     copyFileSync(stagingPath, databasePath, constants.COPYFILE_EXCL);

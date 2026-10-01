@@ -9,6 +9,8 @@ import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import type { GameErrorCode } from "@/contracts/game";
 import type { ApiErrorCode as FrozenApiErrorCode } from "@/contracts/types";
+import type { ErrorDetails } from "@/contracts/errors";
+import { logRequestFailure } from "./request-diagnostics";
 
 /** FROZEN 오류 코드 + 게임 확장 코드(RUN_ACTIVE·NOT_READY·NO_RUN) */
 export type ApiErrorCode = FrozenApiErrorCode | GameErrorCode;
@@ -28,7 +30,7 @@ export const ERROR_STATUS: Record<ApiErrorCode, number> = {
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number;
-  constructor(code: ApiErrorCode, message: string, status = ERROR_STATUS[code]) {
+  constructor(code: ApiErrorCode, message: string, status = ERROR_STATUS[code], readonly details: ErrorDetails = {}) {
     super(message);
     this.name = "ApiError";
     this.code = code;
@@ -63,12 +65,11 @@ function zodMessage(err: ZodError): string {
 
 /** 예외 → JSON 오류 응답 */
 export function toErrorResponse(err: unknown): NextResponse {
-  if (err instanceof ApiError) return jsonError(err.code, err.message, err.status);
+  if (err instanceof ApiError) return json({ error: { code: err.code, message: err.message, ...err.details } }, err.status);
   if (err instanceof ZodError) return jsonError("VALIDATION", zodMessage(err));
   if (err instanceof SyntaxError) return jsonError("VALIDATION", "요청 본문이 올바른 JSON 이 아닙니다.");
-  console.error("[api] unhandled error", err);
-  const message = process.env.NODE_ENV === "production" ? "서버 오류가 발생했습니다." : (err as Error)?.message ?? String(err);
-  return json(errorBody("INTERNAL", message), 500);
+  logRequestFailure(err, { stage: "api-request" });
+  return json(errorBody("INTERNAL", "서버 오류가 발생했습니다. 다시 시도해 주세요."), 500);
 }
 
 type RouteContext<P> = { params: Promise<P> };

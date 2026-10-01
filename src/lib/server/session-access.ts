@@ -8,12 +8,15 @@ import type { SessionStatus } from "@/contracts/types";
 import { STAGE_LABELS } from "@/contracts/types";
 import { requireUser, type AuthUser } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
-import { invalidState, notFound } from "@/lib/server/http";
+import { ApiError, invalidState } from "@/lib/server/http";
 import { sessionInclude, type SessionWithRelations } from "@/lib/server/session-dto";
 
 export async function findOwnedSession(userId: string, sessionId: string): Promise<SessionWithRelations> {
   const session = await db.session.findFirst({ where: { id: sessionId, userId }, include: sessionInclude });
-  if (!session) throw notFound("세션을 찾을 수 없습니다.");
+  if (!session) throw new ApiError("NOT_FOUND", "학습 정보를 불러오지 못했습니다. 자료 화면에서 다시 시작해 주세요.", 404, { reason: "SESSION_NOT_FOUND" });
+  if (session.replacementSessionId) throw new ApiError("INVALID_STATE", "선택한 후배의 학습 세션을 다시 불러오고 있어요.", 409, {
+    reason: "CHAT_SESSION_INVALID", replacementSessionId: session.replacementSessionId, materialId: session.chapter.material.id,
+  });
   return session;
 }
 

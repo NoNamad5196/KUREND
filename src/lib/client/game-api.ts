@@ -5,6 +5,8 @@ import type {
   AlbumResponse,
   ApplyLifeResponse,
   CreateRunRequest,
+  ChangeCharacterRequest,
+  ChangeCharacterResponse,
   CreateWrongNoteRequest,
   CurrentRunResponse,
   GraduateResponse,
@@ -26,6 +28,8 @@ export const gameApi = {
   getCurrentRun: (materialId?: string) =>
     api.get<CurrentRunResponse>(materialId ? `/runs/current?materialId=${enc(materialId)}` : "/runs/current").then((r) => r.run),
   createRun: (body: CreateRunRequest) => api.post<RunDto>("/runs", body),
+  changeCharacter: (runId: string, body: ChangeCharacterRequest) =>
+    api.patch<ChangeCharacterResponse>(`/runs/${enc(runId)}`, body),
   getRun: (runId: string) => api.get<RunDto>(`/runs/${enc(runId)}`),
   /** 서버가 session.score 로 판정한다. 같은 세션에 두 번 부르면 applied:false 로 같은 결과를 돌려준다. */
   applyLife: (runId: string, sessionId: string) => api.post<ApplyLifeResponse>(`/runs/${enc(runId)}/life`, { sessionId }),

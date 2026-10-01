@@ -244,6 +244,7 @@ export const SessionMaterialSchema = z.object({
 /** §5-5-1 세션 객체 */
 export const SessionSchema = z.object({
   sessionId: z.string(),
+  character: z.enum(["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"]).nullable().optional(),
   status: SessionStatusSchema,
   phase: SessionPhaseSchema,
   juniorLevel: JuniorLevelSchema,
@@ -277,6 +278,7 @@ export type SessionListItemDto = z.infer<typeof SessionListItemSchema>;
 export const CreateSessionRequestSchema = z.object({
   chapterId: z.string(),
   juniorLevel: JuniorLevelSchema.optional(),
+  runId: z.string().optional(),
 });
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>;
 export const CreateSessionResponseSchema = z.object({ sessionId: z.string() });

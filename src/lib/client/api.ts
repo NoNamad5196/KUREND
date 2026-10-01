@@ -2,13 +2,14 @@
  * Shared browser API client. All paths are relative to NEXT_PUBLIC_API_BASE.
  */
 import type { SessionDto, SessionPhase, SessionStatus } from "@/contracts/types";
+import { errorDetails, type ErrorDetails } from "@/contracts/errors";
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE || "/api";
 
 export class ApiError extends Error {
   code: string;
   status: number;
-  constructor(code: string, message: string, status: number) {
+  constructor(code: string, message: string, status: number, readonly details: ErrorDetails = {}) {
     super(message);
     this.name = "ApiError";
     this.code = code;
@@ -24,16 +25,18 @@ export function base(url: string): string {
 export async function toApiError(res: Response): Promise<ApiError> {
   let code = "HTTP_ERROR";
   let message = `${res.status} ${res.statusText}`;
+  let details: ErrorDetails = {};
   try {
     const body = await res.json();
     if (body?.error?.code) {
       code = String(body.error.code);
       message = String(body.error.message ?? message);
+      details = errorDetails(body.error);
     }
   } catch {
     /* 본문이 JSON이 아니면 기본 메시지 유지 */
   }
-  return new ApiError(code, message, res.status);
+  return new ApiError(code, message, res.status, details);
 }
 
 async function json<T>(url: string, init: RequestInit = {}): Promise<T> {
@@ -52,7 +55,7 @@ async function json<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  get: <T>(u: string) => json<T>(u),
+  get: <T>(u: string, init?: RequestInit) => json<T>(u, init),
   post: <T>(u: string, body?: unknown) =>
     json<T>(u, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
   patch: <T>(u: string, body?: unknown) =>
@@ -72,34 +75,60 @@ export async function sse(
   const res = await fetch(base(url), {
     ...init,
     headers: { "Content-Type": "application/json", ...(init.headers || {}) },
-    signal,
+    signal: signal ?? init.signal,
     cache: "no-store",
   });
   if (!res.ok || !res.body) throw await toApiError(res);
+  if (!res.headers.get("content-type")?.includes("text/event-stream")) {
+    throw new ApiError("LLM_FAILED", "응답 형식을 확인하지 못했습니다. 다시 시도해 주세요.", 502, { reason: "LLM_RESPONSE_PARSE_FAILED" });
+  }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i: number;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const chunk = buf.slice(0, i);
-      buf = buf.slice(i + 2);
-      if (!chunk.trim() || chunk.trim().startsWith(":")) continue;
-      let name = "message";
-      let data = "";
-      for (const line of chunk.split("\n")) {
-        if (line.startsWith("event:")) name = line.slice(6).trim();
-        else if (line.startsWith("data:")) data += line.slice(5).trim();
+  let name = "message";
+  let lines: string[] = [];
+  let finished = false;
+  function consume(line: string) {
+    if (!line) {
+      if (!lines.length) { name = "message"; return; }
+      let payload;
+      try { payload = JSON.parse(lines.join("\n")); } catch {
+        throw new ApiError("LLM_FAILED", "응답을 읽지 못했습니다. 다시 시도해 주세요.", 502, { reason: "LLM_RESPONSE_PARSE_FAILED" });
       }
-      const payload = data ? JSON.parse(data) : {};
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        throw new ApiError("LLM_FAILED", "응답 형식을 확인하지 못했습니다. 다시 시도해 주세요.", 502, { reason: "LLM_RESPONSE_PARSE_FAILED" });
+      }
       onEvent(name, payload);
-      if (name === "error") {
-        throw new ApiError(payload.code || "LLM_FAILED", payload.message || "스트리밍 중 오류가 발생했습니다.", 502);
-      }
+      if (name === "error") throw new ApiError(payload.code || "LLM_FAILED", payload.message || "응답을 받지 못했습니다. 다시 시도해 주세요.", 502, errorDetails(payload));
+      finished = name === "done";
+      name = "message"; lines = [];
+      return;
     }
+    if (line.startsWith(":")) return;
+    const colon = line.indexOf(":");
+    const field = colon < 0 ? line : line.slice(0, colon);
+    const value = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+    if (field === "event") name = value;
+    else if (field === "data") lines.push(value);
+  }
+  try {
+    while (!finished) {
+      const { value, done } = await reader.read();
+      buf += done ? dec.decode() : dec.decode(value, { stream: true });
+      let newline: RegExpExecArray | null;
+      while ((newline = /\r\n|\r|\n/.exec(buf))) {
+        // A CRLF boundary can itself span two network chunks.
+        if (!done && newline[0] === "\r" && newline.index === buf.length - 1) break;
+        const line = buf.slice(0, newline.index);
+        buf = buf.slice(newline.index + newline[0].length);
+        consume(line);
+        if (finished) break;
+      }
+      if (done && !finished) throw new ApiError("LLM_FAILED", "응답 연결이 끊겼습니다. 저장된 설명으로 다시 시도해 주세요.", 502, { reason: "STREAM_INTERRUPTED" });
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }
 

@@ -67,7 +67,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const instruction = format === "OBJECTIVE" ? OBJECTIVE_EXAM_PROMPT : persona === "KU_HARD" ? KU_EXAM_PROMPT : persona === "FEMALE_NORMAL" ? FEMALE_EXAM_PROMPT : "";
       return calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}`, JSON.stringify({
         chapter: compactChapter(chapter), level, persona: spec, examFormat: format,
-      }), prepareSessionSchema, { temperature: 0.2, maxOutputTokens: 1_500, timeoutMs: 18_000 });
+      }), prepareSessionSchema, { temperature: 0.2, maxOutputTokens: 1_500, timeoutMs: 18_000, stage: "prepare-session" });
     },
 
     async *juniorTurn(input) {
@@ -84,7 +84,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           doubtFrequency: personaFor(input.persona)?.doubtFrequency,
         } } : {}),
       }), analyzeTurnSchema(input.explanation, input.objectives.map((objective) => objective.id), taught),
-      { temperature: 0, maxOutputTokens: 1_000, timeoutMs: 10_000 });
+      { temperature: 0, maxOutputTokens: 1_000, timeoutMs: 10_000, stage: "analyze-turn" });
       const previousConcepts = uniqueStrings(input.heardConcepts);
       const needsDoubt = analysis.contradictions.length > 0 && (input.persona !== undefined || input.level === "EASY");
       if (needsDoubt) {
@@ -104,33 +104,23 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const heardConcepts = uniqueStrings([...previousConcepts, ...added]);
       const coveredObjectives = uniqueStrings(analysis.coverage.map(({ id }) => id));
       yield { type: "concepts", heardConcepts, added };
-      // 반응·다음 질문은 모델이 대화 맥락에 맞춰 쓴다(분석 결과로 범위를 고정). 형식을 벗어나면 템플릿 문장으로 대체.
-      const fallbackReaction = analysis.reactionQuote
-        ? `“${analysis.reactionQuote}”라고 ${input.level === "HARD" ? "받아쓸게." : "설명해 줬구나."}`
-        : input.persona ? personaFor(input.persona)!.examples.reaction
-          : input.level === "HARD" ? "응, 말해 준 설명을 받아쓸게." : "응응, 말해 준 설명을 기억할게.";
+      // Provider failures propagate to the saved-turn retry flow; never turn
+      // an unavailable or invalid model response into a successful template.
       const fallbackQuestion = input.persona === "FEMALE_NORMAL" && coveredObjectives.length < input.objectives.length
         ? `${input.objectives.find((objective) => !coveredObjectives.includes(objective.id))?.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "") ?? "이 부분"}은 왜 그런가요, 선배?`
         : nextObjectiveQuestion(input, coveredObjectives);
-      let reactions = [fallbackReaction];
-      let question = fallbackQuestion;
-      try {
-        const responded = await calls.completeJSON(RESPOND_TURN_PROMPT, JSON.stringify({
+      const persona = personaFor(input.persona);
+      const responded = await calls.completeJSON(`${RESPOND_TURN_PROMPT}${persona ? `\n현재 후배: ${persona.name}. 말투: ${persona.voice}` : ""}`, JSON.stringify({
           level: input.level,
-          persona: input.persona ?? null,
+          persona: input.persona ? { id: input.persona, ...persona } : null,
           history: input.history.slice(-6).map(({ role, stage, content }) => ({ role, stage, content: compactText(content, 240) })),
           explanation: input.explanation,
           analysis: { heardConcepts, contradictionClaims: [], coveredObjectives },
           objectives: input.objectives.map(({ id, text }) => ({ id, text })),
           nextQuestionHint: fallbackQuestion,
-        }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000 });
-        reactions = responded.reactions;
-        question = responded.question;
-      } catch {
-        /* 템플릿 유지 */
-      }
-      for (const content of reactions) yield { type: "reaction", content };
-      yield { type: "question", coveredObjectives, content: question };
+      }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000, stage: "respond-turn" });
+      for (const content of responded.reactions) yield { type: "reaction", content };
+      yield { type: "question", coveredObjectives, content: responded.question };
     },
 
     async *writeExamAnswer({ question, taught, heardConcepts, choices }) {

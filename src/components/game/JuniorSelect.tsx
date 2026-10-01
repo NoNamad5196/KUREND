@@ -23,7 +23,7 @@ export function JuniorSelect({
   onSelect,
   busy,
   title = "이번에는 어떤 후배를 졸업시켜볼까요?",
-  subtitle = "후배마다 이해 방식·되묻기·시험 형식·합격선이 다릅니다. 선택한 후배는 졸업하거나 떠날 때까지 함께합니다.",
+  subtitle = "후배마다 이해 방식·되묻기·시험 형식·합격선이 다릅니다. 자료는 유지하면서 다른 후배와 새 대화를 시작할 수 있어요.",
 }: {
   onSelect: (character: JuniorCharacter) => void | Promise<void>;
   busy?: JuniorCharacter | null;

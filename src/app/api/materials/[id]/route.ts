@@ -2,7 +2,7 @@
 import type { OkResponse } from "@/contracts/types";
 import { requireUser } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
-import { json, notFound, withApi } from "@/lib/server/http";
+import { ApiError, json, notFound, withApi } from "@/lib/server/http";
 import { materialInclude, toMaterialDto } from "@/lib/server/material-dto";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const GET = withApi<{ id: string }>(async (req, { params }) => {
     where: { id: params.id, userId: user.userId },
     include: materialInclude,
   });
-  if (!material) throw notFound("자료를 찾을 수 없습니다.");
+  if (!material) throw new ApiError("NOT_FOUND", "학습 자료를 불러오지 못했습니다. 홈에서 자료를 다시 선택해 주세요.", 404, { reason: "MATERIAL_NOT_FOUND" });
   return json(toMaterialDto(material));
 });
 

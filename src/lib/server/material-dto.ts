@@ -15,13 +15,15 @@ import { isOpenStatus } from "@/lib/server/session-dto";
 import { averageScore, dDayFor, streakDays, toDateOnly } from "@/lib/server/stats";
 
 export const materialInclude = {
+  runs: { where: { status: "ACTIVE" }, orderBy: { startedAt: "desc" }, take: 1, select: { id: true } },
   sources: { select: { id: true, kind: true, fileName: true, charCount: true } },
   chapters: {
     orderBy: { order: "asc" },
     include: {
       sessions: {
+        where: { replacementSessionId: null },
         orderBy: { updatedAt: "desc" },
-        select: { id: true, status: true, score: true, updatedAt: true, completedAt: true, gaps: { select: { status: true } } },
+        select: { id: true, runId: true, status: true, score: true, updatedAt: true, completedAt: true, gaps: { select: { status: true } } },
       },
     },
   },
@@ -38,8 +40,8 @@ export function toSourceDto(s: { id: string; kind: string; fileName: string; cha
  * §5-4-1 action: 진행 중 세션 있으면 CONTINUE(최신), 완료 세션만 있으면 RETRY, 없으면 START.
  * bestScore = 완료 세션 최고점, openGapCount = 가장 최근 완료 세션의 FOUND gap 수.
  */
-export function toChapterDto(c: MaterialWithRelations["chapters"][number]): ChapterDto {
-  const open = c.sessions.find((s) => isOpenStatus(s.status));
+export function toChapterDto(c: MaterialWithRelations["chapters"][number], runId?: string | null): ChapterDto {
+  const open = c.sessions.find((s) => isOpenStatus(s.status) && (runId === undefined || s.runId === runId));
   const completed = c.sessions.filter((s) => s.status === "COMPLETED");
   let action: ChapterAction = { kind: "START" };
   if (open) action = { kind: "CONTINUE", sessionId: open.id, status: open.status as SessionStatus };
@@ -75,7 +77,7 @@ export function toMaterialDto(m: MaterialWithRelations): MaterialDto {
     status: m.status as MaterialDto["status"],
     error: m.error ?? null,
     sources: m.sources.map(toSourceDto),
-    chapters: m.chapters.map(toChapterDto),
+    chapters: m.chapters.map((chapter) => toChapterDto(chapter, m.runs[0]?.id ?? null)),
   };
 }
 
@@ -98,13 +100,14 @@ export function toMaterialListItem(m: MaterialForList): MaterialListItemDto {
 
 /* ───────── §5-3 홈 ───────── */
 export const homeMaterialInclude = {
+  runs: { where: { status: "ACTIVE" }, orderBy: { startedAt: "desc" }, take: 1, select: { id: true } },
   chapters: {
     orderBy: { order: "asc" },
     select: {
       id: true,
       title: true,
       taughtAt: true,
-      sessions: { orderBy: { updatedAt: "desc" }, select: { id: true, status: true, updatedAt: true } },
+      sessions: { where: { replacementSessionId: null }, orderBy: { updatedAt: "desc" }, select: { id: true, runId: true, status: true, updatedAt: true } },
     },
   },
 } satisfies Prisma.MaterialInclude;
@@ -141,7 +144,7 @@ export function buildHomeDto(input: {
       materials: mats.map((m) => {
         // 가장 최근에 갱신된 진행 중 세션 1개
         const open = m.chapters
-          .flatMap((c) => c.sessions.filter((s) => isOpenStatus(s.status)).map((s) => ({ ...s, chapterTitle: c.title })))
+          .flatMap((c) => c.sessions.filter((s) => isOpenStatus(s.status) && s.runId === (m.runs[0]?.id ?? null)).map((s) => ({ ...s, chapterTitle: c.title })))
           .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
         return {
           materialId: m.id,

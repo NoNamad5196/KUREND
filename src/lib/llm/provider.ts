@@ -5,27 +5,32 @@ import type { Llm } from "./types";
 import { createLiveLlm } from "./live";
 import { stubLlm } from "./stub";
 import { loadLocalEnvironment } from "./environment";
+import type { ErrorReason } from "@/contracts/errors";
 
 loadLocalEnvironment();
 
 type Provider = "openai" | "anthropic" | "stub";
-type JsonOptions = { temperature?: number; maxOutputTokens?: number; timeoutMs?: number };
+type JsonOptions = { temperature?: number; maxOutputTokens?: number; timeoutMs?: number; stage?: string };
 type JsonRequest = (system: string, user: string, options: JsonOptions & { signal?: AbortSignal }) => Promise<string>;
 const MAX_TOKENS = 1_500;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export class LlmFailure extends Error {
   readonly code = "LLM_FAILED";
-  constructor(message = "AI 응답을 처리하지 못했습니다. 다시 시도해 주세요.") {
+  readonly details: { reason: ErrorReason };
+  stage?: string;
+  providerStatus?: number;
+  constructor(message = "AI 응답을 처리하지 못했습니다. 다시 시도해 주세요.", reason: ErrorReason = "LLM_REQUEST_FAILED") {
     super(message);
     this.name = "LlmFailure";
+    this.details = { reason };
   }
 }
 
 export function providerName(): Provider {
   const name = process.env.LLM_PROVIDER || "openai";
   if (name !== "openai" && name !== "anthropic" && name !== "stub") {
-    throw new LlmFailure("LLM_PROVIDER는 openai, anthropic, stub 중 하나여야 합니다.");
+    throw new LlmFailure("AI 연결 설정을 확인해 주세요.", "LLM_CONFIG_INVALID");
   }
   return name;
 }
@@ -40,12 +45,12 @@ function openaiGenerationParams(model: string, temperature: number, maxTokens: n
 }
 
 function openai() {
-  if (!process.env.OPENAI_API_KEY) throw new LlmFailure("OPENAI_API_KEY가 설정되지 않았습니다.");
+  if (!process.env.OPENAI_API_KEY) throw new LlmFailure("AI 연결 정보가 설정되지 않았습니다. 서비스 설정을 확인해 주세요.", "LLM_CONFIG_INVALID");
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
 }
 
 function anthropic() {
-  if (!process.env.ANTHROPIC_API_KEY) throw new LlmFailure("ANTHROPIC_API_KEY가 설정되지 않았습니다.");
+  if (!process.env.ANTHROPIC_API_KEY) throw new LlmFailure("AI 연결 정보가 설정되지 않았습니다. 서비스 설정을 확인해 주세요.", "LLM_CONFIG_INVALID");
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: DEFAULT_TIMEOUT_MS, maxRetries: 0 });
 }
 
@@ -59,7 +64,7 @@ function providerFailure(error: unknown): LlmFailure {
       return new LlmFailure("AI 제공자 사용 한도에 도달했습니다. 잔액 또는 요청 한도를 확인해 주세요.");
     }
     if ("name" in error && typeof error.name === "string" && /Timeout|Abort/.test(error.name)) {
-      return new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.");
+      return new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.", "LLM_TIMEOUT");
     }
   }
   return new LlmFailure("AI 제공자 요청에 실패했습니다. 인증·네트워크·모델 설정을 확인해 주세요.");
@@ -94,7 +99,9 @@ const requestJSON: JsonRequest = async (system, user, options) => {
     throw new LlmFailure("stub 모드에서는 외부 모델을 호출하지 않습니다.");
   } catch (error) {
     // Do not relay SDK payloads, headers, or possibly sensitive source text.
-    throw providerFailure(error);
+    const failure = providerFailure(error);
+    if (error && typeof error === "object" && "status" in error && typeof error.status === "number") failure.providerStatus = error.status;
+    throw failure;
   }
 };
 
@@ -113,13 +120,13 @@ export async function completeJSONWith<T>(
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요."));
+      reject(new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.", "LLM_TIMEOUT"));
     }, timeoutMs);
   });
   const run = async (): Promise<T> => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0 || controller.signal.aborted) throw new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.");
+      if (remainingMs <= 0 || controller.signal.aborted) throw new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.", "LLM_TIMEOUT");
       const instruction = attempt === 0 ? system : `${system}\n이전 응답이 형식 또는 근거 검증에 실패했습니다. 인용은 입력의 원문과 정확히 일치해야 합니다. 모든 제약을 다시 확인하고 지정된 스키마에 맞는 JSON 객체만 출력하세요. 설명이나 코드 펜스는 넣지 마세요.`;
       const raw = await request(instruction, user, {
         ...options, maxOutputTokens: Math.min(MAX_TOKENS, maxOutputTokens),
@@ -128,13 +135,17 @@ export async function completeJSONWith<T>(
       try {
         return schema.parse(JSON.parse(raw));
       } catch {
-        if (attempt === 1) throw new LlmFailure("AI JSON 응답이 두 번 연속 검증에 실패했습니다.");
+        if (attempt === 1) throw new LlmFailure("AI 응답 형식을 두 번 연속 확인하지 못했습니다. 저장된 설명으로 다시 시도해 주세요.", "LLM_RESPONSE_PARSE_FAILED");
       }
     }
     throw new LlmFailure();
   };
   try {
     return await Promise.race([run(), timeout]);
+  } catch (error) {
+    const failure = providerFailure(error);
+    failure.stage = options.stage;
+    throw failure;
   } finally {
     clearTimeout(timer);
   }

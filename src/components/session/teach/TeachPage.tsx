@@ -4,6 +4,7 @@
  * user.saved → junior.concepts → junior.doubt(턴 종료) | junior.token/message → junior.question → done
  */
 import clsx from "clsx";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FinishExplanationResponse, MessageDto, SessionDto } from "@/contracts/types";
@@ -41,9 +42,9 @@ function writeCovered(id: string, covered: string[]) {
 type Pending = { content: string; failed: boolean };
 
 export function TeachPage({ sessionId }: { sessionId: string }) {
-  const { run } = useSessionGame(sessionId);
+  const { run, loading: gameLoading, error: gameError, reload: reloadGame } = useSessionGame(sessionId);
   const router = useRouter();
-  const { session, setSession, loading, error, redirecting, reload } = useSession(
+  const { session, setSession, loading, error, redirecting, reload, recover } = useSession(
     sessionId,
     (s) => s.status === "EXPLAINING" && s.phase === "QUESTION",
   );
@@ -56,43 +57,51 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const [animateId, setAnimateId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [turnError, setTurnError] = useState<string | null>(null);
+  const [retryContent, setRetryContent] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     setCovered(readCovered(sessionId));
+    setDraft(""); setPending(null); setReactionText(""); setTurnError(null); setRetryContent(null); setSending(false);
+    sendingRef.current = false;
+    return () => abortRef.current?.abort();
   }, [sessionId]);
-  useEffect(() => () => abortRef.current?.abort(), []);
 
   const messages = useMemo(() => session?.messages ?? [], [session]);
   const userCount = useMemo(() => messages.filter((m) => m.role === "USER").length, [messages]);
 
   const pushMessage = useCallback(
     (m: MessageDto) => {
-      setSession((prev) => (prev ? { ...prev, messages: [...prev.messages, m] } : prev));
+      setSession((prev) => (prev?.sessionId === sessionId ? { ...prev, messages: [...prev.messages.filter((item) => item.messageId !== m.messageId), m] } : prev));
     },
-    [setSession],
+    [setSession, sessionId],
   );
 
   const send = useCallback(
     async (content: string) => {
-      if (!session || sending) return;
+      if (!session || sendingRef.current || gameLoading || gameError || finishing) return;
       const text = content.trim();
       if (!text) return;
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
+      sendingRef.current = true;
       setSending(true);
+      setTurnError(null); setRetryContent(null);
       setPending({ content: text, failed: false });
       setReactionText("");
       setDraft("");
       const now = new Date().toISOString();
       let saved = false;
-      let reported = false;
+      let failed = false;
       try {
         await sse(
           `/sessions/${sessionId}/explanations`,
           { method: "POST", body: JSON.stringify({ content: text }) },
           (name, data) => {
+            if (ac.signal.aborted) return;
             switch (name) {
               case "user.saved": {
                 const d = data as SseEventData<"user.saved">;
@@ -132,10 +141,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                 break;
               }
               case "error": {
-                const d = data as SseEventData<"error">;
-                reported = true;
-                toast(d.message || "새내기가 답하지 못했습니다.", "error");
-                if (!saved) setPending({ content: text, failed: true });
+                // The shared parser throws the typed error after dispatch.
                 break;
               }
               default:
@@ -146,23 +152,31 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         );
       } catch (e) {
         if (ac.signal.aborted) return;
-        if (reported) {
-          // error 이벤트에서 이미 안내함
-        } else if (e instanceof ApiError && e.status === 409) {
-          toast(e.message || "세션 상태가 바뀌었습니다. 다시 불러옵니다.", "error");
-          void reload();
-        } else {
-          toast(e instanceof ApiError ? e.message : "네트워크 오류가 발생했습니다.", "error");
-        }
+        if (recover(e)) return;
+        failed = true;
+        setTurnError(e instanceof ApiError ? e.message : "응답 연결을 확인하지 못했습니다. 다시 시도해 주세요.");
+        if (saved) setRetryContent(text);
         if (!saved) setPending({ content: text, failed: true });
       } finally {
         if (!ac.signal.aborted) {
+          const fresh = await reload();
+          if (ac.signal.aborted) return;
+          if (fresh) {
+            const lastUser = fresh.messages.findLastIndex((item) => item.role === "USER");
+            const stored = lastUser >= 0 && fresh.messages[lastUser].content === text;
+            if (stored) {
+              setPending(null);
+              if (failed && lastUser === fresh.messages.length - 1) setRetryContent(text);
+              else if (lastUser < fresh.messages.length - 1) { setTurnError(null); setRetryContent(null); }
+            }
+          }
+          sendingRef.current = false;
           setSending(false);
           setReactionText("");
         }
       }
     },
-    [session, sending, sessionId, pushMessage, setSession, reload],
+    [session, sessionId, pushMessage, setSession, reload, recover, gameLoading, gameError, finishing],
   );
 
   const finish = useCallback(async () => {
@@ -180,19 +194,19 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   }, [session, userCount, sending, sessionId, router, reload]);
 
   if (redirecting) return null;
-  if (loading && !session) {
+  if ((loading && !session) || gameLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted">
         <Spinner className="mr-2" /> 세션을 불러오는 중…
       </div>
     );
   }
-  if (error || !session) {
+  if (error || gameError || !session) {
     return (
       <EmptyState
         title="세션을 불러오지 못했습니다"
-        description={error?.message}
-        action={<Button onClick={() => void reload()}>다시 시도</Button>}
+        description={error?.message ?? gameError?.message}
+        action={<><Button onClick={() => { void reload(); void reloadGame(); }}>다시 시도</Button><Link href={session ? `/materials/${session.material.materialId}` : "/"} className="ml-3 text-sm underline">자료로 돌아가기</Link></>}
       />
     );
   }
@@ -207,6 +221,8 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         right={
           <>
             <RunHeaderBadge run={run} />
+            {run && <Link aria-disabled={sending} tabIndex={sending ? -1 : undefined} className={clsx("text-sm font-semibold text-primary", sending && "pointer-events-none opacity-50")}
+              href={`/materials/${session.material.materialId}/junior?chapterId=${session.chapter.chapterId}`}>후배 변경</Link>}
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}
@@ -221,7 +237,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           <Card className="overflow-hidden p-0">
             <ChatThread
               messages={messages}
-              character={run?.character ?? "KU_HARD"}
+              character={session.character ?? run?.character ?? (session.juniorLevel === "HARD" ? "KU_HARD" : "MALE_EASY")}
               juniorName={run ? CHARACTER_META[run.character].name : "새내기"}
               pending={pending}
               reactionText={reactionText}
@@ -229,7 +245,11 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
               animateId={animateId}
               onResend={(content) => void send(content)}
             />
-            <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} />
+            {turnError && <div role="alert" className="space-y-2 border-t border-danger bg-danger-soft px-4 py-3 text-sm text-danger">
+              <p>{turnError}</p>
+              {retryContent && <Button size="sm" variant="secondary" disabled={sending} onClick={() => void send(retryContent)}>저장된 설명으로 다시 시도</Button>}
+            </div>}
+            <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} disabled={finishing} />
           </Card>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-surface/90 px-4 py-3 backdrop-blur">
             <p className="text-xs text-muted">

@@ -28,13 +28,13 @@ type Progress = SseEventData<"progress">;
 
 export function PreparePage({ sessionId }: { sessionId: string }) {
   const router = useRouter();
-  const { session, setSession, loading, error, redirecting, reload } = useSession(sessionId, ["PREPARING"]);
+  const { session, setSession, loading, error, redirecting, reload, recover } = useSession(sessionId, ["PREPARING"]);
 
   const [progress, setProgress] = useState<Progress | null>(null);
   const [ready, setReady] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const { run } = useSessionGame(sessionId);
+  const { run, loading: gameLoading, error: gameError, reload: reloadGame } = useSessionGame(sessionId);
   const abortRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
 
@@ -51,51 +51,54 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
     abortRef.current = ac;
     setStreamError(null);
     setProgress(null);
-    let reported = false;
     try {
       await sse(
         `/sessions/${sessionId}/prepare`,
         { method: "GET" },
         (name, data) => {
+          if (ac.signal.aborted) return;
           if (name === "progress") setProgress(data as Progress);
           else if (name === "ready") {
             setSession((data as SseEventData<"ready">).session);
             setReady(true);
-          } else if (name === "error") {
-            reported = true;
-            const msg = (data as SseEventData<"error">).message || "준비에 실패했습니다.";
-            setStreamError(msg);
-            toast(msg, "error");
           }
         },
         ac.signal,
       );
     } catch (e) {
-      if (ac.signal.aborted || reported) return;
+      if (ac.signal.aborted) return;
+      if (recover(e)) return;
+      if (e instanceof ApiError && e.status === 409) {
+        const current = await reload();
+        if (ac.signal.aborted || !current || current.status !== "PREPARING") return;
+      }
       const msg = e instanceof ApiError ? e.message : "네트워크 오류가 발생했습니다.";
       setStreamError(msg);
       toast(msg, "error");
     }
-  }, [sessionId, setSession]);
+  }, [sessionId, setSession, recover, reload]);
 
   useEffect(() => {
     if (!session || startedRef.current) return;
     startedRef.current = true;
     void startPrepare();
   }, [session, startPrepare]);
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => {
+    setReady(false); setStreamError(null); startedRef.current = false;
+    return () => { abortRef.current?.abort(); startedRef.current = false; };
+  }, [sessionId]);
 
 
   if (redirecting) return null;
-  if (loading && !session) {
+  if ((loading && !session) || gameLoading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted">
         <Spinner className="mr-2" /> 세션을 불러오는 중…
       </div>
     );
   }
-  if (error || !session) {
-    return <EmptyState title="세션을 불러오지 못했습니다" description={error?.message} action={<Button onClick={() => void reload()}>다시 시도</Button>} />;
+  if (error || gameError || !session) {
+    return <EmptyState title="세션을 불러오지 못했습니다" description={error?.message ?? gameError?.message} action={<Button onClick={() => { void reload(); void reloadGame(); }}>다시 시도</Button>} />;
   }
 
   const doneIdx = ready ? STEPS.length : progress ? STEPS.findIndex((s) => s.step === progress.step) : -1;
@@ -201,7 +204,7 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
               <CharacterBadge character={run.character} />
               <p className="text-sm text-muted">합격 {run.passScore}점 · {run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}</p>
             </div>
-            <p className="mt-3 text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 후배는 졸업하거나 떠날 때까지 바뀌지 않습니다.</p>
+            <p className="mt-3 text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 자료와 진도는 유지하면서 다른 후배와 새 대화를 시작할 수 있어요.</p>
             <p className="mt-2 text-xs text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
           </Card>
         ) : (

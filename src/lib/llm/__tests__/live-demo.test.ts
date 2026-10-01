@@ -12,8 +12,17 @@ async function collect<T>(events: AsyncIterable<T>) {
 }
 
 function provider(reply: (input: Record<string, unknown>) => unknown): LiveProviderCalls {
+  let reaction = "응, 말해 준 설명을 기억할게.";
   return {
-    async completeJSON(_system, user, schema) { return schema.parse(reply(JSON.parse(user))); },
+    async completeJSON(_system, user, schema, options) {
+      const input = JSON.parse(user);
+      // Wording is now a real validated request: a failing analysis mock must
+      // not be swallowed by a production fallback on the second call.
+      if (options?.stage === "respond-turn") return schema.parse({ reactions: [reaction], question: input.nextQuestionHint });
+      const output = reply(input);
+      if (output && typeof output === "object" && "reactionQuote" in output && output.reactionQuote) reaction = `“${output.reactionQuote}”라고 설명해 줬구나.`;
+      return schema.parse(output);
+    },
     async *streamText() { throw new Error("Unexpected text API call"); },
   };
 }
@@ -45,7 +54,7 @@ test("semantic concept labels need teaching evidence, not a literal label substr
       reactionQuote: "사람들이 사려는 양은 줄어",
     });
   })).juniorTurn(base));
-  assert.equal(calls, 2, "a normal turn analyses once, then asks the model to phrase the reaction and next question");
+  assert.equal(calls, 1, "analysis runs once; the separate wording request uses a valid mock response");
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["수요 법칙"], added: ["수요 법칙"] });
   assert.deepEqual(events.at(-1), { type: "question", coveredObjectives: ["o1"], content: "선배, 수요량의 변화도 알려줄래?" });
   assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("사람들이 사려는 양은 줄어")));
