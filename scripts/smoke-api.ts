@@ -128,6 +128,8 @@ async function main() {
   cookie = setCookie.split(";")[0];
 
   // [게임 확장] 아래 기존 체크는 Run 없는 "연습 모드" 기준이다. 체험1 의 ACTIVE Run 을 잠시 멈추고 [game] 직전에 되돌린다.
+  // 이전 실행이 중간에 끊겨 멈춘 채 남은 Run(진짜 GAME OVER 와 달리 endedAt 이 없음)을 먼저 되살린다.
+  await db.juniorRun.updateMany({ where: { userId: "usr_demo1", status: "GAME_OVER", endedAt: null }, data: { status: "ACTIVE" } });
   const pausedRuns = await db.juniorRun.findMany({ where: { userId: "usr_demo1", status: "ACTIVE" }, select: { id: true } });
   await db.juniorRun.updateMany({ where: { id: { in: pausedRuns.map((r) => r.id) } }, data: { status: "GAME_OVER" } });
 

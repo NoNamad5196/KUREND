@@ -3,6 +3,7 @@
  * generated Prisma client: C passes its existing singleton and auth helper.
  */
 import { SessionSchema, type SessionDto } from "@/contracts/types";
+import { CHARACTERS, type ExamFormat, type JuniorCharacter, type SessionGameSnapshot } from "@/contracts/game";
 import {
   RouteError, type ChapterRecord, type MaterialRecord, type RouteBackend,
   type SessionRecord, type SourceRecord,
@@ -44,7 +45,7 @@ interface DbMessage {
 interface DbExam {
   id: string;
   status: NonNullable<SessionRecord["exam"]>["status"];
-  questions: NonNullable<SessionRecord["exam"]>["questions"];
+  questions: (NonNullable<SessionRecord["exam"]>["questions"][number] & { choicesJson?: string | null })[];
   answers: { qid: string; answer: string; sentencesJson: string }[];
   grades: NonNullable<SessionRecord["exam"]>["grades"];
 }
@@ -70,8 +71,33 @@ export interface PrismaSessionAggregate {
   messages: DbMessage[];
   exam: DbExam | null;
   gaps: DbGap[];
+  /** [① 게임 확장] 연결된 Run (없으면 연습 모드). 스냅샷 비교 대상인 스칼라라 값이 바뀌지 않는다. */
+  runId?: string | null;
 }
-interface PrismaTransaction {
+/** [① 게임 확장] Run·숙련도 조회용. 세션 aggregate 비교(CAS)에 넣지 않아 같은 Run 의 다른 세션 LIFE 변화로 409 가 나지 않는다. */
+interface DbRun { id: string; character: string; lives: number; maxLives: number }
+interface DbMastery { concept: string; exposureCount: number; mastery: number }
+interface GameDelegates {
+  juniorRun?: { findUnique(args: JsonArgs): Promise<DbRun | null> };
+  conceptMastery?: { findMany(args: JsonArgs): Promise<DbMastery[]>; upsert(args: JsonArgs): Promise<unknown> };
+}
+/** ② 가 SessionRecord.game? 을 선언하기 전에도 같은 모양으로 붙여 둔다. */
+type SessionRecordWithGame = SessionRecord & { game?: SessionGameSnapshot };
+
+async function loadGameSnapshot(db: GameDelegates, runId: string | null | undefined, chapterId: string): Promise<SessionGameSnapshot | undefined> {
+  if (!runId || !db.juniorRun) return undefined;
+  const run = await db.juniorRun.findUnique({ where: { id: runId }, select: { id: true, character: true, lives: true, maxLives: true } });
+  if (!run || !(run.character in CHARACTERS)) return undefined;
+  const character = run.character as JuniorCharacter;
+  const mastery = db.conceptMastery
+    ? await db.conceptMastery.findMany({ where: { runId, chapterId }, orderBy: { concept: "asc" }, select: { concept: true, exposureCount: true, mastery: true } })
+    : [];
+  return {
+    runId: run.id, character, lives: run.lives, maxLives: run.maxLives,
+    passScore: CHARACTERS[character].passScore, examFormat: CHARACTERS[character].examFormat, mastery,
+  };
+}
+interface PrismaTransaction extends GameDelegates {
   material: Delegate<DbMaterial>;
   session: Delegate<PrismaSessionAggregate>;
   chapter: Delegate<DbChapter>;
@@ -180,7 +206,10 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
       })),
       exam: raw.exam && {
         examId: raw.exam.id, status: raw.exam.status,
-        questions: raw.exam.questions.map(({ qid, order, points, question, objectiveRef, rubric }) => ({ qid, order, points, question, objectiveRef, rubric })),
+        questions: raw.exam.questions.map(({ qid, order, points, question, objectiveRef, rubric, choicesJson }) => ({
+          qid, order, points, question, objectiveRef, rubric,
+          ...(choicesJson ? { choices: json<string[]>(choicesJson) } : {}),
+        })),
         answers: raw.exam.answers.map((answer) => ({ qid: answer.qid, answer: answer.answer, sentences: json(answer.sentencesJson) })),
         grades: raw.exam.grades.map(({ qid, score, maxScore, verdict, comment }) => ({ qid, score, maxScore, verdict, comment })),
       },
@@ -220,7 +249,11 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
     },
     async getSession(sessionId, userId) {
       const raw = await db.session.findFirst({ where: { id: sessionId, userId }, include: sessionInclude });
-      return raw ? sessionRecord(raw) : null;
+      if (!raw) return null;
+      const record: SessionRecordWithGame = sessionRecord(raw);
+      const game = await loadGameSnapshot(db, raw.runId, raw.chapter.id);
+      if (game) record.game = game;
+      return record;
     },
     async commitMaterial(previous, next) {
       const snapshot = materialSnapshots.get(previous);
@@ -266,9 +299,13 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
         });
         if (changed.count !== 1) conflict();
         await persistSessionChildren(tx, current, next);
+        await persistMastery(tx, current, next);
         const fresh = await tx.session.findFirst({ where: { id: next.sessionId, userId: next.userId }, include: sessionInclude });
         if (!fresh) missing();
-        return sessionRecord(fresh);
+        const record: SessionRecordWithGame = sessionRecord(fresh);
+        const game = await loadGameSnapshot(tx, fresh.runId, fresh.chapter.id);
+        if (game) record.game = game;
+        return record;
       });
     },
     toSessionDto(session) {
@@ -277,6 +314,21 @@ export function createPrismaBackend<RawSession = PrismaSessionAggregate>(
       return normalizedSessionDto(session);
     },
   };
+}
+
+/** [① 게임 확장 P1] ② 가 next.game.mastery 를 채우면 Run×챕터×개념 숙련도를 upsert 한다. */
+async function persistMastery(tx: PrismaTransaction, current: PrismaSessionAggregate, next: SessionRecord): Promise<void> {
+  const game = (next as SessionRecordWithGame).game;
+  if (!game?.mastery?.length || !current.runId || game.runId !== current.runId || !tx.conceptMastery) return;
+  for (const m of game.mastery) {
+    const value = Math.max(0, Math.min(100, Math.round(m.mastery)));
+    const data = { exposureCount: Math.max(0, Math.round(m.exposureCount)), mastery: value };
+    await tx.conceptMastery.upsert({
+      where: { runId_chapterId_concept: { runId: current.runId, chapterId: current.chapter.id, concept: m.concept } },
+      create: { runId: current.runId, chapterId: current.chapter.id, concept: m.concept, ...data },
+      update: data,
+    });
+  }
 }
 
 async function persistSessionChildren(tx: PrismaTransaction, current: PrismaSessionAggregate, next: SessionRecord): Promise<void> {
@@ -307,11 +359,15 @@ async function persistSessionChildren(tx: PrismaTransaction, current: PrismaSess
   }
   if (next.exam) {
     const exam = next.exam;
+    // [① 게임 확장] 시험 형식은 Run 의 후배가 정한다(연습 모드는 DESCRIPTIVE). 생성 시에만 기록한다.
+    const format: ExamFormat = (next as SessionRecordWithGame).game?.examFormat ?? "DESCRIPTIVE";
     await tx.exam.upsert({ where: { id: exam.examId },
-      create: { id: exam.examId, sessionId: next.sessionId, status: exam.status }, update: { status: exam.status } });
+      create: { id: exam.examId, sessionId: next.sessionId, status: exam.status, format }, update: { status: exam.status } });
     for (const question of exam.questions) {
       const id = `${exam.examId}:${question.qid}`;
-      const data = { examId: exam.examId, ...question };
+      // [① 게임 확장] 객관식 보기(choices)는 ExamQuestion.choicesJson 컬럼에 저장한다.
+      const { choices, ...rest } = question as typeof question & { choices?: string[] };
+      const data = { examId: exam.examId, ...rest, choicesJson: choices?.length ? JSON.stringify(choices) : null };
       await tx.examQuestion.upsert({ where: { id }, create: { id, ...data }, update: data });
     }
     for (const answer of exam.answers) {
