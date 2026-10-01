@@ -42,32 +42,30 @@
 
 /* ── 씬 공통 ── */
 .scene { position: fixed; inset: 0; z-index: 94; overflow: hidden; color: #1E2330; font-family: var(--font-sans); animation: ro-fade .6s ease-out both; }
-.scene .sc-sky { position: absolute; inset: 0; background: linear-gradient(180deg, #CFE8F8 0%, #EAF4FB 55%, #F6F5F0 56%, #F6F5F0 100%); }
-.scene.sc-dusk .sc-sky { background: linear-gradient(180deg, #F7C8A0 0%, #FBE3C9 50%, #E9DCC4 56%, #E9DCC4 100%); }
-.scene.sc-night .sc-sky { background: linear-gradient(180deg, #2B2F55 0%, #4C4F7A 50%, #3F4253 56%, #3F4253 100%); color: #F6F5F0; }
-.scene .sc-bg { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; }
-.scene .sc-bg svg { width: 100%; height: 100%; }
-.scene .sc-cloud { position: absolute; top: 8%; width: 180px; height: 56px; border-radius: 999px; background: rgba(255,255,255,.9); animation: sc-drift linear infinite; box-shadow: 40px -18px 0 -6px rgba(255,255,255,.9), 90px -6px 0 -2px rgba(255,255,255,.9); }
-.scene .sc-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: linear-gradient(180deg, #D7D2C2 0%, #C9C3B2 100%); }
-.scene .sc-road { position: absolute; left: 0; right: 0; bottom: 6%; height: 11%; background: #5E6470; }
-.scene .sc-road::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; background: repeating-linear-gradient(90deg, #F4F1E6 0 60px, transparent 60px 110px); animation: sc-dash 1.2s linear infinite; animation-play-state: paused; }
-.scene.sc-moving .sc-road::after { animation-play-state: running; }
+.scene .sc-photo { position: absolute; inset: 0; background: #CFE8F8 url("/characters/bg/campus-autumn.jpg") center bottom / cover no-repeat; animation: sc-kenburns 28s ease-in-out infinite alternate; transform-origin: 50% 80%; }
+.scene .sc-tint { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0) 80%, rgba(0,0,0,.12) 100%); }
+.scene.sc-dusk .sc-tint { background: linear-gradient(180deg, rgba(255,140,60,.28) 0%, rgba(255,170,90,.18) 50%, rgba(60,30,40,.28) 100%); }
+.scene.sc-night .sc-tint { background: linear-gradient(180deg, rgba(20,24,60,.72) 0%, rgba(30,34,70,.6) 60%, rgba(10,10,30,.75) 100%); }
+.scene.sc-night { color: #F6F5F0; }
+.scene .sc-leaves { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.scene .sc-leaves i { position: absolute; top: -20px; border-radius: 60% 0 60% 0; opacity: 0; animation: sc-leaf linear infinite; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
 .scene .sc-stage { position: absolute; left: 0; right: 0; bottom: 14%; height: 46%; }
-.scene .sc-actor { position: absolute; bottom: 0; will-change: transform; }
-.scene .sc-text { position: absolute; left: 0; right: 0; top: 7%; padding: 0 20px; text-align: center; }
-.scene .sc-title { font-family: "Arial Black", "Pretendard Variable", sans-serif; font-weight: 900; font-size: clamp(40px, 9vw, 92px); letter-spacing: .06em; line-height: 1; animation: ro-title .8s cubic-bezier(.34,1.56,.64,1) both; }
-.scene .sc-title.sc-over { color: #C0392B; text-shadow: 0 6px 0 rgba(192,57,43,.18); }
-.scene .sc-title.sc-grad { color: #1F6F5B; text-shadow: 0 6px 0 rgba(31,111,91,.18); }
-.scene .sc-line { margin-top: 18px; font-size: clamp(18px, 3vw, 28px); font-weight: 600; min-height: 1.4em; }
+.scene .sc-actor { position: absolute; bottom: 0; will-change: transform; filter: drop-shadow(0 10px 10px rgba(0,0,0,.25)); }
+.scene .sc-text { position: absolute; left: 0; right: 0; top: 6%; padding: 0 20px; text-align: center; }
+.scene .sc-title { font-family: "Arial Black", "Pretendard Variable", sans-serif; font-weight: 900; font-size: clamp(40px, 9vw, 92px); letter-spacing: .06em; line-height: 1; animation: ro-title .8s cubic-bezier(.34,1.56,.64,1) both; -webkit-text-stroke: 2px rgba(255,255,255,.85); paint-order: stroke fill; }
+.scene .sc-title.sc-over { color: #C0392B; text-shadow: 0 6px 0 rgba(120,20,10,.25), 0 0 30px rgba(255,255,255,.6); }
+.scene .sc-title.sc-grad { color: #1F6F5B; text-shadow: 0 6px 0 rgba(10,60,40,.25), 0 0 30px rgba(255,255,255,.6); }
+.scene .sc-line { margin-top: 18px; display: inline-block; padding: 8px 18px; border-radius: 999px; background: rgba(255,255,255,.82); backdrop-filter: blur(4px); font-size: clamp(18px, 3vw, 28px); font-weight: 700; min-height: 1.4em; color: #1E2330; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.scene .sc-line:empty { display: none; }
 .scene .sc-actions { position: absolute; left: 0; right: 0; bottom: 4%; display: flex; justify-content: center; gap: 10px; padding: 0 16px; animation: ro-rise .6s ease-out both; }
-.scene .sc-skip { position: absolute; top: 14px; right: 16px; font-size: 13px; color: inherit; opacity: .7; }
+.scene .sc-skip { position: absolute; top: 14px; right: 16px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.7); color: #1E2330; }
 .scene .sc-dust { position: absolute; bottom: 0; width: 24px; height: 24px; border-radius: 50%; background: rgba(120,110,90,.35); animation: sc-dust .8s ease-out infinite; }
-@keyframes sc-drift { from { transform: translateX(110vw); } to { transform: translateX(-260px); } }
-@keyframes sc-dash { from { background-position-x: 0; } to { background-position-x: -110px; } }
+@keyframes sc-kenburns { from { transform: scale(1); } to { transform: scale(1.06); } }
+@keyframes sc-leaf { 0% { transform: translate(0, 0) rotate(0); opacity: 0; } 5% { opacity: .95; } 50% { transform: translate(-40px, 50vh) rotate(260deg); } 100% { transform: translate(30px, 105vh) rotate(540deg); opacity: .8; } }
 @keyframes sc-dust { 0% { transform: scale(.4) translateX(0); opacity: .7; } 100% { transform: scale(1.6) translateX(-30px); opacity: 0; } }
 
 /* 트럭 */
-.sc-truck { position: absolute; bottom: 0; width: 340px; height: 180px; will-change: transform; }
+.sc-truck { position: absolute; bottom: 0; width: 340px; height: 180px; will-change: transform; filter: drop-shadow(0 10px 10px rgba(0,0,0,.28)); }
 .sc-truck svg { width: 100%; height: 100%; overflow: visible; }
 .sc-truck .wheel { transform-box: fill-box; transform-origin: center; }
 .sc-truck.sc-rolling .wheel { animation: sc-spin 0.5s linear infinite; }
@@ -100,7 +98,7 @@
 /* GRADUATION */
 .gr .sc-actor { animation: gr-enter 1s cubic-bezier(.34,1.56,.64,1) both; }
 .gr .gr-banner { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); padding: 10px 28px; border-radius: 999px; background: #1F6F5B; color: #fff; font-weight: 800; letter-spacing: .08em; box-shadow: 0 8px 20px rgba(31,111,91,.3); animation: ro-rise .7s ease-out .4s both; }
-.gr .gr-flag { position: absolute; bottom: 0; width: 10px; height: 46%; background: #8B7355; }
+.gr .gr-flag { position: absolute; bottom: 14%; width: 10px; height: 40%; background: #8B7355; filter: drop-shadow(0 6px 6px rgba(0,0,0,.25)); }
 .gr .gr-flag::after { content: ""; position: absolute; top: 0; left: 10px; width: 70px; height: 44px; background: #1F6F5B; clip-path: polygon(0 0, 100% 0, 85% 50%, 100% 100%, 0 100%); transform-origin: left center; animation: gr-wave 1.6s ease-in-out infinite; }
 @keyframes gr-enter { 0% { transform: translateY(60%) scale(.6); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 @keyframes gr-wave { 0%,100% { transform: skewY(-4deg); } 50% { transform: skewY(4deg); } }
