@@ -35,6 +35,8 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const [grading, setGrading] = useState<string | null>(null);
   const [gaps, setGaps] = useState<GapDto[]>([]);
   const { run: juniorRun, reload: reloadGame } = useSessionGame(session.sessionId);
+  const juniorRunRef = useRef<RunDto | null>(null);
+  juniorRunRef.current = juniorRun;
   const [overlay, setOverlay] = useState<{ result: ApplyLifeResponse; run: RunDto } | null>(null);
   const initiated = useRef(false);
   const answerSheet = useRef<HTMLDivElement>(null);
@@ -59,10 +61,12 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
         if (!receivedResult) throw new Error("채점 결과를 확인하지 못했어요. 다시 확인해 주세요.");
         setEvaluated(true);
         // 게임: 결과가 저장된 뒤 LIFE 판정(서버가 session.score 로 계산). Run 이 없으면 연습 모드.
-        const game = await gameApi.getSessionGame(session.sessionId).catch(() => null);
-        if (game?.run && !signal.aborted) {
-          const applied = await gameApi.applyLife(game.run.runId, session.sessionId).catch(() => null);
-          if (applied?.applied && !signal.aborted) setOverlay({ result: applied, run: game.run });
+        const retry = <T,>(work: () => Promise<T>) => work().catch(() => new Promise((r) => setTimeout(r, 1200)).then(work));
+        const game = await retry(() => gameApi.getSessionGame(session.sessionId)).catch(() => null);
+        const runForLife = game?.run ?? juniorRunRef.current;
+        if (runForLife && !signal.aborted) {
+          const applied = await retry(() => gameApi.applyLife(runForLife.runId, session.sessionId)).catch(() => null);
+          if (applied?.applied && !signal.aborted) setOverlay({ result: applied, run: runForLife });
           void reloadGame();
         }
       });
