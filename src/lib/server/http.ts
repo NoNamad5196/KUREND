@@ -72,9 +72,9 @@ type Handler<P> = (req: Request, ctx: { params: P }) => Promise<Response> | Resp
  *   export const GET = withApi<{ id: string }>(async (req, { params }) => { ... });
  */
 export function withApi<P = Record<string, never>>(handler: Handler<P>) {
-  return async (req: Request, ctx?: RouteContext<P>): Promise<Response> => {
+  return async (req: Request, ctx: RouteContext<P>): Promise<Response> => {
     try {
-      const params = (ctx?.params ? await ctx.params : {}) as P;
+      const params = ((await ctx?.params) ?? {}) as P;
       return await handler(req, { params });
     } catch (err) {
       return toErrorResponse(err);
