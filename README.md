@@ -12,7 +12,9 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Windows에서는 `cp` 대신 `Copy-Item .env.example .env.local`을 사용할 수 있습니다. 기본 API 경로는 `/api`입니다. B의 모의 API가 준비되면 로컬 환경 변수 `NEXT_PUBLIC_API_BASE=/api/mock`으로 화면 흐름을 확인할 수 있습니다.
+Windows에서는 `cp` 대신 `Copy-Item .env.example .env.local`을 사용할 수 있습니다. 기본 API 경로는 `/api`입니다.
+
+C/D API가 합쳐지기 전 A 화면을 확인하려면 `.env.local`의 `NEXT_PUBLIC_API_BASE`를 `/api/a-preview`로 바꾸고 개발 서버를 실행하세요. 체험 계정으로 로그인한 뒤 샘플 자료 업로드, 목차 생성, 세션 목록, 지식 지도를 확인할 수 있습니다. 이 미리보기 API는 개발 모드에서만 동작하며 서버 재시작 시 데이터가 초기화됩니다. B의 모의 API를 사용할 때는 `/api/mock`으로 설정합니다.
 
 ## 화면
 
