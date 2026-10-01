@@ -4,7 +4,7 @@
  * 지금은 체험 계정(/auth/demo-accounts → /auth/demo-login)으로 로그인한다.
  * TODO(A 머지 후): `@/components/session/_api` → `@/lib/client/api`, `@/components/session/ui` → `@/components/shell/ui`.
  */
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { DemoAccountDto } from "@/contracts/types";
 import { Mascot } from "@/components/mascot/Mascot";
@@ -27,13 +27,13 @@ function GoogleMark() {
 }
 
 export function LoginScreen() {
-  const search = useSearchParams();
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
   useEffect(() => {
     api.get<{ enabled: boolean }>("/auth/google/status").then((r) => setGoogleEnabled(r.enabled)).catch(() => setGoogleEnabled(false));
   }, []);
   useEffect(() => {
-    const code = search.get("error");
+    // 정적 프리렌더 페이지라 useSearchParams 대신 브라우저에서 직접 읽는다 (?error= 는 Google 콜백이 붙인다)
+    const code = new URLSearchParams(window.location.search).get("error");
     if (!code) return;
     const message: Record<string, string> = {
       google_unavailable: "Google 로그인이 아직 설정되지 않았어요. 체험 계정으로 둘러보세요.",
@@ -42,7 +42,8 @@ export function LoginScreen() {
       google_failed: "Google 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.",
     };
     toast(message[code] ?? "로그인에 실패했어요.", "error");
-  }, [search]);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const router = useRouter();
   const [accounts, setAccounts] = useState<DemoAccountDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
