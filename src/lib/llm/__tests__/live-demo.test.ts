@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createLiveLlm, type LiveProviderCalls } from "../live";
 import { acceptedExplanations } from "../turn-state";
 import { UNLEARNED_ANSWER } from "../text";
+import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
 import type { Llm, TaughtMsg } from "../types";
 
 async function collect<T>(events: AsyncIterable<T>) {
@@ -138,9 +139,9 @@ test("exam citations cannot invent facts under an otherwise valid ref", async ()
   const fallback = await collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input));
   assert.ok(!JSON.stringify(fallback).includes("소득이 늘면"));
   const fallbackFinal = fallback.at(-1);
-  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes("라고 배웠습니다")));
+  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer === plainExamAnswer(correct)));
   const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", text: "모델이 덧붙인 외부 사실" }] }))).writeExamAnswer(input));
-  assert.deepEqual(events.at(-1), { type: "final", answer: `“${correct}”라고 배웠습니다.` });
+  assert.deepEqual(events.at(-1), { type: "final", answer: plainExamAnswer(correct) });
   assert.ok(!JSON.stringify(events).includes("외부 사실"));
 });
 

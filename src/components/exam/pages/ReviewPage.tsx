@@ -1,5 +1,6 @@
 "use client";
 
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TUTOR_PRESET_REQUEST, type CompleteResponse, type GapDto, type ResultDto, type ReviewedResponse, type SessionDto } from "@/contracts/types";
@@ -58,14 +59,14 @@ function ReviewContent({ session, initialResult, reload }: { session: SessionDto
         {result.gaps.length === 0 && <Card><EmptyState title="놓친 곳이 없어요" description="가르친 내용이 답안에 잘 담겼어요. 학습을 마쳐 보세요." /></Card>}
         {result.gaps.map((gap, index) => <section key={gap.gapId} className="min-w-0 border-t border-line py-6 sm:py-8">
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
-            <h3 className="w-full min-w-0 flex-1"><Button variant="ghost" className="h-auto min-h-11 w-full items-start justify-start gap-4 whitespace-normal px-0 text-left" aria-expanded={expanded[gap.gapId]} aria-controls={`gap-${gap.gapId}`} onClick={() => { setExpanded((value) => ({ ...value, [gap.gapId]: !value[gap.gapId] })); setSelectedId(gap.gapId); }}><span className="text-2xl font-medium tracking-tight text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 break-words text-xl leading-relaxed font-semibold tracking-tight">{gap.title}</span></Button></h3>
+            <h3 className="w-full min-w-0 flex-1"><Button variant="ghost" className="h-auto min-h-11 w-full items-start justify-start gap-4 whitespace-normal px-0 text-left" aria-expanded={expanded[gap.gapId]} aria-controls={`gap-${gap.gapId}`} onClick={() => { setExpanded((value) => ({ ...value, [gap.gapId]: !value[gap.gapId] })); setSelectedId(gap.gapId); }}><span className="text-2xl font-medium tracking-tight text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 break-words text-xl leading-relaxed font-semibold tracking-tight">{stripMarkdownBold(gap.title)}</span></Button></h3>
             <Chip className="sm:mt-2" tone={gap.status === "REVIEWED" ? "ok" : "warn"}>{gap.status === "REVIEWED" ? "✓ 되짚기 완료" : "확인 필요"}</Chip>
           </div>
           {expanded[gap.gapId] && <div id={`gap-${gap.gapId}`} className="mt-6 space-y-7 sm:pl-12">
             <section><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-xs font-semibold tracking-wide text-muted">자료에서는</h4><Button variant="ghost" className="min-h-11" onClick={() => setSource(gap)}>자료에서 보기 ↗</Button></div><blockquote className="mt-2 break-words whitespace-pre-wrap border-l-2 border-primary bg-paper px-5 py-4 text-sm leading-7 text-paper-ink">{gap.sourceExcerpt}</blockquote></section>
-            <section><h4 className="text-xs font-semibold tracking-wide text-muted">진단</h4><p className="mt-3 break-words whitespace-pre-wrap text-sm leading-7">{gap.diagnosis}</p></section>
+            <section><h4 className="text-xs font-semibold tracking-wide text-muted">진단</h4><p className="mt-3 break-words whitespace-pre-wrap text-sm leading-7">{stripMarkdownBold(gap.diagnosis)}</p></section>
             <section><h4 className="text-xs font-semibold tracking-wide text-muted">원인이 된 내 설명</h4><blockquote className="mt-3 break-words whitespace-pre-wrap border-l-2 border-line pl-5 text-sm leading-7 text-muted">{gap.evidenceQuote || "이 부분은 설명하지 않았습니다"}</blockquote></section>
-            <div className="flex flex-wrap gap-2">{gap.concepts.map((concept) => <span key={concept} className="max-w-full break-words rounded-sm bg-primary-soft px-3 py-1 text-xs text-primary">{concept}</span>)}</div>
+            <div className="flex flex-wrap gap-2">{gap.concepts.map((concept) => <span key={concept} className="max-w-full break-words rounded-sm bg-primary-soft px-3 py-1 text-xs text-primary">{stripMarkdownBold(concept)}</span>)}</div>
             <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" className="min-h-11" aria-pressed={selectedId === gap.gapId} onClick={() => setSelectedId(gap.gapId)}>이 부분 튜터에게 묻기</Button><Button className="min-h-11" disabled={busy || gap.status === "REVIEWED"} loading={busy && reviewingId === gap.gapId} onClick={() => markReviewed(gap)}>이해했어요 ✓</Button></div>
           </div>}
         </section>)}
@@ -104,10 +105,10 @@ function TutorPanel({ sessionId, gap, reload, onSaved }: { sessionId: string; ga
     });
   }
   return <Card className="min-w-0 p-5 sm:p-6 xl:sticky xl:top-28">
-    <p className="editorial-label mb-3 text-muted">A LITTLE GUIDANCE</p><h2 className="text-2xl font-semibold tracking-tight">AI 튜터</h2><p className="mt-3 break-words text-sm leading-6 text-muted">{gap.title}</p>
+    <p className="editorial-label mb-3 text-muted">A LITTLE GUIDANCE</p><h2 className="text-2xl font-semibold tracking-tight">AI 튜터</h2><p className="mt-3 break-words text-sm leading-6 text-muted">{stripMarkdownBold(gap.title)}</p>
     <div className="mt-5 max-h-[28rem] space-y-4 overflow-y-auto overscroll-contain" aria-label="튜터 대화">
-      {messages.map((message) => <div key={message.id} className="space-y-3 border-t border-line pt-4"><p className="break-words whitespace-pre-wrap border-l-2 border-primary pl-3 text-sm leading-6">{message.request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7">{message.response}</p></SpeechBubble></div>)}
-      {request && <div className="space-y-2"><p className="break-words whitespace-pre-wrap text-sm text-muted">{request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7" aria-live="polite">{response || "자료를 바탕으로 설명을 준비하고 있어요…"}</p></SpeechBubble></div>}
+      {messages.map((message) => <div key={message.id} className="space-y-3 border-t border-line pt-4"><p className="break-words whitespace-pre-wrap border-l-2 border-primary pl-3 text-sm leading-6">{message.request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7">{stripMarkdownBold(message.response)}</p></SpeechBubble></div>)}
+      {request && <div className="space-y-2"><p className="break-words whitespace-pre-wrap text-sm text-muted">{request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7" aria-live="polite">{stripMarkdownBold(response, { streaming: busy }) || "자료를 바탕으로 설명을 준비하고 있어요…"}</p></SpeechBubble></div>}
     </div>
     {error && <PageError message={error} retry={() => ask(failedRequest)} />}
     <Button variant="secondary" className="mt-5 h-auto min-h-11 w-full whitespace-normal py-2" disabled={busy} onClick={() => ask()}>이 부분 쉽게 설명 받기</Button>

@@ -2,6 +2,7 @@
 /**
  * 오답노트 상세. 선배가 "왜 틀렸을까"를 먼저 써야 AI 분석(진단·비교·자료 근거)이 열린다. 그 다음 [다시 가르치기].
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -71,11 +72,11 @@ export function WrongNoteDetail({ id }: { id: string }) {
           {/* 시험지 */}
           <Card className="wn-paper wn-rise">
             <div className="flex flex-wrap items-center justify-between gap-3"><p className="editorial-label">문항 {note.qid.replace("q", "")}</p><span className="wn-score">{note.score}<small> / {note.maxScore}</small></span></div>
-            <h1 className="wn-question">{note.question}</h1>
+            <h1 className="wn-question">{stripMarkdownBold(note.question)}</h1>
             {note.choices && <Choices choices={note.choices} answer={note.answer} className="mt-4" />}
             <div className="wn-answer">
               <p className="text-xs font-bold text-muted">새내기의 답</p>
-              <p className="mt-3 whitespace-pre-wrap break-words text-xl leading-8">{note.answer || "(답하지 못함)"}</p>
+              <p className="mt-3 whitespace-pre-wrap break-words text-xl leading-8">{stripMarkdownBold(note.answer) || "(답하지 못함)"}</p>
             </div>
             {note.evidenceQuote && (
               <div className="wn-evidence mt-6 text-sm">
@@ -135,17 +136,17 @@ export function WrongNoteDetail({ id }: { id: string }) {
               {unlocked && note.aiComparison && (
                 <div className="rounded-sm border border-primary/30 bg-primary-soft p-3 text-sm leading-6">
                   <p className="text-xs font-bold text-primary">내 생각과 비교</p>
-                  <p className="mt-1">{note.aiComparison}</p>
+                  <p className="mt-1">{stripMarkdownBold(note.aiComparison)}</p>
                 </div>
               )}
               <div className="text-sm leading-6">
                 <p className="text-xs font-bold text-muted">진단</p>
-                <p className="mt-1">{unlocked ? note.aiDiagnosis : "새내기 답안과 자료를 비교한 진단이 여기에 나와요. 먼저 스스로 생각해 보세요."}</p>
+                <p className="mt-1">{unlocked ? stripMarkdownBold(note.aiDiagnosis) : "새내기 답안과 자료를 비교한 진단이 여기에 나와요. 먼저 스스로 생각해 보세요."}</p>
               </div>
               {note.missedConcepts.length > 0 && (
                 <div>
                   <p className="text-xs font-bold text-muted">놓친 개념</p>
-                  <div className="mt-1 flex flex-wrap gap-1.5">{note.missedConcepts.map((c) => <Chip key={c} tone="red">{unlocked ? c : "●●●●"}</Chip>)}</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">{note.missedConcepts.map((c) => <Chip key={c} tone="red">{unlocked ? stripMarkdownBold(c) : "●●●●"}</Chip>)}</div>
                 </div>
               )}
               {note.sourceExcerpt && (

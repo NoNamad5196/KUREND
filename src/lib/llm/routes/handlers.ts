@@ -9,6 +9,7 @@ import {
 import type { SseEvent } from "@/contracts/events";
 import { objectiveTopic, teachingChoicesFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
 import { normalizePersonaAddress, personaQuestion } from "@/lib/llm/personas";
+import { examChoiceIndex } from "@/lib/shared/exam-format";
 import type { ConceptMasteryDto } from "@/contracts/game";
 import type { Llm, TaughtMsg } from "@/lib/llm";
 import { createSse } from "@/lib/server/sse";
@@ -232,16 +233,16 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         }
         const started = Date.now();
         send("progress", { step: "OBJECTIVES", message: "이 목차의 학습 목표를 정하고 있어요.", elapsedMs: 0 });
-        // 문항 수: 후배별(남 3 · 여 5 · KU 7), 졸업시험 10(객관식+서술형), 연습 모드 3
+        // 새 챕터: 학습 목표/시험 각 5개. 졸업시험 10개, 기존 연습은 3개.
         const questionCount = session.game?.questionCount ?? 3;
         const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
           persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
-        if (prepared.objectives.length !== 3 || new Set(prepared.objectives.map((item) => item.id)).size !== 3
+        if (prepared.objectives.length !== questionCount || new Set(prepared.objectives.map((item) => item.id)).size !== questionCount
           || prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount
           || prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100
-          || prepared.questions.some((item) => !Number.isInteger(item.points) || item.points < 1
-            || !prepared.objectives.some((objective) => objective.id === item.objectiveRef))
+          || prepared.questions.some((item, index) => !Number.isInteger(item.points) || item.points < 1
+            || prepared.objectives[index]?.id !== item.objectiveRef)
           || !prepared.firstQuestion.trim()
           || prepared.questions.some((item, index) => isObjectiveQuestion(examFormat, index, questionCount)
             ? (item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric))
@@ -347,7 +348,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         let finalAnswer: string | undefined;
         let sourcesSent = false;
         for await (const event of llm.writeExamAnswer({ question: question.question, taught, heardConcepts: session.heardConcepts,
-          persona: session.game?.character, choices: question.choices })) {
+          choices: question.choices })) {
           checkActive(request);
           if (finalAnswer !== undefined) modelFailure();
           if (event.type === "sources") {
@@ -367,7 +368,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           } else if (event.type === "final") finalAnswer = event.answer;
         }
         if (!sourcesSent || !finalAnswer?.trim() || !answerSentences.length) modelFailure();
-        if (question.choices && (question.choices.length !== 4 || !question.choices.some((choice) => finalAnswer!.startsWith(choice.slice(0, 1))))) modelFailure();
+        if (question.choices && (question.choices.length !== 4 || examChoiceIndex(finalAnswer) < 0)) modelFailure();
         const normalized = (value: string) => value.replace(/\s+/gu, "").trim();
         if (normalized(finalAnswer) !== normalized(answerSentences.map((item) => item.sentence).join(" "))) modelFailure();
         const answers = [...exam.answers, { qid, answer: finalAnswer, sentences: answerSentences }];
@@ -394,8 +395,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const gaps: SessionRecord["gaps"] = [];
         for await (const event of llm.gradeExam({
           chapter: session.chapter, questions: exam.questions,
-          answers: exam.answers.map(({ qid, answer }) => ({ qid, answer })), taught: taughtMessages(session),
-          persona: session.game?.character,
+          answers: exam.answers.map(({ qid, answer, sentences }) => ({ qid, answer, sentences })), taught: taughtMessages(session),
         })) {
           checkActive(request);
           const question = exam.questions.find((item) => item.qid === event.qid);

@@ -5,7 +5,7 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/server/db";
-import { unauthorized } from "@/lib/server/http";
+import { ApiError, unauthorized } from "@/lib/server/http";
 
 export const SESSION_COOKIE = process.env.SESSION_COOKIE || "tb_uid";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30일
@@ -43,28 +43,48 @@ export function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
-export function getUserIdFromRequest(req: Request): string | null {
+type SessionFailure = "MISSING_COOKIE" | "SIGNING_KEY_MISSING" | "INVALID_SESSION" | "EXPIRED_SESSION";
+type SessionIdentity = { userId: string; signed: boolean } | { userId: null; reason: SessionFailure };
+
+function sessionIdentity(req: Request): SessionIdentity {
   const value = readCookie(req, SESSION_COOKIE);
-  if (!value) return null;
-  if (fixtureCookiesAllowed() && USER_ID.test(value)) return value;
+  if (!value) return { userId: null, reason: "MISSING_COOKIE" };
+  if (fixtureCookiesAllowed() && USER_ID.test(value)) return { userId: value, signed: false };
   const secret = sessionSecret();
-  if (!secret) return null;
+  if (!secret) return { userId: null, reason: "SIGNING_KEY_MISSING" };
   const parts = value.split(".");
-  if (parts.length !== 4) return null;
+  if (parts.length !== 4) return { userId: null, reason: "INVALID_SESSION" };
   const [version, userId, expiresAt, suppliedSignature] = parts;
-  if (version !== "v1" || !USER_ID.test(userId) || !/^\d{1,12}$/.test(expiresAt) || !/^[A-Za-z0-9_-]{43}$/.test(suppliedSignature)) return null;
-  if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return null;
+  if (version !== "v1" || !USER_ID.test(userId) || !/^\d{1,12}$/.test(expiresAt) || !/^[A-Za-z0-9_-]{43}$/.test(suppliedSignature)) return { userId: null, reason: "INVALID_SESSION" };
   const expectedSignature = signature(`${version}.${userId}.${expiresAt}`, secret);
-  if (!timingSafeEqual(Buffer.from(suppliedSignature), Buffer.from(expectedSignature))) return null;
-  return userId;
+  if (!timingSafeEqual(Buffer.from(suppliedSignature), Buffer.from(expectedSignature))) return { userId: null, reason: "INVALID_SESSION" };
+  if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return { userId: null, reason: "EXPIRED_SESSION" };
+  return { userId, signed: true };
 }
 
-/** 쿠키의 userId 가 실제 존재하는 사용자일 때만 통과. 아니면 401. */
+export function getUserIdFromRequest(req: Request): string | null {
+  return sessionIdentity(req).userId;
+}
+
+function authUnavailable(reason: "SIGNING_KEY_MISSING" | "ACCOUNT_NOT_FOUND"): ApiError {
+  // Deliberately omit cookies, keys, user IDs and provider/DB exception messages.
+  console.error("[auth] unavailable", { reason });
+  return new ApiError("AUTH_UNAVAILABLE", "로그인 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+}
+
+/** Invalid/expired identity is 401; a valid signed identity with missing account data is a service failure. */
 export async function requireUser(req: Request): Promise<AuthUser> {
-  const userId = getUserIdFromRequest(req);
-  if (!userId) throw unauthorized();
-  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
-  if (!user) throw unauthorized("세션이 만료되었습니다. 다시 로그인해 주세요.");
+  const identity = sessionIdentity(req);
+  if (identity.userId === null) {
+    if (identity.reason === "SIGNING_KEY_MISSING") throw authUnavailable(identity.reason);
+    if (identity.reason !== "MISSING_COOKIE") console.warn("[auth] rejected", { reason: identity.reason });
+    throw unauthorized(identity.reason === "EXPIRED_SESSION" ? "로그인이 만료되었습니다. 다시 로그인해 주세요." : "로그인이 필요합니다.");
+  }
+  const user = await db.user.findUnique({ where: { id: identity.userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
+  if (!user) {
+    if (identity.signed) throw authUnavailable("ACCOUNT_NOT_FOUND");
+    throw unauthorized("로그인 계정을 확인할 수 없습니다. 다시 로그인해 주세요.");
+  }
   return { userId: user.id, nickname: user.nickname, onboardingCompletedAt: user.onboardingCompletedAt };
 }
 

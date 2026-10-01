@@ -47,6 +47,25 @@ test("tutor produces five sentences, one analogy, the required last sentence, an
   assert.deepEqual(events.at(-1), { type: "final", response });
 });
 
+test("tutor removes bold markup before streaming but validates untouched source quotations", async () => {
+  const quoted = "**가격**이 오르면 수요량은 감소한다.";
+  const provider = calls(() => ({
+    ...valid,
+    opening: "**핵심 관계**를 확인합니다.",
+    explanation: { text: "**가격**이 오르면 수요량은 감소합니다.", sourceQuote: quoted },
+    clarification: { text: "다른 조건은 일정합니다.", sourceQuote: quoted },
+    takeaway: "**가격과 수요량**의 관계를 기억합니다.",
+  }));
+  const events = await collect(createTutorExplain(provider)({ ...input,
+    chapter: { ...input.chapter, text: quoted }, gap: { ...input.gap, sourceExcerpt: quoted },
+  }));
+  const text = events.filter(event => event.type === "token").map(event => event.token).join("");
+  assert.ok(!text.includes("**"));
+  assert.match(text, /가격과 수요량/);
+  assert.deepEqual(events.at(-1), { type: "final", response: text });
+  assert.equal(provider.attempts, 1);
+});
+
 test("tutor repairs an invalid sentence before emitting any tokens, with at most two attempts", async () => {
   const provider = calls((attempt) => attempt === 1 ? { ...valid, analogy: "INVALID_SENTENCE. 두 번째 문장입니다." } : valid);
   const events = await collect(createTutorExplain(provider)(input));

@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { loadLocalEnvironment } from "./environment";
 import type { ErrorReason } from "@/contracts/errors";
+import { NO_MARKDOWN_BOLD_RULE } from "./prompts/output-rules";
 
 loadLocalEnvironment();
 
@@ -123,6 +124,7 @@ const requestJSON: JsonRequest = async (system, user, options) => {
 export async function completeJSONWith<T>(
   request: JsonRequest, system: string, user: string, schema: z.ZodType<T>, options: JsonOptions = {},
 ): Promise<T> {
+  const outputInstructions = `${system}\n${NO_MARKDOWN_BOLD_RULE}`;
   const timeoutMs = scaledTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const maxOutputTokens = options.maxOutputTokens ?? MAX_TOKENS;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
@@ -141,7 +143,7 @@ export async function completeJSONWith<T>(
     for (let attempt = 0; attempt < 2; attempt++) {
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0 || controller.signal.aborted) throw new LlmFailure("AI 응답 대기 시간을 초과했습니다. 다시 시도해 주세요.", "LLM_TIMEOUT");
-      const instruction = attempt === 0 ? system : `${system}\n이전 응답이 형식 또는 근거 검증에 실패했습니다. 인용은 입력의 원문과 정확히 일치해야 합니다. 모든 제약을 다시 확인하고 지정된 스키마에 맞는 JSON 객체만 출력하세요. 설명이나 코드 펜스는 넣지 마세요.`;
+      const instruction = attempt === 0 ? outputInstructions : `${outputInstructions}\n이전 응답이 형식 또는 근거 검증에 실패했습니다. 인용은 입력의 원문과 정확히 일치해야 합니다. 모든 제약을 다시 확인하고 지정된 스키마에 맞는 JSON 객체만 출력하세요. 설명이나 코드 펜스는 넣지 마세요.`;
       const raw = await request(instruction, user, {
         // Five/seven-question and ten-question final exams need a larger,
         // bounded budget than one chat turn. Keep other stages at 1,500.
@@ -176,6 +178,7 @@ export async function completeJSON<T>(system: string, user: string, schema: z.Zo
 
 /** Low-level text streaming; the tutor uses validated JSON before emitting its public events. */
 export async function* streamText(system: string, user: string): AsyncIterable<string> {
+  system = `${system}\n${NO_MARKDOWN_BOLD_RULE}`;
   try {
     if (providerName() === "openai") {
       const stream = await openai().chat.completions.create({

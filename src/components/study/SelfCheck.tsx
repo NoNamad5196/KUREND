@@ -4,6 +4,7 @@
  * 체크 상태는 localStorage `kurend.study.{chapterId}` 에 둔다(저장이 막힌 브라우저에서도 화면은 그대로 동작).
  */
 import clsx from "clsx";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { useCallback, useEffect, useState } from "react";
 import { Card, Spinner } from "@/components/session/ui";
 
@@ -129,7 +130,7 @@ export function SelfCheck({
                     className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-primary"
                   />
                   <span className="min-w-0">
-                    <span className="block text-[15px] leading-6 [overflow-wrap:anywhere]">{item.text}</span>
+                    <span className="block text-[15px] leading-6 [overflow-wrap:anywhere]">{stripMarkdownBold(item.text)}</span>
                     <span className={clsx("mt-0.5 block text-xs", on ? "font-semibold text-primary" : "text-muted")}>{item.hint}</span>
                   </span>
                 </label>

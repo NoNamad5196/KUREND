@@ -4,6 +4,7 @@
  * 노트 로딩/생성은 호출 측(useTeacherNote)이 담당하고, 여기서는 상태별 화면만 그린다.
  */
 import clsx from "clsx";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import type { TeacherNoteDto } from "@/contracts/game";
 import { TeacherNoteBody } from "@/components/game/TeacherNoteDrawer";
 import { Button, Card, Spinner } from "@/components/session/ui";
@@ -56,7 +57,7 @@ export function StudyNoteCard({
             {points.map((point, i) => (
               <li key={`${i}:${point}`} className="max-w-full">
                 <span className="inline-flex max-w-full items-center rounded-full border border-primary/20 bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary [overflow-wrap:anywhere]">
-                  {point}
+                  {stripMarkdownBold(point)}
                 </span>
               </li>
             ))}

@@ -1,4 +1,8 @@
 import { parseTeachingChoices } from "@/lib/llm/teaching-choices";
+import { formatExamChoice, formatExamQuestion } from "@/lib/shared/exam-format";
+import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
+import { isUnlearnedAnswer, UNLEARNED_ANSWER } from "@/lib/llm/text";
 /**
  * [C 소유] 세션/결과 DTO 변환. D 의 스트리밍 라우트도 import 해서 같은 모양으로 응답한다.
  *
@@ -51,6 +55,11 @@ export const sessionListInclude = {
 } satisfies Prisma.SessionInclude;
 export type SessionForList = Prisma.SessionGetPayload<{ include: typeof sessionListInclude }>;
 
+function displayAnswer(answer: string, objective: boolean): string {
+  if (objective) return formatExamChoice(answer);
+  return isUnlearnedAnswer(answer) ? UNLEARNED_ANSWER : plainExamAnswer(answer);
+}
+
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
 /** [게임 확장] 졸업시험(FINAL) 세션은 챕터 대신 "<자료> 졸업시험" 으로 보인다 */
@@ -63,7 +72,7 @@ export function toMessageDto(m: SessionWithRelations["messages"][number]): Messa
     messageId: m.id,
     role: m.role as MessageDto["role"],
     stage: m.stage as MessageDto["stage"],
-    content: m.content,
+    content: m.role === "JUNIOR" ? stripMarkdownBold(m.content) : m.content,
     ...(parseTeachingChoices(m.teachingChoicesJson) ? { teachingChoices: parseTeachingChoices(m.teachingChoicesJson) } : {}),
     createdAt: m.createdAt.toISOString(),
   };
@@ -79,11 +88,12 @@ export function toExamDto(exam: SessionWithRelations["exam"]): ExamDto | null {
       qid: q.qid,
       order: q.order,
       points: q.points,
-      question: q.question,
+      question: formatExamQuestion(q.question),
       objectiveRef: q.objectiveRef,
       ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
     })),
-    answers: exam.answers.map((a) => ({ qid: a.qid, answer: a.answer })),
+    answers: exam.answers.map((a) => ({ qid: a.qid, answer: displayAnswer(a.answer,
+      Boolean(parseChoices(exam.questions.find((q) => q.qid === a.qid)?.choicesJson)?.length)) })),
   };
 }
 
@@ -91,16 +101,16 @@ export function toGapDto(g: SessionWithRelations["gaps"][number]): GapDto {
   return {
     gapId: g.id,
     qid: g.qid,
-    title: g.title,
-    diagnosis: g.diagnosis,
+    title: stripMarkdownBold(g.title),
+    diagnosis: stripMarkdownBold(g.diagnosis),
     evidenceQuote: g.evidenceQuote,
-    concepts: parseStringArray(g.conceptsJson),
+    concepts: parseStringArray(g.conceptsJson).map((concept) => stripMarkdownBold(concept)),
     sourceExcerpt: g.sourceExcerpt,
     status: g.status as GapDto["status"],
     tutorMessages: g.tutorMessages.map((t) => ({
       id: t.id,
       request: t.request,
-      response: t.response,
+      response: stripMarkdownBold(t.response),
       createdAt: t.createdAt.toISOString(),
     })),
   };
@@ -167,11 +177,11 @@ export function toResultDto(s: SessionWithRelations): ResultDto {
       qid: q.qid,
       order: q.order,
       points: q.points,
-      question: q.question,
-      answer: a?.answer ?? "",
+      question: formatExamQuestion(q.question),
+      answer: displayAnswer(a?.answer ?? "", Boolean(parseChoices(q.choicesJson)?.length)),
       sentences: parseSentences(a?.sentencesJson),
       grade: g
-        ? { score: g.score, maxScore: g.maxScore, verdict: g.verdict as GradeVerdict, comment: g.comment }
+        ? { score: g.score, maxScore: g.maxScore, verdict: g.verdict as GradeVerdict, comment: stripMarkdownBold(g.comment) }
         : { score: 0, maxScore: q.points, verdict: "WRONG", comment: "채점 결과가 없습니다." },
       ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
     };

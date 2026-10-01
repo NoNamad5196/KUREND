@@ -29,7 +29,7 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
 
 async function score(taught: string, persona: JuniorCharacter): Promise<number> {
   const spec = CHARACTERS[persona];
-  const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat }));
+  const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: 3 }));
   const messages = [{ ref: 1, content: taught }];
   const answers = [];
   for (const question of prepared.questions) {
@@ -37,8 +37,9 @@ async function score(taught: string, persona: JuniorCharacter): Promise<number> 
       taught: messages, heardConcepts: chapter.points }));
     const final = events.find((event) => event.type === "final");
     assert.ok(final?.type === "final");
-    if (question.choices) assert.ok(question.choices.some((choice) => final.answer.startsWith(choice.slice(0, 1))));
-    answers.push({ qid: question.qid, answer: final.answer });
+    if (question.choices) assert.match(final.answer, /^[1-4]번$/u);
+    const sentences = events.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []);
+    answers.push({ qid: question.qid, answer: final.answer, sentences });
   }
   const events = await collect(stubLlm.gradeExam({ chapter, questions: prepared.questions, answers, taught: messages, persona }));
   const grades = events.filter((event) => event.type === "grade");
@@ -79,7 +80,7 @@ test("demo partial teaching scores 58 and complete teaching scores 100", async (
 test("three personas have distinct exam behavior and pass thresholds", async () => {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
-    const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona }));
+    const prepared = prepareSessionSchema.parse(await stubLlm.prepareSession({ chapter, level: spec.level, persona, questionCount: 3 }));
     assert.equal(prepared.questions.every((question) => Boolean(question.choices)), spec.examFormat === "OBJECTIVE");
     assert.equal((await score(DEMO_COMPLETE_EXPLANATION, persona)) >= spec.passScore, true);
     assert.equal((await score("아직 잘 모르겠어.", persona)) < spec.passScore, true);
@@ -122,7 +123,7 @@ test("objective route stores four choices, cited selections, and binary grades",
     method: "POST", headers: { cookie: `tb_uid=${D_STUB_IDS.user}`, "content-type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  for (const qid of ["q1", "q2", "q3"]) {
+  for (const { qid } of session.exam!.questions) {
     const response = await handlers.answers(request({ qid }), session.sessionId);
     assert.equal(response.status, 200);
     assert.doesNotMatch(await response.text(), /event: error/u);
@@ -132,7 +133,7 @@ test("objective route stores four choices, cited selections, and binary grades",
   assert.doesNotMatch(await evaluated.text(), /event: error/u);
   const saved = await backend.getSession(session.sessionId, D_STUB_IDS.user);
   assert.ok(saved?.exam?.questions.every((question) => question.choices?.length === 4));
-  assert.ok(saved?.exam?.answers.every((answer) => /^[①②③④]/u.test(answer.answer)));
+  assert.ok(saved?.exam?.answers.every((answer) => /^[1-4]번$/u.test(answer.answer)));
   assert.ok(saved?.exam?.grades.every((grade) => grade.verdict === "CORRECT" || grade.verdict === "WRONG"));
   assert.equal(saved?.gaps.length, saved?.exam?.grades.filter((grade) => grade.verdict === "WRONG").length);
 });
@@ -158,7 +159,7 @@ test("live objective grading skips the model for a correct choice and diagnoses 
   assert.ok(wrong[0].type === "grade" && wrong[0].score === 0 && wrong[0].verdict === "WRONG");
 });
 
-test("question counts follow the junior (3 objective / 5 / 7 descriptive) and the final exam mixes 10", async () => {
+test("all juniors align five objectives to five questions and the final exam mixes ten", async () => {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
     const count = spec.questionCount;
@@ -166,12 +167,15 @@ test("question counts follow the junior (3 objective / 5 / 7 descriptive) and th
     const prepared = prepareSessionSchemaFor(count, indexes).parse(await stubLlm.prepareSession({
       chapter, level: spec.level, persona, examFormat: spec.examFormat, questionCount: count, kind: "CHAPTER" }));
     assert.equal(prepared.questions.length, count);
+    assert.equal(prepared.objectives.length, count);
+    assert.equal(new Set(prepared.objectives.map((item) => item.text)).size, count);
+    assert.deepEqual(prepared.questions.map((item) => item.objectiveRef), prepared.objectives.map((item) => item.id));
     assert.equal(prepared.questions.reduce((sum, q) => sum + q.points, 0), 100);
   }
-  assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [3, 5, 7]);
+  assert.deepEqual([CHARACTERS.MALE_EASY.questionCount, CHARACTERS.FEMALE_NORMAL.questionCount, CHARACTERS.KU_HARD.questionCount], [5, 5, 5]);
   const indexes = Array.from({ length: FINAL_QUESTION_COUNT }, (_, i) => i).filter((i) => isObjectiveQuestion("MIXED", i, FINAL_QUESTION_COUNT));
   const final = prepareSessionSchemaFor(FINAL_QUESTION_COUNT, indexes).parse(await stubLlm.prepareSession({
-    chapter, level: "HARD", persona: "KU_HARD", examFormat: "MIXED", questionCount: FINAL_QUESTION_COUNT, kind: "FINAL" }));
+    chapter: { title: "경제학원론", points: chapters.chapters.map((item) => item.title), text: source }, level: "HARD", persona: "KU_HARD", examFormat: "MIXED", questionCount: FINAL_QUESTION_COUNT, kind: "FINAL" }));
   assert.equal(final.questions.length, 10);
   assert.deepEqual(final.questions.map((q) => q.points), pointsPlan(10));
   assert.equal(final.questions.filter((q) => q.choices).length, 5);

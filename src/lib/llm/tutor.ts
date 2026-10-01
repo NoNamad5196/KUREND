@@ -3,13 +3,14 @@ import type { completeJSON, streamText } from "./transport";
 import type { Llm } from "./types";
 import { compactChapter } from "./text";
 import { TUTOR_EXPLAIN_PROMPT } from "./prompts/tutor-explain";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 
 type TutorCalls = { completeJSON: typeof completeJSON; streamText: typeof streamText };
 const REMEMBER = "이것만 기억하면 됩니다:";
 
 // Sentence boundaries are controlled here, before any unvalidated text reaches SSE.
 // A decimal point is allowed within a number; a second sentence or list is not.
-const sentence = z.string().trim().min(1).max(320)
+const sentence = z.string().transform((text) => stripMarkdownBold(text)).pipe(z.string().trim().min(1).max(320))
   .transform((text) => text.replace(/[.!?。！？]$/, ""))
   .refine((text) => text.length > 0 && !/[\r\n!?。！？…]|(?<!\d)\.|\.(?!\d)/u.test(text), "한 문장만 작성하세요")
   .refine((text) => !/^[-*#>\d]+\s/u.test(text) && !text.includes(REMEMBER), "제목, 목록, 기억 문구를 넣지 마세요");

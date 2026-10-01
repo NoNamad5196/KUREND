@@ -2,6 +2,7 @@
 /**
  * 오답노트 목록. 틀린(WRONG/PARTIAL) 문항은 채점 후 자동으로 들어온다. 자료별 필터, "이유 쓰기 전" 표시.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -94,8 +95,8 @@ export function WrongNoteList() {
                         <Chip tone={n.verdict === "WRONG" ? "red" : "yellow"}>{VERDICT_TEXT[n.verdict]} · {n.score}/{n.maxScore}</Chip>
                         <span className="text-xs text-muted">{n.courseName} · {n.chapterTitle} · {relativeDate(n.createdAt)}</span>
                       </div>
-                      <p className="mt-3 line-clamp-2 break-words text-xl font-semibold leading-8 tracking-tight">{n.question}</p>
-                      {n.missedConcepts.length > 0 && <p className="mt-1 text-xs text-muted">놓친 개념: {n.missedConcepts.join(", ")}</p>}
+                      <p className="mt-3 line-clamp-2 break-words text-xl font-semibold leading-8 tracking-tight">{stripMarkdownBold(n.question)}</p>
+                      {n.missedConcepts.length > 0 && <p className="mt-1 text-xs text-muted">놓친 개념: {stripMarkdownBold(n.missedConcepts.join(", "))}</p>}
                     </div>
                     <div className="wn-list-state flex items-center gap-3">
                       {n.userReason ? <Chip tone="green">분석 완료</Chip> : <Chip tone="yellow">이유 쓰기 전</Chip>}

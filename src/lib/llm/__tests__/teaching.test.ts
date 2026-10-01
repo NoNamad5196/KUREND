@@ -37,8 +37,10 @@ test("source-grounded teaching options are distinct from exam options and carry 
   for (const choice of options) assert.deepEqual(Object.keys(choice).sort(), ["id", "text"]);
   for (const persona of ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const) {
     const prepared = await stubLlm.prepareSession({ chapter, level: CHARACTERS[persona].level, persona });
-    assert.match(prepared.firstQuestion, persona === "KU_HARD" ? /선배(?!님)/u : /선배님/u);
-    if (persona !== "KU_HARD") assert.doesNotMatch(prepared.firstQuestion, /선배(?!님)/u);
+    if (persona === "KU_HARD") assert.match(prepared.firstQuestion, /선배(?!님)/u);
+    else assert.doesNotMatch(prepared.firstQuestion, /선배님?[,.~]/u);
+    assert.equal(prepared.objectives.length, 5);
+    assert.equal(prepared.questions.length, 5);
     assert.equal(Boolean(prepared.firstTeachingChoices), persona === "MALE_EASY");
     assert.equal(prepared.questions.every((question) => question.choices?.length === 4), persona === "MALE_EASY");
   }
@@ -57,10 +59,13 @@ test("male choice uses the existing USER answer pipeline, accepts wrong teaching
   assert.ok(taught.heardConcepts.length > 0);
   assert.equal(taught.game?.mastery[0].mastery, 100);
   const question = taught.exam!.questions[0];
-  const answer = (await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices,
-    heardConcepts: taught.heardConcepts, persona: "MALE_EASY", taught: [{ ref: 1, content: wrong }] }))).find((event) => event.type === "final")!;
-  assert.ok(answer.type === "final" && answer.answer.includes(wrong.replace(/[.!?]+$/u, "")));
-  const grades = await collect(stubLlm.gradeExam({ chapter: taught.chapter, questions: [question], answers: [{ qid: question.qid, answer: answer.answer }], taught: [{ ref: 1, content: wrong }] }));
+  const answerEvents = await collect(stubLlm.writeExamAnswer({ question: question.question, choices: question.choices,
+    heardConcepts: taught.heardConcepts, persona: "MALE_EASY", taught: [{ ref: 1, content: wrong }] }));
+  const answer = answerEvents.find((event) => event.type === "final")!;
+  assert.match(answer.answer, /^[1-4]번$/u);
+  assert.ok(answerEvents.some((event) => event.type === "sources" && event.sources.some((source) => source.content === wrong)));
+  const sentences = answerEvents.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []);
+  const grades = await collect(stubLlm.gradeExam({ chapter: taught.chapter, questions: [question], answers: [{ qid: question.qid, answer: answer.answer, sentences }], taught: [{ ref: 1, content: wrong }] }));
   assert.ok(grades[0].type === "grade" && grades[0].verdict === "WRONG");
   const direct = await (await handlers.explanations(request("다른 조건이 일정할 때 가격이 오르면 수요량은 줄어든다."), id)).text();
   assert.doesNotMatch(direct, /event: error/u);
@@ -100,7 +105,7 @@ test("KU requires distinct repeated explanations while female remembers one clea
   assert.equal(female.mastery?.[0].mastery, 100);
   assert.deepEqual(female.coveredObjectives, ["o1"]);
   assert.match(female.content, /의미와 이유/u);
-  assert.match(female.content, /선배님/u);
+  assert.doesNotMatch(female.content, /^선배님/u);
   assert.equal(female.teachingChoices, undefined);
 });
 
@@ -118,7 +123,7 @@ test("live male learns source contradictions without passing the source or alter
   }, async *streamText() { throw new Error("unused"); } });
   const events = await collect(llm.juniorTurn({ chapter, level: "EASY", persona: "MALE_EASY", objectives, history: [], heardConcepts: [], explanation }));
   assert.ok(events.some((event) => event.type === "concepts" && event.heardConcepts.includes("수요 법칙")));
-  assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("선배님")));
+  assert.ok(events.some((event) => event.type === "reaction" && !event.content.includes("선배님")));
   assert.ok(!events.some((event) => event.type === "doubt"));
   assert.ok(events.some((event) => event.type === "question" && event.teachingChoices?.length));
 });
@@ -160,10 +165,10 @@ test("stub objective answers follow taught statements regardless of option posit
     `① ${content}`, "② 가격이 오르면 수요량은 늘어난다.", "③ 수요량은 변하지 않는다.", "④ 가격과 수요량은 아무 관계가 없다.",
   ], taught: [{ ref: 1, content }], heardConcepts: [], persona: "MALE_EASY" }));
   const answer = events.find((event) => event.type === "final")!;
-  assert.match(answer.answer, /^①/u);
+  assert.equal(answer.answer, "1번");
   const unknown = (await collect(stubLlm.writeExamAnswer({ question: "모르는 개념은?", taught: [], heardConcepts: [], persona: "FEMALE_NORMAL" }))).find((event) => event.type === "final")!;
-  assert.match(unknown.answer, /선배님께/u);
-  assert.doesNotMatch(unknown.answer, /선배(?!님)/u);
+  assert.equal(unknown.answer, "모르겠습니다.");
+  assert.doesNotMatch(unknown.answer, /선배/u);
 });
 
 test("overlapping objective names preserve the specific legacy question and credit the selected topic", async () => {
@@ -230,10 +235,10 @@ test("OS unknown teaching is never exam evidence or credit even when the guessed
     assert.equal(sentence.ref, null);
     assert.equal(sentence.level, "NONE");
     const answer = events.find((event) => event.type === "final")!.answer;
-    assert.match(answer, /^①.*모르겠습니다/u);
+    assert.equal(answer, "1번");
     for (const rubric of [question.rubric, "정답 ①;근거: 자료의 사실"]) {
-      const grade = (await collect(llm.gradeExam({ chapter: osChapter, questions: [{ ...question, rubric }],
-        answers: [{ qid: question.qid, answer }], taught: input.taught }))).find((event) => event.type === "grade")!;
+      const grade: { score: number; verdict: string } = (await collect(llm.gradeExam({ chapter: osChapter, questions: [{ ...question, rubric }],
+        answers: [{ qid: question.qid, answer, sentences: [{ sentence: sentence.text, ref: sentence.ref, level: sentence.level, unlearned: sentence.unlearned }] }], taught: input.taught }))).find((event) => event.type === "grade")!;
       assert.equal(grade.score, 0);
       assert.equal(grade.verdict, "WRONG");
     }

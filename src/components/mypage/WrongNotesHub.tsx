@@ -1,5 +1,6 @@
 "use client";
 
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { WrongNoteDto } from "@/contracts/game";
@@ -51,8 +52,8 @@ export function WrongNotesHub() {
             <span className="editorial-label pt-1" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             <div className="min-w-0">
               <p className="text-xs leading-5 text-muted">{note.materialTitle} · {note.chapterTitle}</p>
-              <p className="mt-2 line-clamp-2 break-words text-lg font-semibold leading-7">{note.question}</p>
-              {note.missedConcepts.length > 0 && <p className="mt-2 line-clamp-1 text-xs text-muted">놓친 개념: {note.missedConcepts.join(", ")}</p>}
+              <p className="mt-2 line-clamp-2 break-words text-lg font-semibold leading-7">{stripMarkdownBold(note.question)}</p>
+              {note.missedConcepts.length > 0 && <p className="mt-2 line-clamp-1 text-xs text-muted">놓친 개념: {stripMarkdownBold(note.missedConcepts.join(", "))}</p>}
             </div>
             <span className="archive-arrow" aria-hidden="true">↗</span>
           </Link>

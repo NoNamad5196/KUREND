@@ -3,6 +3,7 @@
  * 글자 단위 타이핑 연출. text 가 늘어나면(문장 추가) 이어서 치고, 접두사가 바뀌면 처음부터 다시 친다.
  * instant 또는 prefers-reduced-motion 이면 즉시 전체 표시. 끝에 도달하면 onDone 1회 호출.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { usePreferences } from "@/lib/client/preferences";
@@ -21,10 +22,11 @@ export function usePrefersReducedMotion(): boolean {
 }
 
 export function TypingText({
-  text,
+  text: rawText,
   speedMs = 20,
   instant = false,
   cursor = false,
+  streaming = false,
   onDone,
   className,
   as: Tag = "span",
@@ -33,10 +35,12 @@ export function TypingText({
   speedMs?: number;
   instant?: boolean;
   cursor?: boolean;
+  streaming?: boolean;
   onDone?: () => void;
   className?: string;
   as?: "span" | "p" | "div";
 }) {
+  const text = stripMarkdownBold(rawText, { streaming });
   const [shown, setShown] = useState(0);
   const shownRef = useRef(0);
   const prevTextRef = useRef("");

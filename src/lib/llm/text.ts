@@ -1,10 +1,23 @@
-import type { ChapterText } from "./types";
+import type { ChapterText, TaughtMsg } from "./types";
+import type { AnswerSentenceDto } from "@/contracts/types";
 
 export const MAX_SOURCE_CHARACTERS = 40_000;
 export const MAX_CHAPTER_CHARACTERS = 8_000;
-export const UNLEARNED_ANSWER = "이 부분은 선배한테 못 들어서 모르겠습니다.";
+export const UNLEARNED_ANSWER = "모르겠습니다.";
 export function isUnlearnedAnswer(answer: string): boolean {
-  return answer.trim().replace(/^[①②③④]\s*/u, "").replace("선배님께", "선배한테") === UNLEARNED_ANSWER;
+  const text = answer.trim().replace(/^(?:[①②③④]|[1-4]번)\s*/u, "").replace("선배님께", "선배한테");
+  return text === UNLEARNED_ANSWER || text === "이 부분은 선배한테 못 들어서 모르겠습니다.";
+}
+
+/** New answer-only displays keep learning provenance in persisted sentences. */
+export function hasLearnedAnswer(answer: { answer: string; sentences?: AnswerSentenceDto[] }, taught: TaughtMsg[]): boolean {
+  if (isUnlearnedAnswer(answer.answer)) return false;
+  if (answer.sentences !== undefined) return answer.sentences.some((sentence) => !sentence.unlearned && sentence.level !== "NONE"
+    && sentence.ref !== null && taught.some((message) => message.ref === sentence.ref && !isUnlearnedAnswer(message.content)));
+  // Older stored prose retains its original grading path. A bare choice with
+  // missing metadata cannot demonstrate that anything was learned.
+  if (/^(?:[①②③④]|\(?[1-4](?:번|[).])?)\s*$/u.test(answer.answer.trim())) return false;
+  return !/(?:이 부분은 (?:선배한테|선배님께) 못 들어서 )?모르겠습니다\./u.test(answer.answer);
 }
 
 export type SourceParagraph = {

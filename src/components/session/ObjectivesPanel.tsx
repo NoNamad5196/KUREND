@@ -1,6 +1,7 @@
 /**
  * 학습 목표(달성 체크) + 새내기가 들은 개념 칩. 사용자가 뭘 더 가르쳐야 하는지 바로 보이게 한다.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import type { ObjectiveDto } from "@/contracts/types";
 import { Card, Chip } from "./ui";
@@ -42,7 +43,7 @@ export function ObjectivesPanel({
                   {ok ? "✓" : ""}
                 </span>
                 <span className={clsx(ok ? "text-ink" : "text-ink/80")}>
-                  {o.text}
+                  {stripMarkdownBold(o.text)}
                   {ok && (
                     <Chip tone="ok" className="kurend-pop ml-1.5 align-middle">
                       달성
@@ -66,7 +67,7 @@ export function ObjectivesPanel({
           ) : (
             heardConcepts.map((c) => (
               <Chip key={c} className="kurend-pop">
-                {c}
+                {stripMarkdownBold(c)}
               </Chip>
             ))
           )}

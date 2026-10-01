@@ -1,6 +1,7 @@
 /**
  * 말풍선. tone: default | doubt(노란 "되물음") | user(내 설명) | muted | paper. size lg = 최신 질문용 큰 글씨.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
@@ -52,7 +53,7 @@ export function SpeechBubble({
         />
       )}
       {speaker && <span className={clsx("mb-3 block text-[11px] font-semibold tracking-wide", t.speaker)}>{speaker}</span>}
-      <div className="relative">{children}</div>
+      <div className="relative">{typeof children === "string" && tone !== "user" ? stripMarkdownBold(children) : children}</div>
     </div>
   );
 }

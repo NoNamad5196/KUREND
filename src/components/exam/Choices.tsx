@@ -1,6 +1,8 @@
 /**
  * [③] 객관식 보기(①~④). answer 가 보기 번호/문구로 시작하면 그 보기를 강조한다(남학생 EASY 시험).
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
+import { examChoiceIndex } from "@/lib/shared/exam-format";
 import clsx from "clsx";
 
 export const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥"];
@@ -10,12 +12,14 @@ export const stripChoiceMark = (choice: string) => choice.replace(/^\s*(?:[①�
 
 export function pickedChoiceIndex(answer: string | undefined, choices: string[]): number {
   if (!answer) return -1;
-  const head = answer.trim();
+  const head = stripMarkdownBold(answer).trim();
+  const examIndex = examChoiceIndex(head);
+  if (examIndex >= 0 && examIndex < choices.length) return examIndex;
   const byMark = CIRCLED.findIndex((m) => head.startsWith(m));
   if (byMark >= 0 && byMark < choices.length) return byMark;
   const byNumber = /^\(?([1-6])[).]/.exec(head);
   if (byNumber) return Number(byNumber[1]) - 1;
-  return choices.findIndex((c) => head.startsWith(c.trim()) || head.startsWith(stripChoiceMark(c).trim()));
+  return choices.findIndex((c) => head.startsWith(stripMarkdownBold(c).trim()) || head.startsWith(stripChoiceMark(stripMarkdownBold(c)).trim()));
 }
 
 export function Choices({ choices, answer, correctIndex, className }: { choices: string[]; answer?: string; correctIndex?: number; className?: string }) {
@@ -37,7 +41,7 @@ export function Choices({ choices, answer, correctIndex, className }: { choices:
             )}
           >
             <span className="shrink-0 font-bold">{CIRCLED[i] ?? `${i + 1}.`}</span>
-            <span className="min-w-0 break-words">{stripChoiceMark(choice)}</span>
+            <span className="min-w-0 break-words">{stripChoiceMark(stripMarkdownBold(choice))}</span>
             {isPicked && <span className="col-start-2 text-xs font-medium text-muted sm:col-start-3">새내기 선택</span>}
           </li>
         );
