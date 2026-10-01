@@ -1,0 +1,166 @@
+// [C 소유, FROZEN] 설계서 §3 도메인 스키마 그대로.
+// Prisma 7: datasource url은 prisma.config.ts 에서 지정하고, 클라이언트는 driver adapter(libsql)로 연결한다.
+// SQLite 이므로 Json 타입 대신 String 에 JSON 문자열을 저장한다(…Json 필드).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id // usr_
+  nickname  String
+  createdAt DateTime @default(now())
+  materials Material[]
+  sessions  Session[]
+}
+
+model Material {
+  id         String    @id // mat_
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  courseName String // 캠퍼스 변주: 과목명 (예: "운영체제")
+  examDate   DateTime? // 시험일 → 홈에서 D-day
+  title      String // LLM이 지은 자료 제목 (생성 전엔 "새 자료")
+  status     String    @default("PENDING") // PENDING | READY | FAILED
+  error      String?
+  createdAt  DateTime  @default(now())
+  sources    Source[]
+  chapters   Chapter[]
+}
+
+model Source {
+  id         String    @id // src_
+  materialId String
+  material   Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  kind       String // MD | TXT | PDF
+  fileName   String
+  text       String // 추출된 전체 텍스트
+  charCount  Int
+  chapters   Chapter[]
+}
+
+model Chapter {
+  id          String    @id // chp_
+  materialId  String
+  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  pointsJson  String // string[] JSON (핵심 포인트 2~4개)
+  sourceId    String
+  source      Source    @relation(fields: [sourceId], references: [id])
+  startOffset Int // source.text 내 char 범위
+  endOffset   Int
+  taughtAt    DateTime? // 첫 COMPLETED 세션 시각 ("가르침")
+  stableAt    DateTime? // 놓친 곳 0으로 COMPLETED 시각 ("안정")
+  sessions    Session[]
+}
+
+model Session {
+  id             String         @id // sess_
+  userId         String
+  user           User           @relation(fields: [userId], references: [id])
+  chapterId      String
+  chapter        Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  status         String         @default("PREPARING") // PREPARING | EXPLAINING | EXAM_IN_PROGRESS | EVALUATING | RESULT_READY | REVIEWING | COMPLETED | FAILED
+  phase          String         @default("QUESTION") // QUESTION | EXAM_READY (EXPLAINING 내부 단계)
+  juniorLevel    String         @default("EASY") // EASY | HARD
+  objectivesJson String         @default("[]") // [{id:"o1", text}]
+  heardJson      String         @default("[]") // string[] 들은 개념
+  score          Int?
+  finalVerdict   String? // NEEDS_WORK | MOSTLY | STABLE
+  error          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  completedAt    DateTime?
+  messages       Message[]
+  exam           Exam?
+  gaps           Gap[]
+  tutorMessages  TutorMessage[]
+}
+
+model Message {
+  id        String   @id // msg_
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String // USER | JUNIOR
+  stage     String // QUESTION | ANSWER | REACTION | DOUBT
+  content   String
+  excluded  Boolean  @default(false) // 사용자가 "이 설명 빼기" 한 경우(P1)
+  createdAt DateTime @default(now())
+}
+
+model Exam {
+  id        String         @id // exam_
+  sessionId String         @unique
+  session   Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  status    String         @default("READY") // READY | IN_PROGRESS | EVALUATING | GRADED
+  createdAt DateTime       @default(now())
+  questions ExamQuestion[]
+  answers   ExamAnswer[]
+  grades    Grade[]
+}
+
+model ExamQuestion {
+  id           String @id // 전역 id는 `${examId}:${qid}`
+  examId       String
+  exam         Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid          String // q1
+  order        Int
+  points       Int // 34/33/33
+  question     String
+  objectiveRef String // o1 | o2 | o3
+  rubric       String // 채점 기준 (사용자에게 비공개)
+}
+
+model ExamAnswer {
+  id            String   @id // `${examId}:${qid}`
+  examId        String
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid           String
+  answer        String
+  sentencesJson String // [{sentence, ref, level:"STRONG"|"FAINT"|"NONE", unlearned}]
+  createdAt     DateTime @default(now())
+}
+
+model Grade {
+  id       String @id // `${examId}:${qid}`
+  examId   String
+  exam     Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  qid      String
+  score    Int
+  maxScore Int
+  verdict  String // CORRECT | PARTIAL | WRONG
+  comment  String
+}
+
+model Gap {
+  id            String         @id // gap_
+  sessionId     String
+  session       Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  qid           String
+  title         String
+  diagnosis     String
+  evidenceQuote String // 원인이 된 내 설명 (없으면 "")
+  conceptsJson  String // string[]
+  sourceExcerpt String // 원자료 발췌
+  sourceOffset  Int?
+  status        String         @default("FOUND") // FOUND | REVIEWED
+  createdAt     DateTime       @default(now())
+  tutorMessages TutorMessage[]
+}
+
+model TutorMessage {
+  id        String   @id // tm_
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  gapId     String
+  gap       Gap      @relation(fields: [gapId], references: [id], onDelete: Cascade)
+  request   String
+  response  String
+  createdAt DateTime @default(now())
+}

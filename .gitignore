@@ -42,3 +42,10 @@ next-env.d.ts
 
 # keep the env template
 !.env.example
+
+# prisma (C): 로컬 SQLite 파일과 생성된 클라이언트
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/*.db-wal
+/prisma/*.db-shm
+/src/generated/

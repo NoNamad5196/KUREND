@@ -1,0 +1,438 @@
+/**
+ * [C] §5-2 ~ §5-5 API 스모크 테스트. 응답을 src/contracts/types.ts 의 zod 스키마로 검증한다.
+ *
+ *   pnpm db:reset && pnpm dev            # 다른 터미널
+ *   pnpm tsx scripts/smoke-api.ts        # 기본 http://localhost:3000/api  (SMOKE_BASE 로 변경)
+ *
+ * D 의 LLM 라우트가 없어도 돌아가도록, EXPLAINING 이후 상태는 DB 를 직접 조작해 만든다.
+ * 끝나면 테스트가 만든 데이터는 지우고 시드 상태로 되돌린다.
+ */
+import {
+  CompleteResponseSchema,
+  CreateSessionResponseSchema,
+  DemoAccountSchema,
+  FinishExplanationResponseSchema,
+  HomeSchema,
+  MaterialCreateResponseSchema,
+  MaterialListItemSchema,
+  MaterialSchema,
+  MeSchema,
+  OkResponseSchema,
+  ResultSchema,
+  ReviewedResponseSchema,
+  SessionListItemSchema,
+  SessionSchema,
+  SourceContentSchema,
+  StartExamResponseSchema,
+} from "@/contracts/types";
+import { z } from "zod";
+import { db } from "@/lib/server/db";
+import { examItemId, newId } from "@/lib/server/ids";
+
+const BASE = (process.env.SMOKE_BASE ?? "http://localhost:3000/api").replace(/\/$/, "");
+let cookie = "";
+let passed = 0;
+let failed = 0;
+
+function ok(name: string, cond: unknown, detail?: unknown) {
+  if (cond) {
+    passed++;
+    console.log(`  ✔ ${name}`);
+  } else {
+    failed++;
+    console.log(`  ✘ ${name}`, detail === undefined ? "" : JSON.stringify(detail).slice(0, 600));
+  }
+}
+
+async function call(method: string, path: string, body?: unknown) {
+  const headers: Record<string, string> = { ...(cookie ? { cookie } : {}) };
+  let payload: BodyInit | undefined;
+  if (body instanceof FormData) payload = body;
+  else if (body !== undefined) {
+    headers["content-type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
+  const res = await fetch(`${BASE}${path}`, { method, headers, body: payload });
+  const text = await res.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { status: res.status, data, headers: res.headers };
+}
+
+function expectError(name: string, r: { status: number; data: unknown }, status: number, code: string) {
+  const d = r.data as { error?: { code?: string } } | null;
+  ok(`${name} → ${status} ${code}`, r.status === status && d?.error?.code === code, { status: r.status, data: d });
+}
+
+function validate<T>(name: string, schema: z.ZodType<T>, data: unknown): T | null {
+  const p = schema.safeParse(data);
+  ok(`${name} 스키마`, p.success, p.success ? undefined : { issues: p.error.issues.slice(0, 5), data });
+  return p.success ? p.data : null;
+}
+
+/** 손으로 만든 최소 PDF (Helvetica 텍스트 한 줄, ASCII 만) */
+function makePdf(text: string): Blob {
+  const enc = new TextEncoder();
+  const objs: string[] = [];
+  objs[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objs[2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
+  objs[3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>";
+  const stream = `BT /F1 18 Tf 72 700 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
+  objs[4] = `<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  objs[5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [0];
+  for (let i = 1; i < objs.length; i++) {
+    offsets[i] = enc.encode(out).length;
+    out += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+  const xref = enc.encode(out).length;
+  out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+  for (let i = 1; i < objs.length; i++) out += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([out], { type: "application/pdf" });
+}
+
+async function main() {
+  console.log(`smoke: ${BASE}`);
+
+  /* ── 인증 ── */
+  console.log("\n[auth]");
+  const accounts = await call("GET", "/auth/demo-accounts");
+  ok("GET /auth/demo-accounts 200", accounts.status === 200, accounts);
+  const accs = validate("demo-accounts", z.array(DemoAccountSchema), accounts.data);
+  ok("데모 계정 3개", accs?.length === 3, accs);
+
+  expectError("GET /auth/me (로그인 전)", await call("GET", "/auth/me"), 401, "UNAUTHORIZED");
+  expectError("POST /auth/demo-login 없는 계정", await call("POST", "/auth/demo-login", { userId: "usr_nope" }), 404, "NOT_FOUND");
+  expectError("POST /auth/demo-login 잘못된 본문", await call("POST", "/auth/demo-login", { nope: 1 }), 400, "VALIDATION");
+
+  const login = await call("POST", "/auth/demo-login", { userId: "usr_demo1" });
+  ok("POST /auth/demo-login 200", login.status === 200, login);
+  validate("demo-login", OkResponseSchema, login.data);
+  const setCookie = login.headers.get("set-cookie") ?? "";
+  ok("Set-Cookie tb_uid HttpOnly", /tb_uid=usr_demo1/.test(setCookie) && /HttpOnly/i.test(setCookie), setCookie);
+  cookie = setCookie.split(";")[0];
+
+  const me = await call("GET", "/auth/me");
+  const meDto = validate("GET /auth/me", MeSchema, me.data);
+  ok("me.userId = usr_demo1", meDto?.userId === "usr_demo1" && meDto.nickname === "체험 1", meDto);
+
+  /* ── 홈 ── */
+  console.log("\n[home]");
+  const home = await call("GET", "/home");
+  const homeDto = validate("GET /home", HomeSchema, home.data);
+  ok("홈 과목 2개 (운영체제, 경제학원론)", homeDto?.courses.length === 2, homeDto?.courses.map((c) => c.courseName));
+  const os = homeDto?.courses.find((c) => c.courseName === "운영체제");
+  ok("운영체제 D-day 7", os?.dDay === 7 && os.examDate !== null, os);
+  ok("운영체제 자료 resume(EXPLAINING) 존재", os?.materials[0]?.resume?.status === "EXPLAINING" && os.materials[0].resume.stageLabel === "가르치는 중", os?.materials[0]);
+  ok("taughtCount 1 / chapterCount 6", os?.materials[0]?.taughtCount === 1 && os.materials[0].chapterCount === 6, os?.materials[0]);
+  ok("최근 세션 2개, 완료 1개 94점, 연속 1일", homeDto?.recentSessions.length === 2 && homeDto.stats.completedSessions === 1 && homeDto.stats.averageScore === 94 && homeDto.stats.streakDays === 1, homeDto?.stats);
+
+  /* ── 자료 ── */
+  console.log("\n[materials]");
+  const list = await call("GET", "/materials");
+  const listDto = validate("GET /materials", z.array(MaterialListItemSchema), list.data);
+  ok("자료 2개 READY", listDto?.length === 2 && listDto.every((m) => m.status === "READY"), listDto);
+  const osMat = listDto?.find((m) => m.courseName === "운영체제");
+  const econMat = listDto?.find((m) => m.courseName === "경제학원론");
+
+  const detail = await call("GET", `/materials/${osMat?.materialId}`);
+  const detailDto = validate("GET /materials/{id}", MaterialSchema, detail.data);
+  ok("챕터 6개, 순서 1..6", detailDto?.chapters.map((c) => c.order).join() === "1,2,3,4,5,6", detailDto?.chapters.map((c) => c.order));
+  ok("챕터 오프셋이 연속·단조 증가", !!detailDto && detailDto.chapters.every((c, i, a) => c.startOffset < c.endOffset && (i === 0 || a[i - 1].endOffset <= c.startOffset)), detailDto?.chapters.map((c) => [c.startOffset, c.endOffset]));
+  const retry = detailDto?.chapters.find((c) => c.action.kind === "RETRY");
+  const cont = detailDto?.chapters.find((c) => c.action.kind === "CONTINUE");
+  ok("완료 챕터 action RETRY + bestScore 94 + taughtAt + openGapCount 1", retry?.bestScore === 94 && !!retry.taughtAt && retry.openGapCount === 1 && retry.stableAt === null, retry);
+  ok("진행 중 챕터 action CONTINUE(EXPLAINING)", cont?.action.kind === "CONTINUE" && cont.action.status === "EXPLAINING", cont?.action);
+  ok("rubric 미노출", !JSON.stringify(detail.data).includes("rubric"));
+  expectError("GET /materials/없는id", await call("GET", "/materials/mat_nope"), 404, "NOT_FOUND");
+
+  const src = await call("GET", `/sources/${detailDto?.sources[0]?.sourceId}/content`);
+  const srcDto = validate("GET /sources/{id}/content", SourceContentSchema, src.data);
+  ok("원문 길이 = charCount", srcDto?.text.length === detailDto?.sources[0]?.charCount, { len: srcDto?.text.length, charCount: detailDto?.sources[0]?.charCount });
+  ok("챕터 범위 slice 길이 > 300", !!srcDto && !!detailDto && srcDto.text.slice(detailDto.chapters[2].startOffset, detailDto.chapters[2].endOffset).length > 300);
+
+  /* ── 세션 목록/조회 ── */
+  console.log("\n[sessions: 조회]");
+  const sess = await call("GET", "/sessions");
+  const sessList = validate("GET /sessions", z.array(SessionListItemSchema), sess.data);
+  ok("세션 2개, 최신(EXPLAINING) 먼저", sessList?.length === 2 && sessList[0].status === "EXPLAINING" && sessList[0].stageLabel === "가르치는 중", sessList);
+  const completedId = sessList?.find((s) => s.status === "COMPLETED")?.sessionId;
+  const explainingId = sessList?.find((s) => s.status === "EXPLAINING")?.sessionId;
+
+  const s1 = await call("GET", `/sessions/${explainingId}`);
+  const s1Dto = validate("GET /sessions/{id} (EXPLAINING)", SessionSchema, s1.data);
+  ok("objectives 3 / exam READY, questions 3, answers 0 / messages 4", s1Dto?.objectives.length === 3 && s1Dto.exam?.status === "READY" && s1Dto.exam.questions.length === 3 && s1Dto.exam.answers.length === 0 && s1Dto.messages.length === 4, s1Dto);
+  ok("rubric 미노출(세션)", !JSON.stringify(s1.data).includes("rubric"));
+  ok("메시지 시간순", !!s1Dto && s1Dto.messages.every((m, i, a) => i === 0 || a[i - 1].createdAt <= m.createdAt));
+
+  const s2 = await call("GET", `/sessions/${completedId}`);
+  const s2Dto = validate("GET /sessions/{id} (COMPLETED)", SessionSchema, s2.data);
+  ok("완료 세션 score 94 MOSTLY gapCount 1 exam GRADED answers 3", s2Dto?.score === 94 && s2Dto.finalVerdict === "MOSTLY" && s2Dto.gapCount === 1 && s2Dto.exam?.status === "GRADED" && s2Dto.exam.answers.length === 3, s2Dto);
+
+  const r2 = await call("GET", `/sessions/${completedId}/result`);
+  const r2Dto = validate("GET /sessions/{id}/result", ResultSchema, r2.data);
+  ok("result 합계 94 = Σgrade, correct2/partial1/wrong0, gap 1 + tutorMessage", r2Dto?.totalScore === 94 && r2Dto.items.reduce((a, i) => a + i.grade.score, 0) === 94 && r2Dto.correctCount === 2 && r2Dto.partialCount === 1 && r2Dto.wrongCount === 0 && r2Dto.gaps.length === 1 && r2Dto.gaps[0].tutorMessages.length >= 1, r2Dto);
+  ok("result items 마다 sentences 있음", !!r2Dto && r2Dto.items.every((i) => i.sentences.length > 0), r2Dto?.items.map((i) => i.sentences.length));
+  expectError("GET result (EXPLAINING 세션)", await call("GET", `/sessions/${explainingId}/result`), 409, "INVALID_STATE");
+  expectError("GET /sessions/없는id", await call("GET", "/sessions/sess_nope"), 404, "NOT_FOUND");
+
+  /* ── 다른 사용자 소유 검증 ── */
+  console.log("\n[ownership]");
+  const saved = cookie;
+  const login2 = await call("POST", "/auth/demo-login", { userId: "usr_demo2" });
+  cookie = (login2.headers.get("set-cookie") ?? "").split(";")[0];
+  expectError("usr_demo2 → demo1 세션 조회", await call("GET", `/sessions/${explainingId}`), 404, "NOT_FOUND");
+  expectError("usr_demo2 → demo1 자료 조회", await call("GET", `/materials/${osMat?.materialId}`), 404, "NOT_FOUND");
+  expectError("usr_demo2 → demo1 원문 조회", await call("GET", `/sources/${detailDto?.sources[0]?.sourceId}/content`), 404, "NOT_FOUND");
+  expectError("usr_demo2 → demo1 챕터로 세션 생성", await call("POST", "/sessions", { chapterId: detailDto?.chapters[0].chapterId }), 404, "NOT_FOUND");
+  expectError("usr_demo2 → demo1 세션 삭제", await call("DELETE", `/sessions/${explainingId}`), 404, "NOT_FOUND");
+  const home2 = validate("usr_demo2 홈(빈 상태)", HomeSchema, (await call("GET", "/home")).data);
+  ok("usr_demo2 홈 비어 있음", home2?.courses.length === 0 && home2.stats.averageScore === null && home2.stats.streakDays === 0, home2);
+  cookie = saved;
+
+  /* ── 업로드 ── */
+  console.log("\n[upload]");
+  const fd = new FormData();
+  fd.set("courseName", "자료구조");
+  fd.set("examDate", "2026-12-20");
+  fd.append("files[]", new File(["# 스택과 큐\n\n스택은 LIFO 구조다. push 와 pop 으로 삽입·삭제한다.\n\n큐는 FIFO 구조다. enqueue 와 dequeue 를 쓴다."], "ds-ch1.md", { type: "text/markdown" }));
+  fd.append("files[]", new File(["연결 리스트는 노드가 포인터로 이어진 선형 자료구조다. 삽입과 삭제가 O(1) 이다."], "ds-ch2.txt", { type: "text/plain" }));
+  fd.append("files[]", new File([makePdf("KUREND smoke test PDF about binary search trees and heaps")], "ds-ch3.pdf", { type: "application/pdf" }));
+  const up = await call("POST", "/materials", fd);
+  ok("POST /materials 201", up.status === 201, up);
+  const upDto = validate("POST /materials 응답", MaterialCreateResponseSchema, up.data);
+  ok("PENDING + sources 3 (MD/TXT/PDF)", upDto?.status === "PENDING" && upDto.sources.map((s) => s.kind).join() === "MD,TXT,PDF" && upDto.sources.every((s) => s.charCount > 0), upDto);
+  const pdfSrc = await call("GET", `/sources/${upDto?.sources[2]?.sourceId}/content`);
+  ok("PDF 텍스트 추출됨", /binary search trees/.test(String((pdfSrc.data as { text?: string })?.text)), pdfSrc.data);
+  const newMat = validate("GET 업로드 자료", MaterialSchema, (await call("GET", `/materials/${upDto?.materialId}`)).data);
+  ok("업로드 자료: PENDING, 제목 '새 자료', 챕터 0, examDate 2026-12-20", newMat?.status === "PENDING" && newMat.title === "새 자료" && newMat.chapters.length === 0 && newMat.examDate === "2026-12-20", newMat);
+  const listAfterUp = validate("GET /materials (업로드 후)", z.array(MaterialListItemSchema), (await call("GET", "/materials")).data);
+  ok("목록 3개, 최신 먼저(PENDING)", listAfterUp?.length === 3 && listAfterUp[0].materialId === upDto?.materialId && listAfterUp[0].chapterCount === 0, listAfterUp);
+
+  const bad1 = new FormData();
+  bad1.set("courseName", "x");
+  expectError("업로드: 파일 없음", await call("POST", "/materials", bad1), 400, "VALIDATION");
+  const bad2 = new FormData();
+  bad2.set("courseName", "x");
+  bad2.append("files[]", new File(["short"], "a.txt", { type: "text/plain" }));
+  expectError("업로드: 텍스트 너무 짧음", await call("POST", "/materials", bad2), 400, "VALIDATION");
+  const bad3 = new FormData();
+  bad3.set("courseName", "x");
+  bad3.append("files[]", new File(["x".repeat(100)], "a.docx"));
+  expectError("업로드: 미지원 확장자", await call("POST", "/materials", bad3), 400, "VALIDATION");
+  const bad4 = new FormData();
+  bad4.append("files[]", new File(["x".repeat(100)], "a.txt"));
+  expectError("업로드: 과목명 없음", await call("POST", "/materials", bad4), 400, "VALIDATION");
+  const bad5 = new FormData();
+  bad5.set("courseName", "x");
+  bad5.set("examDate", "2026/12/20");
+  bad5.append("files[]", new File(["x".repeat(100)], "a.txt"));
+  expectError("업로드: 시험일 형식", await call("POST", "/materials", bad5), 400, "VALIDATION");
+  const bad6 = new FormData();
+  bad6.set("courseName", "x");
+  for (let i = 0; i < 6; i++) bad6.append("files[]", new File(["x".repeat(100)], `a${i}.txt`));
+  expectError("업로드: 6개 파일", await call("POST", "/materials", bad6), 400, "VALIDATION");
+  expectError("업로드: multipart 아님", await call("POST", "/materials", { courseName: "x" }), 400, "VALIDATION");
+
+  /* ── 세션 생성 → 전이 ── */
+  console.log("\n[sessions: 생성/전이]");
+  const chapter = detailDto!.chapters.find((c) => c.action.kind === "START")!;
+  expectError("POST /sessions 본문 없음", await call("POST", "/sessions", {}), 400, "VALIDATION");
+  expectError("POST /sessions 없는 챕터", await call("POST", "/sessions", { chapterId: "chp_nope" }), 404, "NOT_FOUND");
+  const created = await call("POST", "/sessions", { chapterId: chapter.chapterId, juniorLevel: "HARD" });
+  ok("POST /sessions 201", created.status === 201, created);
+  const sid = validate("POST /sessions 응답", CreateSessionResponseSchema, created.data)?.sessionId as string;
+
+  const fresh = validate("GET 새 세션", SessionSchema, (await call("GET", `/sessions/${sid}`)).data);
+  ok("PREPARING / QUESTION / HARD / exam null / 메시지 0", fresh?.status === "PREPARING" && fresh.phase === "QUESTION" && fresh.juniorLevel === "HARD" && fresh.exam === null && fresh.messages.length === 0, fresh);
+  const matAfter = validate("GET 자료 (세션 생성 후)", MaterialSchema, (await call("GET", `/materials/${osMat?.materialId}`)).data);
+  const chAfter = matAfter?.chapters.find((c) => c.chapterId === chapter.chapterId);
+  ok("해당 챕터 action CONTINUE(PREPARING)", chAfter?.action.kind === "CONTINUE" && chAfter.action.sessionId === sid && chAfter.action.status === "PREPARING", chAfter?.action);
+  const homeMid = validate("GET /home (PREPARING 세션)", HomeSchema, (await call("GET", "/home")).data);
+  ok("홈 resume 은 가장 최근 진행 중 세션(PREPARING, 준비 중)", homeMid?.courses.find((c) => c.courseName === "운영체제")?.materials[0]?.resume?.sessionId === sid && homeMid.courses.find((c) => c.courseName === "운영체제")?.materials[0]?.resume?.stageLabel === "준비 중", homeMid?.courses);
+
+  expectError("PATCH (PREPARING)", await call("PATCH", `/sessions/${sid}`, { juniorLevel: "EASY" }), 409, "INVALID_STATE");
+  expectError("finish-explanation (PREPARING)", await call("POST", `/sessions/${sid}/finish-explanation`), 409, "INVALID_STATE");
+  expectError("start-exam (PREPARING)", await call("POST", `/sessions/${sid}/start-exam`), 409, "INVALID_STATE");
+  expectError("complete (PREPARING)", await call("POST", `/sessions/${sid}/complete`), 409, "INVALID_STATE");
+  expectError("result (PREPARING)", await call("GET", `/sessions/${sid}/result`), 409, "INVALID_STATE");
+
+  // D 의 prepare 를 흉내: EXPLAINING + objectives + Exam(READY) + 첫 질문
+  const examId = newId("exam");
+  await db.session.update({
+    where: { id: sid },
+    data: {
+      status: "EXPLAINING",
+      objectivesJson: JSON.stringify([{ id: "o1", text: "o1" }, { id: "o2", text: "o2" }, { id: "o3", text: "o3" }]),
+      messages: { create: { id: newId("msg"), role: "JUNIOR", stage: "QUESTION", content: "선배, 뭐부터 알려줄래?" } },
+      exam: {
+        create: {
+          id: examId,
+          status: "READY",
+          questions: {
+            create: [34, 33, 33].map((points, i) => ({
+              id: examItemId(examId, `q${i + 1}`), qid: `q${i + 1}`, order: i + 1, points, question: `문항 ${i + 1}`, objectiveRef: `o${i + 1}`, rubric: "비공개;채점기준",
+            })),
+          },
+        },
+      },
+    },
+  });
+  const patched = await call("PATCH", `/sessions/${sid}`, { juniorLevel: "EASY" });
+  const patchedDto = validate("PATCH (EXPLAINING) 세션 객체", SessionSchema, patched.data);
+  ok("juniorLevel EASY 로 변경", patchedDto?.juniorLevel === "EASY", patchedDto);
+  expectError("PATCH 잘못된 값", await call("PATCH", `/sessions/${sid}`, { juniorLevel: "MEDIUM" }), 400, "VALIDATION");
+  expectError("finish-explanation (USER 메시지 0개)", await call("POST", `/sessions/${sid}/finish-explanation`), 409, "NO_EXPLANATION");
+  expectError("start-exam (phase QUESTION)", await call("POST", `/sessions/${sid}/start-exam`), 409, "INVALID_STATE");
+
+  const userMsg = await db.message.create({ data: { id: newId("msg"), sessionId: sid, role: "USER", stage: "ANSWER", content: "FCFS 는 먼저 온 순서대로 처리해." } });
+  const junior = (patchedDto?.messages ?? [])[0];
+  expectError("exclude: JUNIOR 메시지", await call("POST", `/sessions/${sid}/messages/${junior?.messageId}/exclude`), 409, "INVALID_STATE");
+  expectError("exclude: 없는 메시지", await call("POST", `/sessions/${sid}/messages/msg_nope/exclude`), 404, "NOT_FOUND");
+  validate("exclude: USER 메시지", OkResponseSchema, (await call("POST", `/sessions/${sid}/messages/${userMsg.id}/exclude`)).data);
+  expectError("finish-explanation (USER 메시지가 전부 excluded)", await call("POST", `/sessions/${sid}/finish-explanation`), 409, "NO_EXPLANATION");
+  await db.message.create({ data: { id: newId("msg"), sessionId: sid, role: "USER", stage: "ANSWER", content: "SJF 는 실행 시간이 짧은 것부터." } });
+
+  const fin = await call("POST", `/sessions/${sid}/finish-explanation`);
+  validate("finish-explanation", FinishExplanationResponseSchema, fin.data);
+  validate("finish-explanation 두 번째(멱등)", FinishExplanationResponseSchema, (await call("POST", `/sessions/${sid}/finish-explanation`)).data);
+  const afterFin = validate("GET 세션(EXAM_READY)", SessionSchema, (await call("GET", `/sessions/${sid}`)).data);
+  ok("phase EXAM_READY", afterFin?.phase === "EXAM_READY" && afterFin.status === "EXPLAINING", afterFin);
+  expectError("result (EXAM_READY)", await call("GET", `/sessions/${sid}/result`), 409, "INVALID_STATE");
+
+  const start = await call("POST", `/sessions/${sid}/start-exam`);
+  const startDto = validate("start-exam", StartExamResponseSchema, start.data);
+  ok("EXAM_IN_PROGRESS + 문항 3 (rubric 없음)", startDto?.status === "EXAM_IN_PROGRESS" && startDto.exam.questions.length === 3 && !JSON.stringify(start.data).includes("rubric"), startDto);
+  expectError("start-exam 두 번째", await call("POST", `/sessions/${sid}/start-exam`), 409, "INVALID_STATE");
+  expectError("PATCH (EXAM_IN_PROGRESS)", await call("PATCH", `/sessions/${sid}`, { juniorLevel: "HARD" }), 409, "INVALID_STATE");
+  expectError("complete (EXAM_IN_PROGRESS)", await call("POST", `/sessions/${sid}/complete`), 409, "INVALID_STATE");
+  expectError("exclude (EXAM_IN_PROGRESS)", await call("POST", `/sessions/${sid}/messages/${userMsg.id}/exclude`), 409, "INVALID_STATE");
+  const examRow = await db.exam.findUnique({ where: { sessionId: sid } });
+  ok("Exam.status IN_PROGRESS", examRow?.status === "IN_PROGRESS", examRow);
+
+  // D 의 evaluate 를 흉내: 답안·채점·gap → RESULT_READY
+  await db.$transaction([
+    db.examAnswer.createMany({
+      data: [1, 2, 3].map((i) => ({ id: examItemId(examId, `q${i}`), examId, qid: `q${i}`, answer: `답안 ${i} 입니다.`, sentencesJson: JSON.stringify([{ sentence: `답안 ${i} 입니다.`, ref: i === 3 ? null : 1, level: i === 3 ? "NONE" : "STRONG", unlearned: i === 3 }]) })),
+    }),
+    db.grade.createMany({
+      data: [
+        { id: examItemId(examId, "q1"), examId, qid: "q1", score: 34, maxScore: 34, verdict: "CORRECT", comment: "좋아요" },
+        { id: examItemId(examId, "q2"), examId, qid: "q2", score: 20, maxScore: 33, verdict: "PARTIAL", comment: "일부 빠짐" },
+        { id: examItemId(examId, "q3"), examId, qid: "q3", score: 0, maxScore: 33, verdict: "WRONG", comment: "못 들음" },
+      ],
+    }),
+    db.gap.createMany({
+      data: [
+        { id: newId("gap"), sessionId: sid, qid: "q2", title: "빠진 곳 1", diagnosis: "d", evidenceQuote: "", conceptsJson: "[]", sourceExcerpt: "s" },
+        { id: newId("gap"), sessionId: sid, qid: "q3", title: "빠진 곳 2", diagnosis: "d", evidenceQuote: "", conceptsJson: "[]", sourceExcerpt: "s" },
+      ],
+    }),
+    db.exam.update({ where: { id: examId }, data: { status: "GRADED" } }),
+    db.session.update({ where: { id: sid }, data: { status: "RESULT_READY", score: 54, finalVerdict: "NEEDS_WORK" } }),
+  ]);
+
+  const res = await call("GET", `/sessions/${sid}/result`);
+  const resDto = validate("GET result (RESULT_READY)", ResultSchema, res.data);
+  ok("total 54, 1/1/1, gaps 2 FOUND, NEEDS_WORK", resDto?.totalScore === 54 && resDto.correctCount === 1 && resDto.partialCount === 1 && resDto.wrongCount === 1 && resDto.gaps.length === 2 && resDto.gaps.every((g) => g.status === "FOUND") && resDto.finalVerdict === "NEEDS_WORK", resDto);
+  ok("result items 순서 q1,q2,q3 + unlearned 문장", resDto?.items.map((i) => i.qid).join() === "q1,q2,q3" && resDto.items[2].sentences[0]?.unlearned === true, resDto?.items);
+  const [g1, g2] = resDto?.gaps ?? [];
+  expectError("reviewed: 없는 gap", await call("POST", `/sessions/${sid}/gaps/gap_nope/reviewed`), 404, "NOT_FOUND");
+  const rv1 = validate("reviewed gap1", ReviewedResponseSchema, (await call("POST", `/sessions/${sid}/gaps/${g1?.gapId}/reviewed`)).data);
+  ok("remaining 1, 세션 REVIEWING", rv1?.remaining === 1 && (await db.session.findUnique({ where: { id: sid } }))?.status === "REVIEWING", rv1);
+  const rv1b = validate("reviewed gap1 (다시)", ReviewedResponseSchema, (await call("POST", `/sessions/${sid}/gaps/${g1?.gapId}/reviewed`)).data);
+  ok("멱등 remaining 1", rv1b?.remaining === 1, rv1b);
+  const sessListNow = validate("GET /sessions (REVIEWING 포함)", z.array(SessionListItemSchema), (await call("GET", "/sessions")).data);
+  ok("REVIEWING stageLabel 되짚기", sessListNow?.find((s) => s.sessionId === sid)?.stageLabel === "되짚기", sessListNow);
+  const resRev = validate("GET result (REVIEWING)", ResultSchema, (await call("GET", `/sessions/${sid}/result`)).data);
+  ok("gap1 REVIEWED / gap2 FOUND", resRev?.gaps.find((g) => g.gapId === g1?.gapId)?.status === "REVIEWED" && resRev.gaps.find((g) => g.gapId === g2?.gapId)?.status === "FOUND", resRev?.gaps);
+
+  const comp = await call("POST", `/sessions/${sid}/complete`);
+  const compDto = validate("complete", CompleteResponseSchema, comp.data);
+  ok("COMPLETED, score 54, openGapCount 1, taughtAt 세팅, stableAt null", compDto?.status === "COMPLETED" && compDto.score === 54 && compDto.finalVerdict === "NEEDS_WORK" && compDto.openGapCount === 1 && !!compDto.chapter.taughtAt && compDto.chapter.stableAt === null, compDto);
+  expectError("complete 두 번째", await call("POST", `/sessions/${sid}/complete`), 409, "INVALID_STATE");
+  expectError("reviewed (COMPLETED)", await call("POST", `/sessions/${sid}/gaps/${g2?.gapId}/reviewed`), 409, "INVALID_STATE");
+  const resDone = validate("GET result (COMPLETED)", ResultSchema, (await call("GET", `/sessions/${sid}/result`)).data);
+  ok("result.chapter.taughtAt 세팅", !!resDone?.chapter.taughtAt, resDone?.chapter);
+  const sDone = validate("GET 세션 (COMPLETED)", SessionSchema, (await call("GET", `/sessions/${sid}`)).data);
+  ok("세션 COMPLETED score 54 gapCount 2", sDone?.status === "COMPLETED" && sDone.score === 54 && sDone.gapCount === 2, sDone);
+
+  const matDone = validate("GET 자료 (완료 후)", MaterialSchema, (await call("GET", `/materials/${osMat?.materialId}`)).data);
+  const chDone = matDone?.chapters.find((c) => c.chapterId === chapter.chapterId);
+  ok("챕터 RETRY / bestScore 54 / openGapCount 1 / taughtAt", chDone?.action.kind === "RETRY" && chDone.bestScore === 54 && chDone.openGapCount === 1 && !!chDone.taughtAt, chDone);
+  const homeDone = validate("GET /home (완료 후)", HomeSchema, (await call("GET", "/home")).data);
+  ok("홈 completedSessions 2, 평균 74, 연속 2일(어제+오늘), taughtCount 2", homeDone?.stats.completedSessions === 2 && homeDone.stats.averageScore === 74 && homeDone.stats.streakDays === 2 && homeDone.courses.find((c) => c.courseName === "운영체제")?.materials[0]?.taughtCount === 2, homeDone?.stats);
+  const meDone = validate("GET /auth/me (완료 후)", MeSchema, (await call("GET", "/auth/me")).data);
+  ok("me.streakDays 2", meDone?.streakDays === 2, meDone);
+
+  /* ── gap 0개 완료 → stableAt ── */
+  console.log("\n[stable]");
+  const econ = validate("GET 경제 자료", MaterialSchema, (await call("GET", `/materials/${econMat?.materialId}`)).data);
+  const econCh = econ!.chapters[0];
+  const sid2 = validate("POST /sessions (경제)", CreateSessionResponseSchema, (await call("POST", "/sessions", { chapterId: econCh.chapterId })).data)!.sessionId;
+  const exam2 = newId("exam");
+  await db.session.update({
+    where: { id: sid2 },
+    data: {
+      status: "RESULT_READY", phase: "EXAM_READY", score: 100, finalVerdict: "STABLE",
+      messages: { create: { id: newId("msg"), role: "USER", stage: "ANSWER", content: "수요 법칙." } },
+      exam: { create: { id: exam2, status: "GRADED", questions: { create: [{ id: examItemId(exam2, "q1"), qid: "q1", order: 1, points: 100, question: "?", objectiveRef: "o1", rubric: "r" }] }, answers: { create: [{ id: examItemId(exam2, "q1"), qid: "q1", answer: "a", sentencesJson: "[]" }] }, grades: { create: [{ id: examItemId(exam2, "q1"), qid: "q1", score: 100, maxScore: 100, verdict: "CORRECT", comment: "c" }] } } },
+    },
+  });
+  const comp2 = validate("complete (gap 0)", CompleteResponseSchema, (await call("POST", `/sessions/${sid2}/complete`)).data);
+  ok("STABLE + stableAt 세팅 + openGapCount 0", comp2?.finalVerdict === "STABLE" && !!comp2.chapter.stableAt && comp2.openGapCount === 0, comp2);
+
+  /* ── 삭제 ── */
+  console.log("\n[delete]");
+  validate("DELETE /sessions/{id}", OkResponseSchema, (await call("DELETE", `/sessions/${sid2}`)).data);
+  expectError("삭제된 세션 조회", await call("GET", `/sessions/${sid2}`), 404, "NOT_FOUND");
+  ok("세션 삭제 시 Exam cascade", (await db.exam.findUnique({ where: { id: exam2 } })) === null);
+  validate("DELETE /materials/{id} (업로드 자료)", OkResponseSchema, (await call("DELETE", `/materials/${upDto?.materialId}`)).data);
+  expectError("삭제된 자료 조회", await call("GET", `/materials/${upDto?.materialId}`), 404, "NOT_FOUND");
+  ok("자료 삭제 시 Source cascade", (await db.source.count({ where: { materialId: upDto?.materialId } })) === 0);
+  // 세션이 달린 자료 삭제: 챕터/세션까지 cascade 되는지
+  const fd2 = new FormData();
+  fd2.set("courseName", "삭제테스트");
+  fd2.append("files[]", new File(["삭제 테스트용 자료입니다. 챕터 하나를 수동으로 만들어 세션까지 지워지는지 확인합니다."], "del.txt"));
+  const upDel = validate("업로드(삭제 테스트)", MaterialCreateResponseSchema, (await call("POST", "/materials", fd2)).data)!;
+  expectError("POST /sessions (PENDING 자료 챕터 없음)", await call("POST", "/sessions", { chapterId: "chp_none" }), 404, "NOT_FOUND");
+  const chDel = await db.chapter.create({ data: { id: newId("chp"), materialId: upDel.materialId, order: 1, title: "t", pointsJson: "[]", sourceId: upDel.sources[0].sourceId, startOffset: 0, endOffset: 10 } });
+  expectError("POST /sessions (자료 PENDING)", await call("POST", "/sessions", { chapterId: chDel.id }), 409, "INVALID_STATE");
+  await db.material.update({ where: { id: upDel.materialId }, data: { status: "READY" } });
+  const sidDel = validate("POST /sessions (삭제 테스트)", CreateSessionResponseSchema, (await call("POST", "/sessions", { chapterId: chDel.id })).data)!.sessionId;
+  validate("DELETE /materials/{id} (세션 포함)", OkResponseSchema, (await call("DELETE", `/materials/${upDel.materialId}`)).data);
+  ok("자료 삭제 시 Chapter/Session cascade", (await db.session.findUnique({ where: { id: sidDel } })) === null && (await db.chapter.findUnique({ where: { id: chDel.id } })) === null);
+
+  /* ── 정리: 테스트가 만든 세션 삭제(시드 상태 복원) ── */
+  validate("DELETE 테스트 세션", OkResponseSchema, (await call("DELETE", `/sessions/${sid}`)).data);
+  await db.chapter.update({ where: { id: chapter.chapterId }, data: { taughtAt: null, stableAt: null } });
+  await db.chapter.update({ where: { id: econCh.chapterId }, data: { taughtAt: null, stableAt: null } });
+  const homeRestored = validate("GET /home (복원)", HomeSchema, (await call("GET", "/home")).data);
+  ok("시드 상태 복원 (완료 1, 94점)", homeRestored?.stats.completedSessions === 1 && homeRestored.stats.averageScore === 94, homeRestored?.stats);
+
+  /* ── 로그아웃 ── */
+  console.log("\n[logout]");
+  const out = await call("POST", "/auth/logout");
+  validate("POST /auth/logout", OkResponseSchema, out.data);
+  ok("쿠키 삭제 헤더", /Max-Age=0/.test(out.headers.get("set-cookie") ?? ""), out.headers.get("set-cookie"));
+  cookie = "";
+  expectError("GET /home (로그아웃 후)", await call("GET", "/home"), 401, "UNAUTHORIZED");
+  cookie = "tb_uid=usr_ghost";
+  expectError("GET /home (없는 사용자 쿠키)", await call("GET", "/home"), 401, "UNAUTHORIZED");
+
+  console.log(`\nsmoke: ${passed} passed, ${failed} failed`);
+  await db.$disconnect();
+  process.exit(failed ? 1 : 0);
+}
+
+main().catch(async (e) => {
+  console.error("smoke crashed:", e);
+  await db.$disconnect();
+  process.exit(1);
+});
