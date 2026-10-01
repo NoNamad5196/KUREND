@@ -1,21 +1,4 @@
-/* 세션 화면 모션. prefers-reduced-motion 은 globals.css 에서 일괄 처리된다. */
-@keyframes kurend-pop-in { from { opacity: 0; transform: translateY(6px) scale(.94); } to { opacity: 1; transform: none; } }
-@keyframes kurend-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-@keyframes kurend-shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
-@keyframes kurend-glow { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); } }
-@keyframes kurend-mark { 0%,100% { background-color: var(--accent-soft); } 50% { background-color: var(--accent); } }
-
-.kurend-pop { animation: kurend-pop-in .35s cubic-bezier(.2,.9,.3,1.25) both; }
-.kurend-rise { animation: kurend-rise .45s cubic-bezier(.2,.8,.2,1) both; }
-.kurend-doubt { animation: kurend-shake .5s ease-in-out, kurend-glow 1.2s ease-out .1s 2; }
-.kurend-mark { animation: kurend-mark 1.1s ease-in-out 2; }
-.kurend-stagger > * { animation: kurend-rise .45s cubic-bezier(.2,.8,.2,1) both; }
-.kurend-stagger > *:nth-child(2) { animation-delay: .06s; }
-.kurend-stagger > *:nth-child(3) { animation-delay: .12s; }
-.kurend-stagger > *:nth-child(4) { animation-delay: .18s; }
-.kurend-stagger > *:nth-child(5) { animation-delay: .24s; }
-.kurend-stagger > *:nth-child(n+6) { animation-delay: .3s; }
-
+/* Session layouts stay still; request and typing indicators are handled by their components. */
 /* An illustrated lesson scene, followed by one readable dialogue column. */
 .study-scene {
   display: grid;

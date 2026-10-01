@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { useState } from "react";
 import { Button, Card, Chip } from "@/components/session/ui";
 import { CharacterBadge } from "@/components/game/CharacterBadge";
-import { JuniorAvatar, type JuniorMood, type JuniorOutfit, type JuniorPose, type JuniorView } from "@/components/game/JuniorAvatar";
+import { JuniorAvatar, type JuniorOutfit, type JuniorView } from "@/components/game/JuniorAvatar";
 import { JuniorCard } from "@/components/game/JuniorCard";
 import { JuniorSelect } from "@/components/game/JuniorSelect";
 import { LifeHearts } from "@/components/game/LifeHearts";
@@ -17,9 +17,7 @@ import { GameOverScene } from "@/components/game/scenes/GameOverScene";
 import { GraduationScene } from "@/components/game/scenes/GraduationScene";
 import { JUNIOR_CHARACTERS, type JuniorCharacter, type LifeResult, type RunSummary } from "@/components/game/types";
 
-const MOODS: JuniorMood[] = ["idle", "happy", "confused", "sad", "think", "talk", "shake", "graduate"];
-const POSES: (JuniorPose | "none")[] = ["none", "walk", "wave", "jump", "bounce", "still"];
-const VIEWS: JuniorView[] = ["front", "side", "back"];
+const VIEWS: JuniorView[] = ["front", "side"];
 const OUTFITS: JuniorOutfit[] = ["default", "grad", "soldiers", "casual"];
 
 const RUN: RunSummary = {
@@ -44,8 +42,6 @@ function lifeResult(outcome: LifeResult["outcome"], gameOver = false): LifeResul
 export default function GameDevPage() {
   if (process.env.NODE_ENV === "production") notFound();
   const [character, setCharacter] = useState<JuniorCharacter>("KU_HARD");
-  const [mood, setMood] = useState<JuniorMood>("idle");
-  const [pose, setPose] = useState<JuniorPose | "none">("none");
   const [view, setView] = useState<JuniorView>("front");
   const [outfit, setOutfit] = useState<JuniorOutfit | "auto">("auto");
   const [lives, setLives] = useState(3);
@@ -61,19 +57,13 @@ export default function GameDevPage() {
       </header>
 
       <Card className="p-5">
-        <h2 className="text-lg font-bold">아바타 · 모션</h2>
+        <h2 className="text-lg font-bold">정적 캐릭터 · 의상</h2>
         <div className="mt-4 flex flex-wrap gap-6">
           {JUNIOR_CHARACTERS.map((c) => (
             <button key={c} type="button" onClick={() => setCharacter(c)} className={`rounded-card border p-3 ${character === c ? "border-primary bg-primary-soft" : "border-line"}`}>
-              <JuniorAvatar character={c} size={200} mood={mood} pose={pose === "none" ? undefined : pose} view={view} outfit={outfit === "auto" ? undefined : outfit} toss={mood === "graduate"} />
+              <JuniorAvatar character={c} size={200} view={view} outfit={outfit === "auto" ? undefined : outfit} />
             </button>
           ))}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <span className="w-12 text-muted">mood</span>{MOODS.map((m) => <button key={m} type="button" onClick={() => setMood(m)}><Chip tone={mood === m ? "primary" : "default"}>{m}</Chip></button>)}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          <span className="w-12 text-muted">pose</span>{POSES.map((p) => <button key={p} type="button" onClick={() => setPose(p)}><Chip tone={pose === p ? "primary" : "default"}>{p}</Chip></button>)}
         </div>
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           <span className="w-12 text-muted">view</span>{VIEWS.map((v) => <button key={v} type="button" onClick={() => setView(v)}><Chip tone={view === v ? "primary" : "default"}>{v}</Chip></button>)}

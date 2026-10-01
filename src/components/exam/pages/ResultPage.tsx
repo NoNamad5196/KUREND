@@ -35,7 +35,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const [grades, setGrades] = useState<Record<string, GradeDto>>({});
   const [grading, setGrading] = useState<string | null>(null);
   const [gaps, setGaps] = useState<GapDto[]>([]);
-  const { run: juniorRun, game, reload: reloadGame } = useSessionGame(session.sessionId);
+  const { run: juniorRun, game, identityPending, reload: reloadGame } = useSessionGame(session.sessionId);
   const juniorRunRef = useRef<RunDto | null>(null);
   juniorRunRef.current = juniorRun;
   const [overlay, setOverlay] = useState<{ result: ApplyLifeResponse; run: RunDto } | null>(null);
@@ -98,7 +98,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
       <ReportCard studentName={juniorLabel(juniorRun?.character)} courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
       <div className="min-w-0 space-y-6 lg:pt-2">
         <p className="editorial-label text-muted">WHAT WE LEARNED</p>
-        <div className="flex justify-center"><JuniorOrMascot character={juniorRun?.character} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={168} /></div>
+        <div className="flex justify-center"><JuniorOrMascot character={juniorRun?.character} identityPending={identityPending} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={168} /></div>
         <SpeechBubble speaker={juniorLabel(juniorRun?.character)} tail="top">배운 건 다 썼어. 못 쓴 데는 아직 못 들은 부분이야.</SpeechBubble>
         {wrongNotes.length > 0 && <div className="border-y border-line py-5"><p className="text-sm font-semibold">틀린 문항 {wrongNotes.length}개가 오답노트에 저장됐어요</p><p className="mt-2 text-xs leading-6 text-muted">왜 틀렸는지 먼저 써 보면 AI 분석이 열려요.</p><Link href={`/wrong-notes/${encodeURIComponent(wrongNotes[0].wrongNoteId)}`} className="mt-3 inline-block text-sm font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition hover:decoration-primary">오답노트 쓰러 가기 →</Link></div>}
         <div className="flex flex-col gap-3">

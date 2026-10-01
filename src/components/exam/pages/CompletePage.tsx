@@ -24,7 +24,7 @@ export function CompletePage({ sessionId }: { sessionId: string }) {
 function CompleteContent({ session, result, reload }: { session: SessionDto; result: ResultDto; reload: () => Promise<unknown> }) {
   const router = useRouter();
   const { busy, error, run } = useTask(reload);
-  const { run: juniorRun, game } = useSessionGame(session.sessionId);
+  const { run: juniorRun, game, identityPending } = useSessionGame(session.sessionId);
   const isFinal = game?.kind === "FINAL";
   const remaining = result.gaps.filter((gap) => gap.status !== "REVIEWED").length;
   const firstTaught = !!result.chapter.taughtAt && Date.parse(result.chapter.taughtAt) >= Date.parse(session.createdAt) && Date.parse(result.chapter.taughtAt) <= Date.parse(session.updatedAt);
@@ -45,7 +45,7 @@ function CompleteContent({ session, result, reload }: { session: SessionDto; res
   return <div className="page-enter min-w-0 space-y-10 sm:space-y-14">
     <StepperHeader session={session} step={4} chipLabel="완료" subtitle="오늘 가르친 내용을 학습 기록에 남겼어요" right={<RunHeaderBadge run={juniorRun} />} />
     <div className="mx-auto max-w-5xl space-y-8 sm:space-y-10">
-      <header className="grid items-center gap-6 border-b border-line pb-8 sm:grid-cols-[minmax(0,1fr)_220px] sm:pb-10"><div><p className="editorial-label text-muted">ONE CHAPTER CLOSER</p><h2 className="mt-4 text-5xl leading-tight font-semibold tracking-tighter sm:text-6xl">학습 완료<span className="text-primary">.</span></h2><p className="mt-5 text-balance break-words text-lg leading-relaxed text-muted">{session.chapter.title}</p></div><div className="flex justify-center"><JuniorOrMascot character={juniorRun?.character} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={204} /></div></header>
+      <header className="grid items-center gap-6 border-b border-line pb-8 sm:grid-cols-[minmax(0,1fr)_220px] sm:pb-10"><div><p className="editorial-label text-muted">ONE CHAPTER CLOSER</p><h2 className="mt-4 text-5xl leading-tight font-semibold tracking-tighter sm:text-6xl">학습 완료<span className="text-primary">.</span></h2><p className="mt-5 text-balance break-words text-lg leading-relaxed text-muted">{session.chapter.title}</p></div><div className="flex justify-center"><JuniorOrMascot character={juniorRun?.character} identityPending={identityPending} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={204} /></div></header>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-12">
       <div className="min-w-0">
       <ReportCard studentName={juniorLabel(juniorRun?.character)} courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
