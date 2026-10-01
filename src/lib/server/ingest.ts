@@ -4,6 +4,7 @@
  *  - PDF 는 pdf-parse v2 (PDFParse.getText) 로 동기 추출
  *  - 추출 텍스트가 비면 400 VALIDATION "텍스트를 읽을 수 없는 파일"
  */
+import { resolve } from "node:path";
 import type { SourceKind } from "@/contracts/types";
 import { validation } from "@/lib/server/http";
 
@@ -40,8 +41,32 @@ export function safeFileName(name: string): string {
   return base.replace(/[\u0000-\u001f]/g, "").slice(0, 120) || "file";
 }
 
+type PdfParseModule = typeof import("pdf-parse");
+
+/**
+ * pdf-parse(pdf.js) 는 webpack 번들에 들어가면 "Object.defineProperty called on non-object" 로 깨지고,
+ * `import { createRequire } from "module"` 도 webpack 이 정적으로 가로챈다.
+ * next.config 의 serverExternalPackages(A 소유) 없이도 동작하도록, 번들러가 볼 수 없는 경로로 Node 의 진짜
+ * require 를 얻어 프로젝트 루트 기준으로 CJS 빌드를 직접 로드한다.
+ * (A 가 next.config.ts 에 `serverExternalPackages: ["pdf-parse"]` 를 넣으면 이 우회는 없어도 된다.)
+ */
+let pdfModule: PdfParseModule | null = null;
+function loadPdfParse(): PdfParseModule {
+  if (!pdfModule) {
+    const proc = process as NodeJS.Process & { getBuiltinModule?: (id: string) => unknown };
+    const nodeModule = (
+      typeof proc.getBuiltinModule === "function"
+        ? proc.getBuiltinModule("node:module")
+        : (0, eval)("require")("node:module")
+    ) as typeof import("node:module");
+    const requireFromRoot = nodeModule.createRequire(resolve(process.cwd(), "package.json"));
+    pdfModule = requireFromRoot("pdf-parse") as PdfParseModule;
+  }
+  return pdfModule;
+}
+
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
+  const { PDFParse } = loadPdfParse();
   const parser = new PDFParse({ data: bytes });
   try {
     const result = await parser.getText();
