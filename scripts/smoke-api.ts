@@ -506,6 +506,18 @@ async function gameSmoke() {
   expectError("teacher-note POST: 다른 자료의 챕터", await call("POST", `/materials/${osId}/teacher-note`, { chapterId: run.progress.chapters[0].chapterId }), 404, "NOT_FOUND");
   expectError("teacher-note POST: 본문 없음", await call("POST", `/materials/${osId}/teacher-note`, {}), 400, "VALIDATION");
 
+  console.log("\n[game: 객관식 보기]");
+  {
+    const sid = (await call("POST", "/sessions", { chapterId: run.progress.chapters[0].chapterId })).data as { sessionId: string };
+    created.sessions.push(sid.sessionId);
+    const ex = newId("exam");
+    await db.session.update({ where: { id: sid.sessionId }, data: { status: "EXPLAINING", phase: "EXAM_READY", exam: { create: { id: ex, status: "READY", format: "OBJECTIVE", questions: { create: [{ id: examItemId(ex, "q1"), qid: "q1", order: 1, points: 34, question: "?", objectiveRef: "o1", rubric: "2", choicesJson: JSON.stringify(["가", "나", "다", "라"]) }] } } } } });
+    const st = validate("start-exam (객관식)", StartExamResponseSchema, (await call("POST", `/sessions/${sid.sessionId}/start-exam`)).data);
+    ok("start-exam 응답에 보기 4개 + rubric 미노출", st?.exam.questions[0].choices?.join() === "가,나,다,라" && !JSON.stringify(st).includes("rubric"), st);
+    const sd = validate("GET 세션 (객관식)", SessionSchema, (await call("GET", `/sessions/${sid.sessionId}`)).data);
+    ok("세션 객체에도 보기 4개", sd?.exam?.questions[0].choices?.length === 4, sd?.exam);
+  }
+
   console.log("\n[game: 세션 연결]");
   const ch = run.progress.chapters;
   const s1 = (await call("POST", "/sessions", { chapterId: ch[0].chapterId, juniorLevel: "HARD" })).data as { sessionId: string };

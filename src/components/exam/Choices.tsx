@@ -5,6 +5,9 @@ import clsx from "clsx";
 
 export const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥"];
 
+/** 보기 문구 앞에 이미 붙은 번호(①, 1., (1) 등)는 떼고 보여 준다 — 번호는 이 컴포넌트가 붙인다 */
+export const stripChoiceMark = (choice: string) => choice.replace(/^\s*(?:[①②③④⑤⑥]|\(?[1-6][).])\s*/, "");
+
 export function pickedChoiceIndex(answer: string | undefined, choices: string[]): number {
   if (!answer) return -1;
   const head = answer.trim();
@@ -12,7 +15,7 @@ export function pickedChoiceIndex(answer: string | undefined, choices: string[])
   if (byMark >= 0 && byMark < choices.length) return byMark;
   const byNumber = /^\(?([1-6])[).]/.exec(head);
   if (byNumber) return Number(byNumber[1]) - 1;
-  return choices.findIndex((c) => head.startsWith(c.trim()));
+  return choices.findIndex((c) => head.startsWith(c.trim()) || head.startsWith(stripChoiceMark(c).trim()));
 }
 
 export function Choices({ choices, answer, correctIndex, className }: { choices: string[]; answer?: string; correctIndex?: number; className?: string }) {
@@ -34,7 +37,7 @@ export function Choices({ choices, answer, correctIndex, className }: { choices:
             )}
           >
             <span className="shrink-0 font-bold">{CIRCLED[i] ?? `${i + 1}.`}</span>
-            <span className="min-w-0 break-words">{choice}</span>
+            <span className="min-w-0 break-words">{stripChoiceMark(choice)}</span>
             {isPicked && <span className="ml-auto shrink-0 text-xs text-muted">새내기 선택</span>}
           </li>
         );
