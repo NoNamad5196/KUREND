@@ -4,6 +4,7 @@ import type { StartExamResponse } from "@/contracts/types";
 import { db } from "@/lib/server/db";
 import { invalidState, json, withApi } from "@/lib/server/http";
 import { assertStatus, loadOwnedSession } from "@/lib/server/session-access";
+import { parseChoices } from "@/lib/server/session-dto";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export const POST = withApi<{ id: string }>(async (req, { params }) => {
         points: q.points,
         question: q.question,
         objectiveRef: q.objectiveRef,
+        // [게임 확장] 객관식 보기 — 빠지면 시험 시작 직후 화면에서 보기가 사라진다
+        ...(parseChoices(q.choicesJson) ? { choices: parseChoices(q.choicesJson) } : {}),
       })),
     },
   };

@@ -143,3 +143,31 @@ test("game snapshot, objective choices, exam format and mastery round trip on C'
     await db.juniorRun.deleteMany({ where: { id: runId } });
   }
 });
+
+test("reteach session puts focus concepts first in chapter points (prepare builds objectives from points)", async (t) => {
+  const { existsSync } = await import("node:fs");
+  if (!existsSync("prisma/dev.db") && !process.env.DATABASE_URL) {
+    t.skip("pnpm db:reset 로 만든 DB 가 없음");
+    return;
+  }
+  const { db } = await import("@/lib/server/db");
+  const material = await db.material.findFirst({ where: { userId: "usr_demo1", courseName: "경제학원론" }, include: { chapters: { orderBy: { order: "asc" } } } });
+  if (!material) {
+    t.skip("시드 데이터 없음");
+    return;
+  }
+  const chapter = material.chapters[0];
+  const original = JSON.parse(chapter.pointsJson) as string[];
+  const id = `sess_focus_${Date.now().toString(36)}`;
+  await db.session.create({ data: { id, userId: "usr_demo1", chapterId: chapter.id, status: "PREPARING", focusConceptsJson: JSON.stringify(["가격 탄력성"]) } });
+  try {
+    const backend = createPrismaBackend({ db, async requireUser() { return { id: "usr_demo1" }; } });
+    const rec = await backend.getSession(id, "usr_demo1");
+    assert.equal(rec?.chapter.points[0], "가격 탄력성");
+    assert.equal(rec?.chapter.points.length, Math.max(3, Math.min(1, 4)) > original.length + 1 ? original.length + 1 : 3);
+    const plain = await db.session.create({ data: { id: `${id}_p`, userId: "usr_demo1", chapterId: chapter.id, status: "PREPARING" } });
+    assert.deepEqual((await backend.getSession(plain.id, "usr_demo1"))?.chapter.points, original, "일반 세션은 원래 포인트 그대로");
+  } finally {
+    await db.session.deleteMany({ where: { id: { in: [id, `${id}_p`] } } });
+  }
+});
