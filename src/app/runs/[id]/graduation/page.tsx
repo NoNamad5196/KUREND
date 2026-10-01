@@ -12,8 +12,8 @@ export default function GraduationPage() {
   const c = params.get("c");
   const character: JuniorCharacter = (JUNIOR_CHARACTERS as readonly string[]).includes(c ?? "") ? (c as JuniorCharacter) : "KU_HARD";
   const materialId = params.get("m");
-  void id; // TODO(③ Step 2-B): graduate(id) → summary
   const summary: GraduationSummary = {
+    runId: id,
     character,
     materialTitle: "4장 프로세스 스케줄링",
     courseName: "운영체제",

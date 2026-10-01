@@ -24,7 +24,8 @@ const OUTFITS: JuniorOutfit[] = ["default", "grad", "soldiers", "casual"];
 
 const RUN: RunSummary = {
   runId: "run_demo", materialId: "mat_demo", materialTitle: "4장 프로세스 스케줄링", courseName: "운영체제", character: "KU_HARD",
-  lives: 2, maxLives: 3, status: "ACTIVE", progress: { cleared: 5, total: 8 }, next: { chapterId: "chp_x", title: "CPU 스케줄링 알고리즘" }, canGraduate: false,
+  lives: 2, maxLives: 3, passScore: 80, examFormat: "DESCRIPTIVE", status: "ACTIVE", startedAt: "2026-10-01T00:00:00.000Z", endedAt: null,
+  progress: { cleared: 5, total: 8, chapters: [] }, next: { chapterId: "chp_x", title: "CPU 스케줄링 알고리즘" }, canGraduate: false,
 };
 const NOTE = {
   chapterId: "chp_x",
@@ -34,9 +35,9 @@ const NOTE = {
   likelyQuestions: ["왜 그냥 먼저 온 프로세스부터 실행하면 안 돼?", "Time Quantum은 짧을수록 좋은 거야?"],
 };
 function lifeResult(outcome: LifeResult["outcome"], gameOver = false): LifeResult {
-  if (outcome === "FAILED") return { outcome, score: 54, passScore: 70, livesBefore: gameOver ? 1 : 3, livesAfter: gameOver ? 0 : 2, maxLives: 3, runStatus: gameOver ? "GAME_OVER" : "ACTIVE", chapter: { cleared: false, bestScore: 54, firstClear: false } };
-  if (outcome === "PERFECT") return { outcome, score: 100, passScore: 80, livesBefore: 2, livesAfter: 3, maxLives: 3, runStatus: "ACTIVE", chapter: { cleared: true, bestScore: 100, firstClear: true } };
-  return { outcome: "CLEAR", score: 82, passScore: 70, livesBefore: 3, livesAfter: 3, maxLives: 3, runStatus: "ACTIVE", chapter: { cleared: true, bestScore: 82, firstClear: true } };
+  if (outcome === "FAILED") return { applied: true, outcome, score: 54, passScore: 80, livesBefore: gameOver ? 1 : 3, livesAfter: gameOver ? 0 : 2, maxLives: 3, runStatus: gameOver ? "GAME_OVER" : "ACTIVE", chapter: { cleared: false, bestScore: 54, firstClear: false }, canGraduate: false };
+  if (outcome === "PERFECT") return { applied: true, outcome, score: 100, passScore: 80, livesBefore: 2, livesAfter: 3, maxLives: 3, runStatus: "ACTIVE", chapter: { cleared: true, bestScore: 100, firstClear: true }, canGraduate: false };
+  return { applied: true, outcome: "CLEAR", score: 82, passScore: 80, livesBefore: 3, livesAfter: 3, maxLives: 3, runStatus: "ACTIVE", chapter: { cleared: true, bestScore: 82, firstClear: true }, canGraduate: false };
 }
 
 export default function GameDevPage() {
@@ -107,7 +108,7 @@ export default function GameDevPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-bold">홈 후배 카드</h2>
         <JuniorCard run={{ ...RUN, character }} />
-        <JuniorCard run={{ ...RUN, character, lives: 1, canGraduate: true, progress: { cleared: 8, total: 8 }, next: null }} />
+        <JuniorCard run={{ ...RUN, character, lives: 1, canGraduate: true, progress: { cleared: 8, total: 8, chapters: [] }, next: null }} />
         <JuniorCard run={null} />
       </section>
 
@@ -123,7 +124,7 @@ export default function GameDevPage() {
       {overlay && <ResultOverlay result={overlay} character={character} onClose={() => setOverlay(null)} onGameOver={() => { setOverlay(null); setScene("over"); }} />}
       {scene === "over" && <GameOverScene character={character} onNext={() => setScene("none")} />}
       {scene === "grad" && (
-        <GraduationScene character={character} nextHref="/dev/game" summary={{ character, materialTitle: "4장 프로세스 스케줄링", courseName: "운영체제", days: 3, chapters: 8, exams: 14, averageScore: 86, perfectCount: 2, wrongNoteCount: 7, finalLives: 2, maxLives: 3, graduatedAt: new Date().toISOString() }} />
+        <GraduationScene character={character} nextHref="/dev/game" summary={{ runId: "run_demo", character, materialTitle: "4장 프로세스 스케줄링", courseName: "운영체제", days: 3, chapters: 8, exams: 14, averageScore: 86, perfectCount: 2, wrongNoteCount: 7, finalLives: 2, maxLives: 3, graduatedAt: new Date().toISOString() }} />
       )}
       <TeacherNoteDrawer open={drawer} onClose={() => setDrawer(false)} chapterTitle="CPU 스케줄링 알고리즘" note={NOTE} />
     </div>
