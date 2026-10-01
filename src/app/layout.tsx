@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppShell } from "@/components/shell/AppShell";
 
-// [A 소유] 앱 셸 레이아웃. B 작업 빌드를 위한 최소 버전이며 A가 사이드바/로그인 가드로 교체한다.
 export const metadata: Metadata = {
   title: "KUREND",
   description: "가르쳐야 아는 AI 새내기에게 전공을 가르쳐라 — KUREND",
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet" />
       </head>
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+      <body className="min-h-screen font-sans antialiased"><AppShell>{children}</AppShell></body>
     </html>
   );
 }
