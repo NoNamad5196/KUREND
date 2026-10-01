@@ -11,6 +11,7 @@ import type { SseEventData } from "@/contracts/events";
 import { api, ApiError, sse } from "@/components/session/_api";
 import { ObjectivesPanel } from "@/components/session/ObjectivesPanel";
 import { SourcePeekButton } from "@/components/session/SourcePeekButton";
+import { TeacherNoteButton } from "@/components/game/TeacherNoteButton";
 import { StepperHeader } from "@/components/session/StepperHeader";
 import { RunHeaderBadge } from "@/components/game/RunHeaderBadge";
 import { useSessionGame } from "@/components/game/useSessionGame";
@@ -207,6 +208,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         right={
           <>
             <RunHeaderBadge run={run} />
+            {!session.chapter.title.endsWith(" 졸업시험") && <TeacherNoteButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} chapterTitle={session.chapter.title} />}
             <SourcePeekButton materialId={session.material.materialId} chapterId={session.chapter.chapterId} />
             <Button variant="secondary" className="lg:hidden" onClick={() => setPanelOpen((v) => !v)} aria-expanded={panelOpen}>
               {panelOpen ? "목표 닫기" : "학습 목표"}

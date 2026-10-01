@@ -35,7 +35,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   const [grades, setGrades] = useState<Record<string, GradeDto>>({});
   const [grading, setGrading] = useState<string | null>(null);
   const [gaps, setGaps] = useState<GapDto[]>([]);
-  const { run: juniorRun, reload: reloadGame } = useSessionGame(session.sessionId);
+  const { run: juniorRun, game, reload: reloadGame } = useSessionGame(session.sessionId);
   const juniorRunRef = useRef<RunDto | null>(null);
   juniorRunRef.current = juniorRun;
   const [overlay, setOverlay] = useState<{ result: ApplyLifeResponse; run: RunDto } | null>(null);
@@ -92,7 +92,7 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
   }
 
   return <div className="min-w-0 space-y-6">
-    {overlay && <ResultOverlay result={overlay.result} character={overlay.run.character} onClose={() => setOverlay(null)} onGameOver={() => router.push(`/runs/${encodeURIComponent(overlay.run.runId)}/game-over?c=${overlay.run.character}&m=${encodeURIComponent(overlay.run.materialId)}`)} />}
+    {overlay && <ResultOverlay result={overlay.result} character={overlay.run.character} onClose={() => setOverlay(null)} onGameOver={() => router.push(`/runs/${encodeURIComponent(overlay.run.runId)}/game-over?c=${overlay.run.character}&m=${encodeURIComponent(overlay.run.materialId)}`)} final={game?.kind === "FINAL"} onGraduate={() => router.push(`/runs/${encodeURIComponent(overlay.run.runId)}/graduation`)} />}
     <StepperHeader session={session} step={3} chipLabel={result ? "시험 결과" : "채점 중"} subtitle="새내기의 답안에서 내 설명을 돌아보세요" right={<RunHeaderBadge run={juniorRun} />} />
     {result ? <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <ReportCard courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />

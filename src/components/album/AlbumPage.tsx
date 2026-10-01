@@ -55,7 +55,7 @@ export function AlbumPage() {
         <Card className="flex flex-col items-center gap-3 py-12 text-center">
           <JuniorAvatar character="KU_HARD" size={140} mood="think" />
           <h2 className="text-lg font-bold">아직 졸업한 후배가 없어요</h2>
-          <p className="max-w-sm text-sm text-muted">자료의 모든 챕터를 통과시키면 후배가 졸업하고, 이곳에 사진이 걸려요.</p>
+          <p className="max-w-sm text-sm text-muted">모든 챕터를 통과하고 졸업시험(10문항)까지 붙으면 후배가 졸업하고, 이곳에 사진이 걸려요.</p>
           <Link href="/"><Button>가르치러 가기</Button></Link>
         </Card>
       )}
