@@ -43,6 +43,7 @@ import { parseObjectives, parseStringArray, parseSentences, toJson } from "@/lib
 - `gap` 이벤트는 `toGapDto(gapRow)` (gap 은 `include: { tutorMessages: true }` 로 읽어야 함). 평가 뒤 `Session.score`/`finalVerdict` 는 D 가 저장한다(`finalVerdictFor` 는 `@/contracts/types`).
 - 메시지 순서는 `createdAt` 오름차순. 한 턴에 여러 메시지를 저장할 때는 createdAt 을 1ms 씩이라도 다르게 주거나 순서대로 `await` 하면 된다.
 - 사용자 설명(taught) 수집: `session.messages.filter(m => m.role === "USER" && !m.excluded)` 를 순서대로 1-base `ref` 로.
+- `GET /result` 는 RESULT_READY/REVIEWING/COMPLETED 에서만 200 이고 EVALUATING 이면 409 다(§5-5 표). evaluate 스트림이 중간에 끊겨 EVALUATING 으로 남을 수 있으니, D 의 evaluate 는 EVALUATING 상태에서 다시 호출돼도 이어서(또는 처음부터) 채점해 RESULT_READY 로 끝나야 한다.
 
 ## 4. 상태 전이 (C 담당 라우트)
 
