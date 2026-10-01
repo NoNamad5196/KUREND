@@ -133,6 +133,12 @@ function covered(chapter: ChapterText, objectives: { id: string; text: string }[
   }).map((objective) => objective.id);
 }
 
+function objectiveTopic(objective: { text: string }): string {
+  // Prepared objectives define the turn order. Imported/seeded chapters may
+  // list their points in another order, so do not relabel them by point index.
+  return objective.text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "").trim() || objective.text;
+}
+
 function plainTitle(text: string, fallback: string): string {
   const heading = text.match(/^#{1,6}\s+(?:\d+\.\s*)?(.+)$/mu)?.[1];
   return (heading ?? fallback).trim().slice(0, 20);
@@ -211,7 +217,7 @@ export const stubLlm: Llm = {
     const fixture = demoFor(chapter);
     if (fixture) {
       const output = structuredClone(fixture.prepare);
-      if (level === "HARD") output.firstQuestion = `${chapter.points[0]}부터 말해 줘. 받아쓸게.`;
+      if (level === "HARD") output.firstQuestion = `${objectiveTopic(output.objectives[0])}부터 말해 줘. 받아쓸게.`;
       return output;
     }
     const points = [...chapter.points.slice(0, 3)];
@@ -238,7 +244,7 @@ export const stubLlm: Llm = {
       return;
     }
     const current = covered(chapter, objectives, [explanation]);
-    const observed = objectives.flatMap((objective, index) => current.includes(objective.id) ? [chapter.points[index] ?? objective.text] : []);
+    const observed = objectives.flatMap((objective) => current.includes(objective.id) ? [objectiveTopic(objective)] : []);
     const added = [...new Set(observed)].filter((concept) => !heardConcepts.includes(concept));
     const combined = [...new Set([...heardConcepts, ...added])];
     yield { type: "concepts", heardConcepts: combined, added };
@@ -250,7 +256,7 @@ export const stubLlm: Llm = {
     await pause();
     yield {
       type: "question",
-      content: next < 0 ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : level === "HARD" ? `${chapter.points[next] ?? objectives[next].text}도 말해 줘.` : `선배, ${chapter.points[next] ?? objectives[next].text}도 설명해줄래?`,
+      content: next < 0 ? "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게." : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`,
       coveredObjectives,
     };
   },
