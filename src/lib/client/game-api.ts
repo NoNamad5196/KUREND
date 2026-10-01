@@ -13,6 +13,7 @@ import type {
   SessionGameDto,
   TeacherNoteDto,
   TeacherNoteListResponse,
+  UpdateWrongNoteRequest,
   WrongNoteDto,
   WrongNoteListResponse,
 } from "@/contracts/game";
@@ -36,12 +37,14 @@ export const gameApi = {
     api.post<TeacherNoteDto>(`/materials/${enc(materialId)}/teacher-note`, { chapterId }),
 
   /* ── 오답노트 (P1) ── */
-  /** 사용자가 먼저 쓴 이유를 저장하고 AI 진단·비교를 함께 받는다. 같은 (세션, 문항) 재요청은 기존 노트를 돌려준다. */
+  /** 틀린 문항은 채점 후 자동 저장된다. 수동 생성/이유 채우기용(같은 문항은 기존 노트를 돌려준다). */
   createWrongNote: (body: CreateWrongNoteRequest) => api.post<WrongNoteDto>("/wrong-notes", body),
   /** 최신순. materialId 를 주면 그 자료의 노트만. */
   listWrongNotes: (materialId?: string) =>
     api.get<WrongNoteListResponse>(materialId ? `/wrong-notes?materialId=${enc(materialId)}` : "/wrong-notes").then((r) => r.notes),
   getWrongNote: (wrongNoteId: string) => api.get<WrongNoteDto>(`/wrong-notes/${enc(wrongNoteId)}`),
+  /** 선배가 생각한 이유를 저장하면 AI 비교(aiComparison)가 함께 돌아온다 */
+  updateWrongNote: (wrongNoteId: string, body: UpdateWrongNoteRequest) => api.patch<WrongNoteDto>(`/wrong-notes/${enc(wrongNoteId)}`, body),
   /** 같은 챕터에 "다시 가르치기" 세션을 만든다 → /session/{sessionId}/prepare 로 이동 */
   reteachWrongNote: (wrongNoteId: string) => api.post<ReteachResponse>(`/wrong-notes/${enc(wrongNoteId)}/reteach`),
 

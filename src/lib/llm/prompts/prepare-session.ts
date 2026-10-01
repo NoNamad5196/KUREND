@@ -15,3 +15,7 @@ chapter.text에 있는 내용만 묻고 외부 지식, 계산 문제, 자료에 
 - firstQuestion에는 목표, 정답, rubric을 노출하지 마세요. chapter.points[0]의 개념 이름부터 물어보세요.
 - EASY의 firstQuestion 말투는 "선배, {개념}부터 알려줄래?", HARD는 "{개념}부터 말해 줘. 받아쓸게."입니다.
 - 모든 자연어 출력은 한국어입니다.`;
+
+export const OBJECTIVE_EXAM_PROMPT = `\n이번 후배의 시험은 객관식 4지선다입니다. 각 questions 항목에 choices:["① …","② …","③ …","④ …"]를 넣으세요. 네 보기는 서로 달라야 하며 자료에 근거한 정답은 하나만 있어야 합니다. rubric은 "정답 ②;근거: 자료의 사실" 형식의 두 요소로 작성하세요. 질문과 보기는 사용자가 본문을 가르쳤는지 확인해야 하며 답을 노출하지 마세요.`;
+export const KU_EXAM_PROMPT = `\nKU의 문항 세 개 중 하나는 이유·비교·응용을 물어야 합니다. 단, chapter.text에 있는 사실만 정답 근거로 요구하세요. 애매한 설명을 한 번 듣고 완전히 이해한 것으로 가정하지 마세요.`;
+export const FEMALE_EXAM_PROMPT = `\n여학생은 개념의 의미와 이유를 자기 말로 설명하는 서술형 문항을 냅니다.`;

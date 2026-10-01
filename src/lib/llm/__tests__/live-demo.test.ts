@@ -97,7 +97,7 @@ test("source-only concept quotes, rejected refs and injected reactions fail vali
   }
 });
 
-test("HARD accepts a learner claim without a doubt or source correction", async () => {
+test("legacy HARD practice remains compatible; KU asks about a contradiction", async () => {
   const explanation = "가격이 오르면 수요량도 늘어";
   const events = await collect(createLiveLlm(provider(() => analysis({
     contradictions: [{ claim: explanation }], concepts: [{ name: "수요량", quote: "수요량" }],
@@ -105,6 +105,11 @@ test("HARD accepts a learner claim without a doubt or source correction", async 
   assert.ok(!events.some((event) => event.type === "doubt"));
   assert.ok(events.some((event) => event.type === "reaction"));
   assert.ok(!JSON.stringify(events).includes("줄어"));
+  const ku = await collect(createLiveLlm(provider(() => analysis({
+    contradictions: [{ claim: explanation }], concepts: [{ name: "수요량", quote: "수요량" }],
+  }))).juniorTurn({ ...base, level: "HARD", persona: "KU_HARD", explanation }));
+  assert.ok(ku.some((event) => event.type === "doubt"));
+  assert.ok(!ku.some((event) => event.type === "reaction"));
 });
 
 test("all-covered turns never generate another objective question", async () => {

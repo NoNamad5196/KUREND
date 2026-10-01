@@ -199,13 +199,16 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         }
         const started = Date.now();
         send("progress", { step: "OBJECTIVES", message: "이 목차의 학습 목표를 정하고 있어요.", elapsedMs: 0 });
-        const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel });
+        const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
+          persona: session.game?.character, examFormat: session.game?.examFormat });
         if (prepared.objectives.length !== 3 || new Set(prepared.objectives.map((item) => item.id)).size !== 3
           || prepared.questions.length !== 3 || new Set(prepared.questions.map((item) => item.qid)).size !== 3
           || prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100
           || prepared.questions.some((item) => !Number.isInteger(item.points) || item.points < 1
             || !prepared.objectives.some((objective) => objective.id === item.objectiveRef))
-          || !prepared.firstQuestion.trim()) modelFailure();
+          || !prepared.firstQuestion.trim()
+          || (session.game?.examFormat === "OBJECTIVE" && prepared.questions.some((item) =>
+            item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric)))) modelFailure();
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
         const firstQuestion = message("JUNIOR", "QUESTION", prepared.firstQuestion);
         send("progress", { step: "GREETING", message: "새내기가 선배의 설명을 기다리고 있어요.", elapsedMs: Date.now() - started });
@@ -238,7 +241,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const reactions: MessageRecord[] = [];
         let question: { record: MessageRecord; coveredObjectives: string[] } | undefined;
         for await (const event of llm.juniorTurn({
-          chapter: session.chapter, level: session.juniorLevel, objectives: session.objectives,
+          chapter: session.chapter, level: session.juniorLevel, persona: session.game?.character, objectives: session.objectives,
           heardConcepts: session.heardConcepts, history, explanation: body.content,
         })) {
           checkActive(request);
@@ -247,7 +250,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
             concepts = { heardConcepts: event.heardConcepts, added: event.added };
             send("junior.concepts", concepts);
           } else if (event.type === "doubt") {
-            if (!concepts || doubt || reactions.length || question || session.juniorLevel === "HARD" || !event.content.trim()) modelFailure();
+            if (!concepts || doubt || reactions.length || question || (!session.game && session.juniorLevel === "HARD") || !event.content.trim()) modelFailure();
             if (concepts.added.length || concepts.heardConcepts.length !== session.heardConcepts.length
               || concepts.heardConcepts.some((concept) => !session.heardConcepts.includes(concept))) modelFailure();
             doubt = message("JUNIOR", "DOUBT", event.content);
@@ -297,7 +300,8 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const answerSentences: AnswerSentenceDto[] = [];
         let finalAnswer: string | undefined;
         let sourcesSent = false;
-        for await (const event of llm.writeExamAnswer({ question: question.question, taught, heardConcepts: session.heardConcepts })) {
+        for await (const event of llm.writeExamAnswer({ question: question.question, taught, heardConcepts: session.heardConcepts,
+          persona: session.game?.character, choices: question.choices })) {
           checkActive(request);
           if (finalAnswer !== undefined) modelFailure();
           if (event.type === "sources") {
@@ -317,6 +321,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           } else if (event.type === "final") finalAnswer = event.answer;
         }
         if (!sourcesSent || !finalAnswer?.trim() || !answerSentences.length) modelFailure();
+        if (question.choices && (question.choices.length !== 4 || !question.choices.some((choice) => finalAnswer!.startsWith(choice.slice(0, 1))))) modelFailure();
         const normalized = (value: string) => value.replace(/\s+/gu, "").trim();
         if (normalized(finalAnswer) !== normalized(answerSentences.map((item) => item.sentence).join(" "))) modelFailure();
         const answers = [...exam.answers, { qid, answer: finalAnswer, sentences: answerSentences }];
@@ -344,6 +349,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         for await (const event of llm.gradeExam({
           chapter: session.chapter, questions: exam.questions,
           answers: exam.answers.map(({ qid, answer }) => ({ qid, answer })), taught: taughtMessages(session),
+          persona: session.game?.character,
         })) {
           checkActive(request);
           const question = exam.questions.find((item) => item.qid === event.qid);
@@ -351,6 +357,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
           if (event.type === "grade") {
             if (grades.some((grade) => grade.qid === event.qid) || !Number.isInteger(event.score)
               || event.score < 0 || event.score > question.points || event.maxScore !== question.points
+              || (question.choices && (event.score !== 0 && event.score !== question.points || event.verdict === "PARTIAL"))
               || event.verdict !== (event.score === question.points ? "CORRECT" : event.score === 0 ? "WRONG" : "PARTIAL")) modelFailure();
             const { qid, score, maxScore, verdict, comment } = event;
             const grade = { qid, score, maxScore, verdict, comment };
