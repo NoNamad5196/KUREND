@@ -86,7 +86,7 @@ export function LoginScreen() {
             <span>{demoBusy ? "체험 계정으로 들어가는 중…" : "체험 계정으로 둘러보기"}</span>
             <span className="ml-auto text-muted" aria-hidden="true">→</span>
           </button>
-          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. 체험 계정은 누구나 쓰는 공용 계정이라 기록이 섞이거나 지워질 수 있어요. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
+          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. 체험 계정은 누구나 쓰는 공용 계정이라 기록이 섞이거나 지워질 수 있어요.</p>
         </section>
       </div>
       <footer className="kl-footer">
