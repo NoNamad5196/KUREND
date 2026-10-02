@@ -5,9 +5,9 @@
 
 /* Touch taps keep their existing selection behavior; keyboard focus also reacts. */
 @media (hover: hover) {
-  .junior-poster:hover .junior-paper-hover > .static-character-viewport { animation: paper-rock 1000ms steps(1, end) infinite; }
+  .junior-poster:hover .junior-paper-hover > .static-character-viewport { animation: paper-rock 2000ms steps(1, end) infinite; }
 }
-.junior-poster:has(:focus-visible) .junior-paper-hover > .static-character-viewport { animation: paper-rock 1000ms steps(1, end) infinite; }
+.junior-poster:has(:focus-visible) .junior-paper-hover > .static-character-viewport { animation: paper-rock 2000ms steps(1, end) infinite; }
 
 /* Shared with the endings so all paper puppets use the same held poses. */
 @keyframes paper-rock {
