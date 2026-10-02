@@ -1,0 +1,102 @@
+/* Whole paper cutouts, held poses at roughly 8–10 frames/sec. No source art is altered. */
+.paper-ending { overflow-x: clip; }
+.paper-ending .static-campus-content { position: relative; padding-top: 64px; }
+.paper-ending-controls { position: absolute; top: 12px; right: clamp(16px, 4vw, 48px); z-index: 4; }
+.paper-ending-control { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12px; }
+.paper-ending-control:hover { background: var(--bg); }
+.paper-ending-control:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.paper-puppet { display: grid; position: relative; transform-origin: 50% 100%; filter: drop-shadow(2px 3px 1px rgb(30 35 48 / .12)); }
+.paper-facing { grid-area: 1 / 1; min-width: 0; }
+.paper-facing-side { visibility: hidden; }
+.paper-graduate { position: relative; }
+.paper-graduate-cutout { transform-origin: 50% 100%; }
+.paper-ending--playing .paper-graduate-cutout { animation: paper-arrive 700ms steps(1, end) both; }
+.paper-ending--playing .paper-graduate .paper-puppet { animation: paper-rock 900ms steps(1, end) 600ms 2; }
+
+/* Reserve the original art's space; movement cannot move the result or buttons. */
+.paper-departure-stage { overflow: clip; padding: 14px 12px 4px; isolation: isolate; }
+.paper-exit-person { position: relative; z-index: 1; transform-origin: 50% 100%; }
+.paper-ending .paper-truck { position: relative; z-index: 2; transform-origin: 50% 90%; }
+.paper-ending--male { --walk-delay: 350ms; --walk-duration: 1200ms; --drive-delay: 1600ms; --drive-duration: 1800ms; }
+.paper-ending--ku { --walk-delay: 850ms; --walk-duration: 1100ms; --drive-delay: 2150ms; --drive-duration: 1750ms; }
+.paper-ending--female { --walk-delay: 400ms; --walk-duration: 2200ms; }
+.paper-ending--playing .paper-exit-person { animation: paper-board var(--walk-duration) steps(10, end) var(--walk-delay) both; }
+.paper-ending--playing .paper-exit-person .paper-puppet { animation: paper-rock 800ms steps(1, end) var(--walk-delay) 3; }
+.paper-ending--playing .paper-facing-front { animation: paper-face-front 1ms step-end var(--walk-delay) forwards; }
+.paper-ending--playing .paper-facing-side { animation: paper-face-side 1ms step-end var(--walk-delay) forwards; }
+.paper-ending--playing .paper-truck { animation: paper-drive var(--drive-duration) steps(1, end) var(--drive-delay) both; }
+.paper-ending--female.paper-ending--playing .paper-exit-person { animation-name: paper-walk-away; animation-timing-function: steps(20, end); }
+.paper-ending--finished .paper-exit-person,
+.paper-ending--finished .paper-truck { visibility: hidden; }
+
+.paper-confetti { position: absolute; inset: -24px 0 0; pointer-events: none; }
+.paper-confetti i { position: absolute; top: 15%; left: var(--piece-x); width: 7px; height: 11px; background: var(--accent); opacity: 0; }
+.paper-confetti i:nth-child(3n) { background: var(--primary); }
+.paper-confetti i:nth-child(3n + 1) { background: #e6b45e; }
+.paper-ending--playing .paper-confetti i { animation: paper-confetti-fall 1400ms steps(12, end) var(--piece-delay) forwards; }
+
+@keyframes paper-rock {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  12.5% { transform: translateY(-2px) rotate(-2.2deg); }
+  25% { transform: translateY(0) rotate(1.8deg); }
+  37.5% { transform: translateY(-1px) rotate(-1.6deg); }
+  50% { transform: translateY(0) rotate(0); }
+  62.5% { transform: translateY(-2px) rotate(2.2deg); }
+  75% { transform: translateY(0) rotate(-1.8deg); }
+  87.5% { transform: translateY(-1px) rotate(1.6deg); }
+}
+@keyframes paper-arrive {
+  0% { transform: translate(-18px, 8px) rotate(-3deg); opacity: 0; }
+  16.7% { transform: translate(-14px, 6px) rotate(-2deg); opacity: 1; }
+  33.3% { transform: translate(-10px, 4px) rotate(1deg); }
+  50% { transform: translate(-6px, 3px) rotate(-1deg); }
+  66.7% { transform: translate(-3px, 1px) rotate(1deg); }
+  83.3%, 100% { transform: translate(0, 0) rotate(0); opacity: 1; }
+}
+@keyframes paper-face-front { to { visibility: hidden; } }
+@keyframes paper-face-side { to { visibility: visible; } }
+@keyframes paper-board {
+  from { transform: translateX(0); visibility: visible; }
+  to { transform: translateX(140%); visibility: hidden; }
+}
+@keyframes paper-drive {
+  0%, 6.25% { transform: translate(0, 0) rotate(0); }
+  12.5% { transform: translate(1%, -2px) rotate(-.6deg); }
+  18.75% { transform: translate(3%, 0) rotate(.4deg); }
+  25% { transform: translate(6%, -1px) rotate(-.3deg); }
+  31.25% { transform: translate(11%, 0) rotate(.3deg); }
+  37.5% { transform: translate(18%, -2px) rotate(-.3deg); }
+  43.75% { transform: translate(27%, 0) rotate(.3deg); }
+  50% { transform: translate(38%, -1px) rotate(-.3deg); }
+  56.25% { transform: translate(50%, 0) rotate(.3deg); }
+  62.5% { transform: translate(63%, -2px) rotate(-.3deg); }
+  68.75% { transform: translate(77%, 0) rotate(.3deg); }
+  75% { transform: translate(92%, -1px) rotate(-.3deg); }
+  81.25% { transform: translate(108%, 0) rotate(.3deg); }
+  87.5% { transform: translate(124%, -2px) rotate(-.3deg); }
+  93.75% { transform: translate(140%, 0) rotate(.3deg); }
+  100% { transform: translate(155%, 0) rotate(0); }
+}
+@keyframes paper-walk-away {
+  from { transform: translate(0, 0) scale(1); visibility: visible; }
+  to { transform: translate(110%, -20px) scale(.48); visibility: hidden; }
+}
+@keyframes paper-confetti-fall {
+  0% { transform: translate(0, -20px) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--piece-drift), 140px) rotate(var(--piece-turn)); opacity: 0; }
+}
+
+/* Motion preference changes, skipping, and route unmounts need no background loop. */
+.paper-ending--reduced :is(.paper-graduate-cutout, .paper-puppet, .paper-facing, .paper-exit-person, .paper-truck, .paper-confetti i) { animation: none !important; }
+.paper-ending--reduced .paper-exit-person,
+.paper-ending--reduced .paper-truck { visibility: visible; }
+@media (prefers-reduced-motion: reduce) {
+  .paper-ending .paper-graduate-cutout,
+  .paper-ending .paper-puppet,
+  .paper-ending .paper-facing,
+  .paper-ending .paper-exit-person,
+  .paper-ending .paper-truck,
+  .paper-ending .paper-confetti i { animation: none !important; }
+  .paper-ending .paper-exit-person, .paper-ending .paper-truck { visibility: visible; }
+  .paper-ending-controls { visibility: hidden; }
+}

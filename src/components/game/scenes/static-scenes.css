@@ -1,4 +1,4 @@
-/* Full source images and ordinary document flow: no timeline or moving parts. */
+/* Base layout for whole source images. Optional ending motion lives in paper-ending.css. */
 .static-campus { position: fixed; inset: 0; z-index: 94; overflow: auto; isolation: isolate; background: var(--bg); color: var(--ink); overscroll-behavior: contain; }
 .static-campus-background { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; object-position: center bottom; pointer-events: none; }
 .static-campus-dusk .static-campus-background { filter: saturate(.8) brightness(.84); }

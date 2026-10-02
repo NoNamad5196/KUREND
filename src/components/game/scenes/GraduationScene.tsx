@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Button } from "@/components/session/ui";
 import { CHARACTER_META } from "../characters";
 import { GraduationSummary } from "../GraduationSummary";
 import { JuniorAvatar } from "../JuniorAvatar";
 import { withJosa } from "../JuniorOrMascot";
 import type { GraduationSummary as Summary, JuniorCharacter } from "../types";
-import { CampusScene } from "./Campus";
+import { PaperEnding } from "./PaperEnding";
 
-/** Graduation art and the existing result card are visible immediately. */
+/** A short paper-cutout celebration beside the immediately usable result card. */
 export function GraduationScene({ character, summary, nextHref, albumHref }: {
   character: JuniorCharacter;
   summary: Summary | null;
@@ -18,15 +19,23 @@ export function GraduationScene({ character, summary, nextHref, albumHref }: {
 }) {
   const meta = CHARACTER_META[character];
   return (
-    <CampusScene className="static-graduation" label="졸업식">
+    <PaperEnding key={character} kind="graduation" className="static-graduation" label="졸업식">
       <header className="static-scene-heading">
         <p className="static-scene-eyebrow">새내기 / {meta.name}</p>
         <h1>졸업식</h1>
         <p className="static-graduation-message">{meta.graduation.lines.join(" ")}</p>
       </header>
       <div className="static-graduation-content">
-        <div className="static-graduation-portrait">
-          <JuniorAvatar character={character} outfit="grad" view="front" pose="still" size={300} className="static-scene-avatar" label={`${meta.name}의 졸업식`} />
+        <div className="static-graduation-portrait paper-graduate">
+          <div className="paper-graduate-cutout"><div className="paper-puppet">
+            <JuniorAvatar character={character} outfit="grad" view="front" pose="still" size={300} className="static-scene-avatar" label={`${meta.name}의 졸업식`} />
+          </div></div>
+          <div className="paper-confetti" aria-hidden="true">
+            {Array.from({ length: 10 }, (_, i) => <i key={i} style={{
+              "--piece-x": `${12 + i * 8}%`, "--piece-delay": `${900 + (i % 4) * 100}ms`,
+              "--piece-drift": `${i % 2 ? 18 : -18}px`, "--piece-turn": `${i % 2 ? 140 : -110}deg`,
+            } as CSSProperties} />)}
+          </div>
         </div>
         <div className="static-graduation-record">
           {summary ? (
@@ -41,6 +50,6 @@ export function GraduationScene({ character, summary, nextHref, albumHref }: {
           )}
         </div>
       </div>
-    </CampusScene>
+    </PaperEnding>
   );
 }
