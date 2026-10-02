@@ -14,7 +14,12 @@ import { CHARACTERS, JUNIOR_CHARACTERS, type JuniorCharacter } from "@/contracts
 import "./orientation.css";
 
 const STEPS = ["선배가 되어 보기", "가르친 만큼만", "나와 맞는 후배", "졸업까지 함께"];
-const TITLES = ["여기서는 당신이 선배입니다.", "후배는 가르친 만큼만 압니다.", "후배 선택은 학습 방식 선택입니다.", "가르치고, 돌아보고, 다시 가르쳐요."];
+const TITLES = [
+  "여기서는 당신이 선배입니다.",
+  <span key="taught"><span className="ko-title-line">후배는 가르친만큼만</span><br />압니다.</span>,
+  <span key="method"><span className="ko-title-line">후배 선택은 학습방식</span><br />선택입니다.</span>,
+  "가르치고, 돌아보고, 다시 가르쳐요.",
+];
 const FLOW = [
   { icon: "＋", label: "자료 올리기", detail: "AI가 목차로 정리" },
   { icon: "☺", label: "후배 선택", detail: "나에게 맞는 학습 방식" },
@@ -97,7 +102,7 @@ export function Orientation() {
     <div className="ko-body">
       <section className="ko-introduction">
         <p className="editorial-label">이용 안내 · 0{step + 1} / 04</p>
-        <h1 ref={heading} tabIndex={-1}>{TITLES[step]}</h1>
+        <h1 ref={heading} tabIndex={-1} className={step === 1 || step === 2 ? "ko-title-two-lines" : undefined}>{TITLES[step]}</h1>
         <p className="ko-description">{[
           "공부한 내용을 AI 후배에게 직접 설명해요. 처음엔 아무것도 모르는 후배를 가르치며 내 이해도도 확인합니다.",
           "후배는 자료의 정답을 몰래 보지 않아요. 선배가 실제로 가르쳐 준 내용으로만 시험을 봅니다.",

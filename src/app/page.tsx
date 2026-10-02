@@ -25,6 +25,12 @@ export default function HomePage() {
   const [runError, setRunError] = useState<string | null>(null);
   const emptyHome = !!home && !home.courses.some((course) => course.materials.length > 0) && home.recentSessions.length === 0 && home.stats.completedSessions === 0;
   const study = home ? homeStudyState(home, run) : null;
+  const introduction = home && study && <div className="editorial-home-intro">
+    <p className="editorial-home-greeting">{home.userName} 선배</p>
+    <h1 id="home-heading" className={!run ? "editorial-home-question" : undefined}>{run ? study.kind === "next" || (study.kind === "resume" && study.resume.status === "EXPLAINING") ? `${withJosa(juniorLabel(run.character), "이/가")} 기다리고 있어요.` : `${withJosa(juniorLabel(run.character), "과/와")} ${study.kind === "resume" ? "수업을 이어가요." : "학습을 돌아봐요."}` : <>선배,<br /><span>오늘은 뭐 가르쳐 줄 거에요?</span></>}</h1>
+    <p className="editorial-home-description">{study.kind === "resume" ? "저장한 수업을 멈췄던 단계부터 이어갈 수 있어요." : study.kind === "next" ? "자료를 살펴본 뒤, 후배에게 내 말로 설명해 주세요." : study.kind === "final" ? "목차별 학습을 마쳤어요. 후배의 시험과 학습 기록을 확인해 보세요." : run ? "자료에서 다음에 공부할 목차를 확인해 주세요." : "공부한 내용을 AI 후배에게 설명해 주세요. 후배는 선배가 가르친 내용만으로 시험을 봐요."}</p>
+    {study.kind === "new" && <Link href={study.href} className="editorial-home-cta">후배 만나기 <span aria-hidden="true">→</span></Link>}
+  </div>;
   useEffect(() => { api.get<HomeDto>("/home").then(setHome).catch((e) => setError(e instanceof Error ? e.message : "홈을 불러올 수 없습니다.")); }, []);
   useEffect(() => { gameApi.getCurrentRun().then(setRun).catch(() => setRunError("후배 정보를 불러오지 못했어요.")); }, []);
   return <div className="editorial-home page-enter">
@@ -33,18 +39,12 @@ export default function HomePage() {
     {home && <>
       {study?.kind === "loading" ? <section className="editorial-home-loading" aria-label="현재 학습">
         {runError ? <p role="alert">{runError} <button className="ml-2 underline" onClick={() => window.location.reload()}>다시 시도</button></p> : <p role="status">현재 학습을 확인하고 있어요…</p>}
-      </section> : study && <section className="editorial-home-hero" aria-labelledby="home-heading">
-        <div className="editorial-home-intro">
-          <p className="editorial-home-greeting">{home.userName} 선배</p>
-          <h1 id="home-heading">{run ? study.kind === "next" || (study.kind === "resume" && study.resume.status === "EXPLAINING") ? `${withJosa(juniorLabel(run.character), "이/가")} 기다리고 있어요.` : `${withJosa(juniorLabel(run.character), "과/와")} ${study.kind === "resume" ? "수업을 이어가요." : "학습을 돌아봐요."}` : "새내기 하나 맡아볼래요?"}</h1>
-          <p className="editorial-home-description">{study.kind === "resume" ? "저장한 수업을 멈췄던 단계부터 이어갈 수 있어요." : study.kind === "next" ? "자료를 살펴본 뒤, 후배에게 내 말로 설명해 주세요." : study.kind === "final" ? "목차별 학습을 마쳤어요. 후배의 시험과 학습 기록을 확인해 보세요." : run ? "자료에서 다음에 공부할 목차를 확인해 주세요." : "공부한 내용을 AI 후배에게 설명해 주세요. 후배는 선배가 가르친 내용만으로 시험을 봐요."}</p>
-          {study.kind === "new" && <Link href={study.href} className="editorial-home-cta">후배 만나기 <span aria-hidden="true">→</span></Link>}
-        </div>
-        {run && study.kind !== "new" ? <section aria-label="현재 후배" className="editorial-home-partner"><JuniorCard run={run} study={study} /></section> : <div className="editorial-home-welcome" aria-label="함께 공부할 후배들">
+      </section> : study && <section className={run && study.kind !== "new" ? "editorial-home-hero editorial-home-hero-active" : "editorial-home-hero"} aria-labelledby="home-heading">
+        {run && study.kind !== "new" ? <JuniorCard run={run} study={study} intro={introduction} /> : <>{introduction}<div className="editorial-home-welcome" aria-label="함께 공부할 후배들">
           <StaticBackdrop />
           <JuniorTrio className="editorial-welcome-characters" />
           <p className="editorial-welcome-caption">컴돌이 · KU · 컴순이</p>
-        </div>}
+        </div></>}
       </section>}
       {!emptyHome && <TodayTasks home={home} run={run} />}
       <section aria-labelledby="courses-heading" className="editorial-course-section" id="study-library">
