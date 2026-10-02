@@ -19,10 +19,10 @@ export function GameOverScene({ character, onNext, nextLabel = "새 후배 만�
   const male = character === "MALE_EASY";
   const female = character === "FEMALE_NORMAL";
   return (
-    <PaperEnding key={character} kind={male ? "male" : female ? "female" : "ku"} className="static-game-over" label="게임 오버">
+    <PaperEnding key={character} kind={male ? "male" : female ? "female" : "ku"} className="static-game-over" label="졸업 실패">
       <header className="static-scene-heading">
         <p className="static-scene-eyebrow">새내기 / {meta.name}</p>
-        <h1>게임 오버</h1>
+        <h1>졸업 실패</h1>
         <div className="static-scene-story">
           {meta.gameOver.lines.map((line) => <p key={line}>{line}</p>)}
         </div>
