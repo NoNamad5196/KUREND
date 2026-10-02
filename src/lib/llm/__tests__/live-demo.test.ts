@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createLiveLlm, type LiveProviderCalls } from "../live";
 import { acceptedExplanations } from "../turn-state";
 import { UNLEARNED_ANSWER } from "../text";
+import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
 import type { Llm, TaughtMsg } from "../types";
 
 async function collect<T>(events: AsyncIterable<T>) {
@@ -138,31 +139,28 @@ test("exam citations cannot invent facts under an otherwise valid ref", async ()
   const fallback = await collect(createLiveLlm(provider(() => reply)).writeExamAnswer(input));
   assert.ok(!JSON.stringify(fallback).includes("소득이 늘면"));
   const fallbackFinal = fallback.at(-1);
-  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer.includes(correct.slice(0, 12))));
-  assert.ok(fallbackFinal?.type === "final" && !/배웠|선배|“/u.test(fallbackFinal.answer));
-  // 모델이 답안 문장에 외부 사실을 덧붙이면 버리고, 근거 원문을 답안 문장으로 쓴다.
-  const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "소득과 기호, 미래 가격 기대가 모두 수요를 바꾸는 외부 사실이다." }] }))).writeExamAnswer(input));
-  assert.deepEqual(events.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
+  assert.ok(fallbackFinal?.type === "final" && (fallbackFinal.answer === UNLEARNED_ANSWER || fallbackFinal.answer === plainExamAnswer(correct)));
+  const events = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", text: "모델이 덧붙인 외부 사실" }] }))).writeExamAnswer(input));
+  assert.deepEqual(events.at(-1), { type: "final", answer: plainExamAnswer(correct) });
   assert.ok(!JSON.stringify(events).includes("외부 사실"));
-  // 근거와 같은 내용을 답안 문체로 다듬은 문장은 그대로 쓴다(대화체·마크다운 없음).
-  const polished = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." }] }))).writeExamAnswer(input));
-  assert.deepEqual(polished.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
-  const chatty = await collect(createLiveLlm(provider(() => ({ ...reply, sentences: [{ quote: correct, ref: 7, level: "STRONG", answer: "**선배님**이 가격이 오르면 사려는 양이 줄어든다고 알려주셨어요." }] }))).writeExamAnswer(input));
-  assert.deepEqual(chatty.at(-1), { type: "final", answer: "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다." });
 });
 
 test("exam answers may borrow the chapter's wording for what the senior taught, but never grow beyond it", async () => {
   const input = { question: "수요 법칙을 설명하시오.", taught: [{ ref: 7, content: correct }], heardConcepts: ["수요 법칙"], chapter };
   const reply = (answer: string) => ({ thought: "들은 내용을 찾아볼게.", sentences: [{ quote: correct, ref: 7, level: "STRONG", answer }], unlearned: false });
-  // 자료의 용어(수요량·일정)로 다듬은 답안은 그대로 쓴다 — 선배의 근거와 같은 개념을 말하는 자료 문장이 허용 범위에 들어온다.
-  const borrowed = "다른 조건이 일정할 때 가격이 오르면 수요량이 줄어든다.";
+  // 선배의 말을 그대로 두고 자료의 용어(수요량)를 덧붙인 답안은 그대로 쓴다.
+  const borrowed = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양, 즉 수요량은 줄어든다.";
   assert.deepEqual((await collect(createLiveLlm(provider(() => reply(borrowed))).writeExamAnswer(input))).at(-1), { type: "final", answer: borrowed });
-  // 같은 답안도 자료가 없으면(근거만 허용) 근거 원문으로 돌아간다.
   const styled = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다.";
-  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(borrowed))).writeExamAnswer({ ...input, chapter: undefined }))).at(-1), { type: "final", answer: styled });
+  // 선배의 말을 자료 표현으로 바꿔 쓴 답안(내용 일부가 빠짐)은 근거 원문으로 돌아간다 — 틀린 설명을 자료로 "고치는" 길도 막힌다.
+  const rewritten = "다른 조건이 일정할 때 가격이 오르면 수요량이 줄어든다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(rewritten))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
   // 선배가 말하지 않은 사실(소득·유행·곡선 이동)을 자료에서 가져와 덧붙이면 버리고 근거 원문을 쓴다.
-  const overgrown = "다른 조건이 일정할 때 가격이 오르면 수요량이 줄고, 소득이 늘거나 유행이 바뀌면 수요곡선 자체가 오른쪽으로 이동한다.";
+  const overgrown = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄고, 소득이 늘거나 유행이 바뀌면 수요곡선 자체가 오른쪽으로 이동한다.";
   assert.deepEqual((await collect(createLiveLlm(provider(() => reply(overgrown))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
+  // 부정을 끼워 넣어 뜻을 뒤집는 작은 편집도 거절한다.
+  const flipped = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄지 않는다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(flipped))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
 });
 
 test("unlearned answers stay canonical even with unrelated taught messages", async () => {

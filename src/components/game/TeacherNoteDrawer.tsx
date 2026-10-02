@@ -3,6 +3,7 @@
  * [③] 선배용 강의노트 드로어 — 가르치는 도중 "잠깐 보기". SourceDrawer 와 같은 Drawer 패턴, 복사 유도를 줄이기 위해 요약만 보여준다.
  * 데이터 로딩은 호출 측(Step 3 에서 ①의 teacher-note API)이 담당: note / loading / error / onGenerate.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import type { ReactNode } from "react";
 import { Button, Drawer, Spinner } from "@/components/session/ui";
 import type { TeacherNote } from "./types";
@@ -23,16 +24,16 @@ export function TeacherNoteBody({ note }: { note: TeacherNote }) {
   return (
     <div className="text-ink [overflow-wrap:anywhere]">
       <Section title="이번에 가르쳐야 할 것" index="01">
-        <ol className="list-decimal space-y-1 pl-5">{note.mustTeach.map((t) => <li key={t}>{t}</li>)}</ol>
+        <ol className="list-decimal space-y-1 pl-5">{note.mustTeach.map((t) => <li key={t}>{stripMarkdownBold(t)}</li>)}</ol>
       </Section>
       <Section title="이것만은 알고 가기" index="02">
-        <ul className="list-disc space-y-1 pl-5">{note.keyTakeaways.map((t) => <li key={t}>{t}</li>)}</ul>
+        <ul className="list-disc space-y-1 pl-5">{note.keyTakeaways.map((t) => <li key={t}>{stripMarkdownBold(t)}</li>)}</ul>
       </Section>
       <Section title="헷갈리기 쉬운 부분" index="03">
-        <ul className="space-y-1">{note.confusing.map((t) => <li key={t}>{t}</li>)}</ul>
+        <ul className="space-y-1">{note.confusing.map((t) => <li key={t}>{stripMarkdownBold(t)}</li>)}</ul>
       </Section>
       <Section title="후배가 물어볼 수 있는 질문" index="04">
-        <ul className="space-y-3">{note.likelyQuestions.map((t) => <li key={t} className="border-l border-primary pl-3 text-sm">“{t}”</li>)}</ul>
+        <ul className="space-y-3">{note.likelyQuestions.map((t) => <li key={t} className="border-l border-primary pl-3 text-sm">“{stripMarkdownBold(t)}”</li>)}</ul>
       </Section>
     </div>
   );

@@ -16,6 +16,7 @@ import { TeacherNoteBody, TeacherNoteDrawer } from "@/components/game/TeacherNot
 import { GameOverScene } from "@/components/game/scenes/GameOverScene";
 import { GraduationScene } from "@/components/game/scenes/GraduationScene";
 import { JUNIOR_CHARACTERS, type JuniorCharacter, type LifeResult, type RunSummary } from "@/components/game/types";
+import { FINAL_QUESTION_COUNT } from "@/contracts/game";
 
 const VIEWS: JuniorView[] = ["front", "side"];
 const OUTFITS: JuniorOutfit[] = ["default", "grad", "soldiers", "casual"];
@@ -24,7 +25,7 @@ const RUN: RunSummary = {
   runId: "run_demo", materialId: "mat_demo", materialTitle: "4장 프로세스 스케줄링", courseName: "운영체제", character: "KU_HARD",
   lives: 2, maxLives: 3, passScore: 80, examFormat: "DESCRIPTIVE", status: "ACTIVE", startedAt: "2026-10-01T00:00:00.000Z", endedAt: null,
   progress: { cleared: 5, total: 8, chapters: [] }, next: { chapterId: "chp_x", title: "CPU 스케줄링 알고리즘" }, canGraduate: false,
-  finalExam: { status: "LOCKED", sessionId: null, bestScore: null, attempts: 0, questionCount: 10 },
+  finalExam: { status: "LOCKED", sessionId: null, bestScore: null, attempts: 0, questionCount: FINAL_QUESTION_COUNT },
 };
 const NOTE = {
   chapterId: "chp_x",

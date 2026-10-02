@@ -1,4 +1,5 @@
 "use client";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 /**
  * §8-7 가르치기 화면 (핵심). POST /sessions/{id}/explanations SSE:
  * user.saved → junior.concepts → junior.doubt(턴 종료) | junior.token/message → junior.question → done
@@ -433,12 +434,12 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                 ) : choicesLoading ? (
                   <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 자료에서 가르칠 선택지를 준비하고 있어요…</p>
                 ) : teachingChoices.length > 0 ? (
-                  <fieldset disabled={interactionBusy}>
+                  <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
                     <legend className="mb-2 text-sm font-semibold">후배에게 알려줄 내용을 골라 주세요</legend>
                     <div className="grid gap-2">
                       {teachingChoices.map((choice) => (
                         <Button key={choice.id} variant="secondary" className="study-choice h-auto min-h-12 justify-start whitespace-normal px-4 py-4 text-left leading-6" onClick={() => void send(choice.text)}>
-                          {choice.text}
+                          {stripMarkdownBold(choice.text)}
                         </Button>
                       ))}
                     </div>
@@ -487,7 +488,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                   <ul className="space-y-3" aria-live="polite">
                     {repeatConcepts.slice(0, 3).map((item) => (
                       <li key={item.concept} className="space-y-1">
-                        <div className="flex items-start justify-between gap-2 text-xs"><span className="min-w-0 break-words font-semibold">{item.concept}</span><span className="shrink-0 text-muted">{item.exposureCount}번 들음</span></div>
+                        <div className="flex items-start justify-between gap-2 text-xs"><span className="min-w-0 break-words font-semibold">{stripMarkdownBold(item.concept)}</span><span className="shrink-0 text-muted">{item.exposureCount}번 들음</span></div>
                         <ProgressBar value={item.mastery} max={100} />
                         <p className="text-xs text-muted">아직 기억을 다지는 중</p>
                       </li>

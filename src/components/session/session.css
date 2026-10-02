@@ -32,8 +32,10 @@
 }
 .study-dialogue { border-color: var(--line); }
 .study-thread { scrollbar-width: thin; scrollbar-color: var(--line) transparent; overscroll-behavior-y: contain; }
-.study-choice { position: relative; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
-.study-choice:not(:disabled):hover { border-color: var(--primary); background: var(--primary-soft); transform: translateX(3px); }
+.study-choice-fieldset { min-width: 0; }
+.study-choice-fieldset > legend { max-width: 100%; padding: 0; line-height: 1.7; }
+.study-choice { position: relative; min-width: 0; max-width: 100%; overflow-wrap: anywhere; background: var(--surface); transition: border-color .18s ease, background-color .18s ease; }
+.study-choice:not(:disabled):hover, .study-choice:focus-visible { border-color: var(--primary); background: var(--primary-soft); color: var(--ink); }
 .prepare-layout { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1fr); gap: clamp(2rem, 5vw, 5rem); }
 .prepare-portrait { position: relative; padding: 2rem; background: var(--primary-soft); border-radius: 4px; align-self: start; overflow: hidden; }
 .prepare-art { position: relative; display: flex; justify-content: flex-end; align-items: flex-end; min-height: 330px; margin: 1.5rem 0; isolation: isolate; }

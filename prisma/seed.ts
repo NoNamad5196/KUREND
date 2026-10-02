@@ -14,7 +14,8 @@ import { normalizeText } from "@/lib/server/ingest";
 import { newId, examItemId } from "@/lib/server/ids";
 import { CHARACTERS, lifeOutcomeFor, pointsPlan, type JuniorCharacter } from "@/contracts/game";
 import { personaQuestion } from "@/lib/llm/personas";
-import { answerStyle, UNLEARNED_ANSWER } from "@/lib/llm/text";
+import { UNLEARNED_ANSWER } from "@/lib/llm/text";
+import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
 
 /* ───────── 입력 형식 ───────── */
 /** 챕터 범위: 문단 번호(startPara~endPara) 또는 원문 오프셋(startOffset~endOffset, AI 목차 생성 결과 그대로) */
@@ -433,7 +434,7 @@ async function seedHistorySession(input: {
       exam: { create: {
         id: examId, status: "GRADED", format: spec.examFormat, createdAt: t(10),
         questions: { create: items.map((q) => ({ id: examItemId(examId, q.qid), qid: q.qid, order: q.order, points: q.points, question: q.question, objectiveRef: `o${q.order}`, rubric: "핵심 개념;근거" })) },
-        answers: { create: items.map((q, i) => ({ id: examItemId(examId, q.qid), qid: q.qid, answer: q.verdict === "WRONG" ? UNLEARNED_ANSWER : answerStyle(explanation.split(/(?<=[.!?])\s+/u).slice(i * 2, i * 2 + 2).join(" ") || explanation.slice(0, 160)), sentencesJson: "[]" })) },
+        answers: { create: items.map((q, i) => ({ id: examItemId(examId, q.qid), qid: q.qid, answer: q.verdict === "WRONG" ? UNLEARNED_ANSWER : plainExamAnswer(explanation.split(/(?<=[.!?])\s+/u).slice(i * 2, i * 2 + 2).join(" ") || explanation.slice(0, 160)), sentencesJson: "[]" })) },
         grades: { create: items.map((q) => ({ id: examItemId(examId, q.qid), qid: q.qid, score: q.got, maxScore: q.points, verdict: q.verdict,
           comment: q.verdict === "CORRECT" ? "자료의 채점 요소를 모두 설명했습니다." : q.verdict === "PARTIAL" ? "일부 요소가 빠졌습니다." : "선배의 설명에서 찾지 못했습니다." })) },
       } },

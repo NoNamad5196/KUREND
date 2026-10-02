@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
-import { JuniorAvatar } from "@/components/game/JuniorAvatar";
+import { JuniorTrio } from "@/components/game/JuniorTrio";
 import { Toaster, toast } from "@/components/session/ui";
 import "./login.css";
 
@@ -61,12 +61,10 @@ export function LoginScreen() {
           <p className="editorial-label">LEARN BY TEACHING · KUREND</p>
           <h1 id="login-title">가르치는 순간,<br /><span>내 공부가 된다.</span></h1>
           <p className="kl-intro">내가 선배가 되는 새로운 공부.<br />후배에게 설명하며, 배운 내용을 내 지식으로 만들어요.</p>
-          <div className="kl-art" aria-label="함께 공부할 남학생, 여학생, KU 후배">
+          <div className="kl-art">
             <div className="kl-art-field" aria-hidden="true"><span>YOUR<br />NEXT CHAPTER.</span></div>
             <span className="kl-art-note">이제, 선배 차례예요.</span>
-            <JuniorAvatar character="MALE_EASY" size={300} className="kl-character kl-character-male" />
-            <JuniorAvatar character="FEMALE_NORMAL" size={280} className="kl-character kl-character-female" />
-            <JuniorAvatar character="KU_HARD" size={190} className="kl-character kl-character-ku" />
+            <JuniorTrio className="kl-characters" />
             <span className="kl-art-caption">MEET YOUR JUNIORS <span aria-hidden="true">↗</span></span>
           </div>
         </section>

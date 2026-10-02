@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { answerFromQuote, completeTeachingQuote, groundedChoice, groundedErrorReason, groundedDiagnosis } from "./exam-grounding";
+import { TEACHING_CHOICES_PROMPT } from "./prompts/teaching-choices";
 import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./transport";
 import {
@@ -7,20 +8,22 @@ import {
 } from "./schemas";
 import {
   compactChapter, compactText, paragraphizeSources, rubricElements,
-  uniqueStrings, UNLEARNED_ANSWER, isUnlearnedAnswer, containsUnlearnedAnswer, plainText, answerStyle, isAnswerStyle,
+  uniqueStrings, UNLEARNED_ANSWER, hasLearnedAnswer,
 } from "./text";
 import { GENERATE_CHAPTERS_PROMPT } from "./prompts/generate-chapters";
 import { PREPARE_SESSION_PROMPT, OBJECTIVE_EXAM_PROMPT, KU_EXAM_PROMPT, FEMALE_EXAM_PROMPT, examPlanPrompt } from "./prompts/prepare-session";
-import { isObjectiveQuestion, pointsPlan } from "@/contracts/game";
+import { isObjectiveQuestion, pointsPlan, PRACTICE_QUESTION_COUNT, questionCountFor } from "@/contracts/game";
+import { formatExamChoice, examChoiceIndex } from "@/lib/shared/exam-format";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { ANALYZE_TURN_PROMPT } from "./prompts/analyze-turn";
 import { RESPOND_TURN_PROMPT } from "./prompts/respond-turn";
 import { WRITE_EXAM_ANSWER_PROMPT, OBJECTIVE_ANSWER_PROMPT } from "./prompts/write-exam-answer";
 import { GRADE_EXAM_PROMPT, OBJECTIVE_GAP_PROMPT } from "./prompts/grade-exam";
-import { acceptedExplanations, nextObjectiveQuestion } from "./turn-state";
+import { acceptedExplanations, nextObjectiveQuestion, nextLearningObjective } from "./turn-state";
 import { createTutorExplain } from "./tutor";
 import { TEACHER_NOTE_PROMPT } from "./prompts/teacher-note";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
-import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, selectedTeachingObjective } from "./teaching-choices";
+import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, explainedQuestionObjective, teachingFactFor, teachingDistractorsSchema, teachingChoicesFrom } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
 
 function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
@@ -67,20 +70,30 @@ function fallbackExamAnswer(question: string, messages: TaughtMsg[], choices?: s
 
 /* ── 출력 문체 ── */
 /** 반응은 호칭 없이 감탄으로: 앞뒤의 "선배님," "…, 선배님!"을 떼고 마크다운을 지운다 */
+/** 답안 문장이 시험 답안 문체(평서형 ~다/~음)로 끝나는지 */
+const isAnswerStyle = (text: string) => /(다|음|함|됨|임)\s*[.。]?\s*$/u.test(text.trim());
 function reactionText(text: string, character?: Parameters<typeof normalizePersonaAddress>[1]): string {
-  const cleaned = plainText(text)
+  const cleaned = stripMarkdownBold(text)
     .replace(/^선배님?\s*[,，!~.…]*\s*/u, "")
     .replace(/\s*[,，]?\s*선배님?(?=\s*[.!?~…]*\s*$)/u, "")
     .trim();
   return normalizePersonaAddress(cleaned || personaFor(character)?.examples.reaction || "아하, 그렇구나.", character).slice(0, 40);
 }
-/** 답안 문장의 바이그램 중 근거 인용에도 있는 비율 — 새 사실이 끼어들면 낮아진다 */
-function precision(answer: string, quote: string): number {
-  const a = bigrams(answer); const q = bigrams(quote);
+/** 답안 문장의 바이그램 중 허용 본문(근거 + 관련 자료 문장)에도 있는 비율 — 새 사실이 끼어들면 낮아진다 */
+function precision(answer: string, allowed: string): number {
+  const a = bigrams(answer); const q = bigrams(allowed);
   if (!a.size) return 0;
   let hit = 0;
   for (const g of a) if (q.has(g)) hit += 1;
   return hit / a.size;
+}
+/** 근거 인용의 바이그램 중 답안에 남아 있는 비율 — 선배의 말을 빼거나 바꾸면(틀린 설명을 자료로 고치는 것 포함) 낮아진다 */
+function recall(answer: string, quote: string): number {
+  const a = bigrams(answer); const q = bigrams(quote);
+  if (!q.size) return 1;
+  let hit = 0;
+  for (const g of q) if (a.has(g)) hit += 1;
+  return hit / q.size;
 }
 /**
  * 답안이 빌려 쓸 수 있는 자료 문장: 선배의 근거(quote)와 같은 개념을 말하는 자료 문장만(겹침 상위 3개).
@@ -88,27 +101,35 @@ function precision(answer: string, quote: string): number {
  */
 function relatedSourceSentences(quote: string, chapter?: Parameters<typeof compactChapter>[0]): string[] {
   if (!chapter) return [];
-  return chapter.text.split(/(?<=[.!?。])\s+|\n+/u).map((s) => plainText(s)).filter((s) => s.length >= 8)
+  return chapter.text.split(/(?<=[.!?。])\s+|\n+/u).map((s) => stripMarkdownBold(s).trim()).filter((s) => s.length >= 8)
     .map((sentence) => ({ sentence, score: overlap(quote, sentence) }))
     .filter((item) => item.score >= 0.2)
     .sort((a, b) => b.score - a.score).slice(0, 3).map((item) => item.sentence);
 }
 /**
- * 시험 답안 문장: 모델이 다듬은 답안체 문장을 쓰되, 선배의 근거(quote)와 그 근거에 해당하는 자료 문장 안에서만 허용한다.
- * 근거보다 내용이 늘었거나(새 어구 40% 이상·길이 1.6배 초과) 대화체면 근거 원문을 답안체로 다듬어 쓴다.
+ * 시험 답안 문장: 모델이 다듬은 답안체 문장을 쓰되 "선배의 근거(quote)에 자료의 용어를 더한 것"까지만 허용한다.
+ *  - 선배가 말한 내용은 그대로 남아야 한다(recall ≥ 0.85) → 틀린 설명을 자료로 고치거나 일부를 빼면 근거 원문으로 되돌린다.
+ *  - 새로 들어온 어구는 근거와 같은 개념을 말하는 자료 문장에 있는 것이어야 하고(precision ≥ 0.75), 길이는 근거의 1.25배+15자까지.
+ *  - 부정·수치는 근거와 같아야 한다. 대화체·호칭이면 거절.
+ * 거절되면 근거 원문을 답안체로 다듬어 쓴다 — 어떤 경우에도 선배가 설명한 것보다 자세해질 수 없다.
  */
+/** 뜻을 뒤집거나 깎는 작은 편집(부정 추가·삭제, 수치 변경)은 어구 겹침으로는 잡히지 않으므로 따로 막는다 */
+const NEGATION_MARKERS = ["않", "못 ", "못하", "없", "아니", "금지", "불가", "반대"];
+function keepsMeaningMarkers(answer: string, quote: string): boolean {
+  for (const marker of NEGATION_MARKERS) if (quote.includes(marker) !== answer.includes(marker)) return false;
+  const numbers = (text: string) => new Set(text.match(/\d+(?:[.,]\d+)?/gu) ?? []);
+  const quoteNumbers = numbers(quote); const answerNumbers = numbers(answer);
+  if ([...quoteNumbers].some((n) => !answerNumbers.has(n)) || [...answerNumbers].some((n) => !quoteNumbers.has(n))) return false;
+  return true;
+}
 function answerSentence(quote: string, answer?: string | null, chapter?: Parameters<typeof compactChapter>[0]): string {
-  const candidate = plainText(answer ?? "");
+  const candidate = stripMarkdownBold(answer ?? "").replace(/\s+/g, " ").trim();
   const allowed = [quote, ...relatedSourceSentences(quote, chapter)].join(" ");
-  const usable = candidate.length > 0 && candidate.length <= quote.length * 1.6 + 40
+  const usable = candidate.length > 0 && candidate.length <= quote.length * 1.25 + 15
     && !/선배|배웠|알려주|가르쳐 주/u.test(candidate) && isAnswerStyle(candidate)
-    && precision(candidate, allowed) >= 0.6;
-  const text = usable ? candidate : plainText(quote)
-    .replace(/^[“"']|[”"']$/gu, "")
-    .replace(/^(?:선배님?|음+|아+|어+|그러니까|그니까|즉|자|일단)\s*[,，]?\s+/u, "")
-    .trim();
-  // 모델 문장이든 원문이든 문장 끝은 답안체(~다.)로
-  return answerStyle(text);
+    && precision(candidate, allowed) >= 0.75 && recall(candidate, quote) >= 0.85 && keepsMeaningMarkers(candidate, quote);
+  // 모델 문장이든 근거 원문이든 답안지 문체(호칭·대화체 제거, ~다.)로 정리한다(answerFromQuote = plainExamAnswer).
+  return answerFromQuote(usable ? candidate : quote);
 }
 
 export type LiveProviderCalls = {
@@ -117,12 +138,20 @@ export type LiveProviderCalls = {
 };
 
 export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamText }): Llm {
+  async function authorTeachingChoices(chapter: Parameters<Llm["prepareSession"]>[0]["chapter"], topic: string) {
+    const statement = teachingFactFor(chapter, topic);
+    if (!statement) return [];
+    const authored = await calls.completeJSON(TEACHING_CHOICES_PROMPT, JSON.stringify({ topic, statement, source: compactChapter(chapter) }),
+      teachingDistractorsSchema(statement, topic), { temperature: 0.2, maxOutputTokens: 700, timeoutMs: 10_000 }).catch(() => null);
+    return authored ? teachingChoicesFrom(statement, authored.distractors, topic) : teachingChoicesFor(chapter, topic);
+  }
   return {
+    generateTeachingChoices: ({ chapter, topic }) => authorTeachingChoices(chapter, topic),
     async generateTeacherNote({ chapter }) {
       const note = await calls.completeJSON(TEACHER_NOTE_PROMPT, JSON.stringify({ chapter: compactChapter(chapter) }), teacherNoteSchema,
         { temperature: 0.2, maxOutputTokens: 1_200 });
-      return { mustTeach: note.mustTeach.map(plainText), keyTakeaways: note.keyTakeaways.map(plainText),
-        confusing: note.confusing.map(plainText), likelyQuestions: note.likelyQuestions.map(plainText) };
+      return { mustTeach: note.mustTeach.map((text) => stripMarkdownBold(text)), keyTakeaways: note.keyTakeaways.map((text) => stripMarkdownBold(text)),
+        confusing: note.confusing.map((text) => stripMarkdownBold(text)), likelyQuestions: note.likelyQuestions.map((text) => stripMarkdownBold(text)) };
     },
     async generateChapters({ sources }) {
       const prepared = paragraphizeSources(sources);
@@ -149,21 +178,22 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
     async prepareSession({ chapter, level, persona, examFormat, questionCount, kind }) {
       const spec = personaFor(persona);
       const format = examFormat ?? spec?.examFormat ?? "DESCRIPTIVE";
-      const count = questionCount ?? 3;
+      const count = questionCount ?? (persona ? questionCountFor(persona) : PRACTICE_QUESTION_COUNT);
       const plan = pointsPlan(count);
       const objectiveIndexes = plan.flatMap((_, i) => isObjectiveQuestion(format, i, count) ? [i] : []);
       const instruction = format === "OBJECTIVE" ? OBJECTIVE_EXAM_PROMPT : persona === "KU_HARD" ? KU_EXAM_PROMPT : persona === "FEMALE_NORMAL" ? FEMALE_EXAM_PROMPT : "";
       const prepared = await calls.completeJSON(`${PREPARE_SESSION_PROMPT}\n${instruction}\n${examPlanPrompt(count, plan, objectiveIndexes, kind)}`, JSON.stringify({
-        chapter: compactChapter(chapter), level, persona: spec, examFormat: format, questionCount: count, kind: kind ?? "CHAPTER",
-      }), prepareSessionSchemaFor(count, objectiveIndexes), {
+        chapter: compactChapter(chapter), level, examFormat: format, questionCount: count, kind: kind ?? "CHAPTER",
+      }), prepareSessionSchemaFor(count, objectiveIndexes, compactChapter(chapter).text), {
         temperature: 0.2, stage: "prepare-session",
-        maxOutputTokens: Math.max(1_500, 600 + count * (objectiveIndexes.length ? 560 : 400)),
-        timeoutMs: Math.max(18_000, 8_000 + count * 4_000),
+        // 목표마다 자료 원문 인용(sourceQuote)이 붙으므로 넉넉히(졸업시험 10문항 ≈ 1만 토큰). 모자라면 JSON 이 잘려 502 가 난다.
+        maxOutputTokens: Math.max(2_000, 1_000 + count * (objectiveIndexes.length ? 900 : 700)),
+        timeoutMs: Math.max(20_000, 10_000 + count * 5_000),
       });
       const topic = objectiveTopic(prepared.objectives[0]);
-      return { ...prepared,
-        firstQuestion: persona ? personaQuestion(topic, persona, true) : prepared.firstQuestion,
-        ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, topic) } : {}),
+      return { ...prepared, objectives: prepared.objectives.map(({ id, text }) => ({ id, text })),
+        firstQuestion: persona ? personaQuestion(topic, persona, true) : level === "HARD" ? `${topic}부터 말해 줘. 받아쓸게.` : `선배, ${topic}부터 알려줄래?`,
+        ...(persona === "MALE_EASY" ? { firstTeachingChoices: await authorTeachingChoices(chapter, topic) } : {}),
       };
     },
 
@@ -183,23 +213,27 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       }), analyzeTurnSchema(input.explanation, input.objectives.map((objective) => objective.id), taught),
       { temperature: 0, maxOutputTokens: 1_000, timeoutMs: 10_000, stage: "analyze-turn" });
       const unknown = isUnknownTeaching(input.explanation);
-      const selectedObjective = selectedTeachingObjective(input);
+      const selectedObjective = explainedQuestionObjective(input);
+      const acceptedWrongObjectives = input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL"
+        ? input.objectives.filter((objective) => analysis.concepts.some(({ name, quote }) =>
+          objectiveTopic(objective) === name && analysis.contradictions.some(({ claim }) => claim.includes(quote) || quote.includes(claim))))
+          .map(({ id }) => id) : [];
       const previousConcepts = uniqueStrings(input.heardConcepts);
-      const needsDoubt = input.persona !== "MALE_EASY" && analysis.contradictions.length > 0 && (input.persona !== undefined || input.level === "EASY");
+      const needsDoubt = analysis.contradictions.length > 0 && (input.persona === "KU_HARD" || (!input.persona && input.level === "EASY"));
       if (needsDoubt) {
         // Only the learner's own words can enter a doubt. Internal "why" and source text never do.
-        const claim = plainText(compactText(analysis.contradictions[0].claim, 100));
+        const claim = compactText(analysis.contradictions[0].claim, 100);
         yield { type: "concepts", heardConcepts: previousConcepts, added: [] };
         yield { type: "doubt", content: input.persona === "KU_HARD"
           ? `잠깐만 선배. “${claim}”라는 건 내가 이해한 게 맞아?`
-          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요, 선배님?`
+          : input.persona === "FEMALE_NORMAL" ? `“${claim}”라면 왜 그런가요?`
           : `어? “${claim}”라는 설명이 조금 헷갈려. 한 번만 더 설명해줄래?` };
         return;
       }
       // Labels can be Korean paraphrases; their actual evidence must be a
       // validated verbatim quote of this explanation.
       const mentionedConcepts = unknown ? [] : uniqueStrings([
-        ...analysis.concepts.map(({ name }) => name),
+        ...analysis.concepts.map(({ name }) => stripMarkdownBold(name)),
         ...(selectedObjective ? [objectiveTopic(input.objectives.find((item) => item.id === selectedObjective)!)] : []),
       ]);
       const added = mentionedConcepts.filter((concept) => !previousConcepts.includes(concept));
@@ -207,14 +241,14 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const coverage = analysis.coverage.filter((item) => !unknown || item.evidence.some((evidence) => evidence.ref !== currentRef));
       const currentObjectives = unknown ? [] : uniqueStrings([
         ...coverage.filter((item) => item.evidence.some((evidence) => evidence.ref === currentRef)).map(({ id }) => id),
-        ...(selectedObjective ? [selectedObjective] : []),
+        ...(selectedObjective ? [selectedObjective] : []), ...acceptedWrongObjectives,
       ]);
-      const progress = advanceMastery(input, currentObjectives, uniqueStrings([...coverage.map(({ id }) => id), ...(selectedObjective ? [selectedObjective] : [])]));
+      const progress = advanceMastery(input, currentObjectives, uniqueStrings([...coverage.map(({ id }) => id), ...(selectedObjective ? [selectedObjective] : []), ...acceptedWrongObjectives]));
       const { coveredObjectives } = progress;
       yield { type: "concepts", heardConcepts, added };
       // Keep persona progress and question selection deterministic, but let
       // provider failures reach the saved-turn retry flow instead of faking a reply.
-      const nextObjective = input.objectives.find((objective) => !coveredObjectives.includes(objective.id));
+      const nextObjective = nextLearningObjective(input, coveredObjectives);
       const fallbackQuestion = input.persona && nextObjective
         ? personaQuestion(objectiveTopic(nextObjective), input.persona)
         : normalizePersonaAddress(nextObjectiveQuestion(input, coveredObjectives), input.persona);
@@ -228,58 +262,65 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           objectives: input.objectives.map(({ id, text }) => ({ id, text })),
           nextQuestionHint: fallbackQuestion,
       }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000, stage: "respond-turn" });
-      const reactions = unknown ? [input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : "괜찮아요. 아직 배우지 않은 걸로 둘게요."] : responded.reactions;
+      const reactions = unknown ? [input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : input.persona === "MALE_EASY" ? "괜찮습니다. 아직 배우지 않은 것으로 두겠습니다." : "괜찮아요. 아직 배우지 않은 걸로 둘게요."] : (analysis.contradictions.length > 0 && (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")
+        ? [personaFor(input.persona)!.examples.reaction] : responded.reactions).map((reaction) => (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")
+          && /믿|신뢰|말씀하셨으니|틀렸|잘못|아니에요|아닙니다|정답|자료에는|사실은/u.test(reaction) ? personaFor(input.persona)!.examples.reaction : reaction);
       let question = unknown ? fallbackQuestion : responded.question;
       if (input.persona === "KU_HARD" && nextObjective && currentObjectives.includes(nextObjective.id)) question = fallbackQuestion;
       if (input.persona === "FEMALE_NORMAL" && nextObjective && !/왜|의미|이유/u.test(question)) question = fallbackQuestion;
-      for (const content of reactions) yield { type: "reaction", content: reactionText(content, input.persona) };
-      yield { type: "question", coveredObjectives, content: normalizePersonaAddress(plainText(
-        input.persona === "MALE_EASY" && nextObjective ? fallbackQuestion : question), input.persona),
+      for (const content of reactions) {
+        const cleaned = stripMarkdownBold(content);
+        const wrongRegister = input.persona === "MALE_EASY" ? /(?:해요|어요|할게요|같아요)[.!?]*$/u.test(cleaned)
+          : input.persona === "FEMALE_NORMAL" && /(?:습니다|입니다)[.!?]*$/u.test(cleaned);
+        yield { type: "reaction", content: normalizePersonaAddress(wrongRegister ? personaFor(input.persona)!.examples.reaction : cleaned, input.persona, { kind: "reaction" }).slice(0, 40) };
+      }
+      yield { type: "question", coveredObjectives, content: stripMarkdownBold(normalizePersonaAddress(
+        (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL") && nextObjective ? fallbackQuestion : question, input.persona)),
         ...(progress.mastery ? { mastery: progress.mastery } : {}),
-        ...(input.persona === "MALE_EASY" && nextObjective ? { teachingChoices: teachingChoicesFor(input.chapter, objectiveTopic(nextObjective)) } : {}),
+        ...(input.persona === "MALE_EASY" && nextObjective ? { teachingChoices: unknown && input.history.at(-1)?.teachingChoices?.length ? input.history.at(-1)!.teachingChoices : await authorTeachingChoices(input.chapter, objectiveTopic(nextObjective)) } : {}),
       };
     },
 
-    async *writeExamAnswer({ question, taught, heardConcepts, choices, persona, chapter }) {
+    async *writeExamAnswer({ question, taught, heardConcepts, choices, chapter }) {
       const messages = taughtMessages(taught);
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
         // Knowledge boundary: taught decides what the junior knows. The chapter is only a wording reference
         // (never the rubric or answer key), and the server rejects answers that grow beyond the cited basis.
         question, taught: messages, heardConcepts: uniqueStrings(heardConcepts), choices,
+        // 자료(chapter)는 용어·표현 참고용일 뿐 지식의 범위는 taught 가 정한다. rubric·정답은 절대 넘기지 않는다.
         ...(chapter ? { chapter: compactChapter(chapter) } : {}),
       }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 1_200 })
-        .catch(async () => {
-          const fallback = fallbackExamAnswer(question, messages, choices);
-          if (!choices?.length) return fallback;
-          // 근거 문장은 결정적으로 고르고, 보기 번호만 모델에게 한 번 더 묻는다(가르친 내용만 근거).
-          const picked = await calls.completeJSON(
-            "당신은 선배에게 들은 설명(taught)만 아는 새내기입니다. 보기의 사실이 아니라 taught 의 내용과 가장 맞는 보기 번호 하나를 고르세요. JSON {\"choice\":\"①\"|\"②\"|\"③\"|\"④\"} 만 출력하세요.",
-            JSON.stringify({ question, taught: messages, choices }),
-            z.object({ choice: z.enum(CHOICE_MARKS) }), { temperature: 0, maxOutputTokens: 60, timeoutMs: 8_000 },
-          ).catch(() => null);
-          return picked ? { ...fallback, choice: picked.choice } : fallback;
-        }) : {
+        .catch(() => fallbackExamAnswer(question, messages, choices)) : {
         thought: "아직 선배에게 들은 설명이 없어.",
         sentences: [{ quote: null, ref: null, level: "NONE" as const }],
         unlearned: true, choice: choices ? "①" : undefined,
       };
-      const citedRefs = new Set(response.sentences.map((sentence) => sentence.ref));
+      const groundedSentences = response.sentences.map((sentence) => {
+        const source = messages.find((message) => message.ref === sentence.ref);
+        return { ...sentence, quote: sentence.quote && source ? completeTeachingQuote(sentence.quote, source.content) : sentence.quote };
+      });
+      const grounded = choices ? groundedChoice(choices, groundedSentences.flatMap((sentence) => sentence.quote ? [sentence.quote] : [])) : null;
+      const citedRefs = new Set(groundedSentences.map((sentence) => sentence.ref));
       yield { type: "sources", sources: messages.filter((message) => citedRefs.has(message.ref)) };
-      for (const token of normalizePersonaAddress(plainText(response.thought), persona)) yield { type: "thought", token, closed: false };
+      for (const token of "학습한 근거 확인 중") yield { type: "thought", token, closed: false };
       yield { type: "thought", token: "", closed: true };
-      // 답안지 문체: 서술형은 근거만으로 쓴 정답 문장, 객관식은 고른 번호와 보기 내용. 대화체·마크다운 없음.
-      const picked = choices && response.choice ? plainText(choices.find((choice) => choice.startsWith(response.choice!)) ?? response.choice) : null;
-      const sentences = (choices
-        ? [{ ...response.sentences[0], text: response.unlearned || response.sentences[0].quote === null ? `${response.choice} ${UNLEARNED_ANSWER}` : picked ?? `${response.choice}` }]
-        : response.sentences.map((sentence) => ({
-          ...sentence, text: sentence.quote === null ? UNLEARNED_ANSWER : answerSentence(sentence.quote, "answer" in sentence ? sentence.answer : null, chapter),
-        })));
+      if (choices?.length) {
+        const evidence = grounded ? groundedSentences.find((sentence) => sentence.ref !== null && sentence.quote !== null
+          && groundedChoice(choices, [sentence.quote]) === grounded) : undefined;
+        const answer = formatExamChoice(grounded ?? response.choice ?? "①");
+        yield { type: "sentence", text: answer, ref: evidence?.ref ?? null,
+          level: evidence?.level ?? "NONE", unlearned: response.unlearned || !evidence };
+        yield { type: "final", answer };
+        return;
+      }
+      const sentences = groundedSentences.map((sentence) => ({ ...sentence,
+        // 서술형: 선배 근거 + 그 근거에 해당하는 자료 문장 안에서 모델이 다듬은 답안을 쓰고, 범위를 넘으면 근거 원문
+        text: sentence.quote === null ? UNLEARNED_ANSWER : answerSentence(sentence.quote, "answer" in sentence ? sentence.answer : null, chapter),
+      }));
       for (const sentence of sentences) {
-        yield {
-          type: "sentence", text: sentence.text, ref: sentence.ref,
+        yield { type: "sentence", text: sentence.text, ref: sentence.ref,
           level: sentence.ref === null ? "NONE" : sentence.level,
-          unlearned: response.unlearned || sentence.ref === null,
-        };
+          unlearned: response.unlearned || sentence.ref === null };
       }
       yield { type: "final", answer: sentences.map((sentence) => sentence.text).join(" ") };
     },
@@ -301,11 +342,9 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           if (question.choices.length !== 4 || new Set(question.choices).size !== 4) throw new Error("객관식 보기가 올바르지 않습니다.");
           const key = question.rubric.match(/^정답 ([①②③④]);근거:/u)?.[1];
           if (!key || !question.choices.some((choice) => choice.startsWith(key))) throw new Error("객관식 정답 번호가 올바르지 않습니다.");
-          const selected = answer.answer.match(/^([①②③④])/u)?.[1];
-          // A guessed option receives no credit, including each persona's
-          // canonical wording for a topic they have not learned.
-          const guessed = isUnlearnedAnswer(answer.answer) || containsUnlearnedAnswer(answer.answer);
-          const correct = selected === key && !guessed;
+          const selected = examChoiceIndex(answer.answer);
+          const guessed = !hasLearnedAnswer(answer, messages) || answer.sentences?.some((sentence) => sentence.unlearned) === true;
+          const correct = selected === examChoiceIndex(key) && !guessed;
           yield { type: "grade", qid: question.qid, score: correct ? question.points : 0,
             maxScore: question.points, verdict: correct ? "CORRECT" : "WRONG",
             comment: correct ? "선배에게 배운 내용과 일치하는 보기를 골랐습니다."
@@ -314,20 +353,22 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
             const { gap } = await calls.completeJSON(OBJECTIVE_GAP_PROMPT, JSON.stringify({
               chapter: boundedChapter, question, answer: answer.answer, taught: messages,
             }), objectiveGapSchema(chapter.text, messages), { temperature: 0, maxOutputTokens: 900 });
-            yield { type: "gap", qid: question.qid, ...gap, title: plainText(gap.title), diagnosis: plainText(gap.diagnosis) };
+            const errorReason = guessed ? "INSUFFICIENT_LEARNING" : groundedErrorReason({ proposed: gap.errorReason, answer: answer.answer, evidenceQuote: gap.evidenceQuote, taught: messages, wrongObjective: true, choices: question.choices });
+            yield { type: "gap", qid: question.qid, ...gap, errorReason, title: stripMarkdownBold(gap.title), diagnosis: stripMarkdownBold(groundedDiagnosis(gap.diagnosis, errorReason)), concepts: gap.concepts.map((concept) => stripMarkdownBold(concept)) };
           }
           continue;
         }
         const response = await calls.completeJSON(GRADE_EXAM_PROMPT, JSON.stringify({
-          chapter: boundedChapter, question, rubricElements: elements, answer: answer.answer, taught: messages,
-        }), gradeExamSchema({ qid: question.qid, rubricCount: elements.length, chapterText: chapter.text, taught: messages, answer: answer.answer }), { temperature: 0, maxOutputTokens: 1_200 });
+          chapter: boundedChapter, question, rubricElements: elements, answer: answer.answer, taught: messages, unlearned: !hasLearnedAnswer(answer, messages),
+        }), gradeExamSchema({ qid: question.qid, rubricCount: elements.length, chapterText: chapter.text, taught: messages, answer: answer.answer, unlearned: !hasLearnedAnswer(answer, messages) }), { temperature: 0, maxOutputTokens: 1_200 });
         // Compute grades from checked rubric elements; never trust a model-generated total or label.
         const fulfilled = response.rubricChecks.filter(Boolean).length;
         const score = response.contradictsSource ? 0 : Math.max(0, Math.min(question.points, Math.round(fulfilled / elements.length * question.points)));
         const verdict = score === question.points ? "CORRECT" : score === 0 ? "WRONG" : "PARTIAL";
-        yield { type: "grade", qid: question.qid, score, maxScore: question.points, verdict, comment: plainText(response.comment) };
+        yield { type: "grade", qid: question.qid, score, maxScore: question.points, verdict, comment: stripMarkdownBold(response.comment) };
         if (verdict !== "CORRECT" && response.gap) {
-          yield { type: "gap", qid: question.qid, ...response.gap, title: plainText(response.gap.title), diagnosis: plainText(response.gap.diagnosis) };
+          const errorReason = !hasLearnedAnswer(answer, messages) ? "INSUFFICIENT_LEARNING" : groundedErrorReason({ proposed: response.gap.errorReason, answer: answer.answer, evidenceQuote: response.gap.evidenceQuote, taught: messages, contradictsSource: response.contradictsSource });
+          yield { type: "gap", qid: question.qid, ...response.gap, errorReason, title: stripMarkdownBold(response.gap.title), diagnosis: stripMarkdownBold(groundedDiagnosis(response.gap.diagnosis, errorReason)), concepts: response.gap.concepts.map((concept) => stripMarkdownBold(concept)) };
         }
       }
     },

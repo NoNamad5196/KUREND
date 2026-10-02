@@ -1,4 +1,6 @@
-import { isObjectiveQuestion, objectiveRefFor, pointsPlan } from "@/contracts/game";
+import { answerFromQuote, groundedChoice, groundedErrorReason } from "./exam-grounding";
+import { LEARNING_ERROR_LABELS } from "@/lib/learning/error-reason";
+import { isObjectiveQuestion, objectiveRefFor, pointsPlan, PRACTICE_QUESTION_COUNT, questionCountFor } from "@/contracts/game";
 import { createHash } from "node:crypto";
 import osChapters from "../../../fixtures/chapters.os.json";
 import economicsChapters from "../../../fixtures/chapters.economics.json";
@@ -8,10 +10,13 @@ import osTeacherNotes from "./fixtures/teacher-notes.os.json";
 import econTeacherNotes from "./fixtures/teacher-notes.econ.json";
 import type { ChapterText, Llm, TaughtMsg } from "./types";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
-import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, selectedTeachingObjective } from "./teaching-choices";
+import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, explainedQuestionObjective } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
-import { answerStyle, examQuestionText, isUnlearnedAnswer, containsUnlearnedAnswer, plainText, UNLEARNED_ANSWER } from "./text";
-import { acceptedExplanations } from "./turn-state";
+import { UNLEARNED_ANSWER, hasLearnedAnswer } from "./text";
+import { examChoiceIndex, formatExamChoice, formatExamQuestion } from "@/lib/shared/exam-format";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
+import { sourceLearningConcepts } from "./learning-plan";
+import { acceptedExplanations, nextLearningObjective } from "./turn-state";
 
 type Yielded<T> = T extends AsyncIterable<infer E> ? E : never;
 type TurnEvent = Yielded<ReturnType<Llm["juniorTurn"]>>;
@@ -83,7 +88,27 @@ function keywords(text: string): string[] {
     .filter((word) => word.length >= 2 && !genericWords.has(word)))];
 }
 
+function genericTarget(question: string): string | undefined {
+  const prompt = question.match(/^(.+?)의 의미와 자료(?:에 제시된|에서 제시한) 근거를 /u)?.[1];
+  if (prompt) return prompt.trim();
+  return /설명할 수 있다[.!?]?$/u.test(question) ? objectiveTopic({ text: question }) : undefined;
+}
+
+/** Korean particles may follow a concept, but a longer noun is another concept:
+ * teaching 수요량 must not count as teaching the definition of 수요. */
+function targetEvidenceScore(target: string, content: string): number {
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/\s+/gu, "\\s+");
+  const particle = "(?:에서는|에서도|에서|으로는|으로|이란|란|은|는|이|가|을|를|의|과|와|에|도|만|부터)";
+  const mention = new RegExp(`(?:^|[^가-힣A-Za-z0-9])${escaped}(?=$|[^가-힣A-Za-z0-9]|${particle}(?:\\s|$))`, "iu");
+  if (!mention.test(content) || content.trim().length <= target.length + 8) return 0;
+  // Put the definition ahead of incidental mentions in a long explanation.
+  const definition = new RegExp(`(?:^|[.!?。！？:：\\n]\\s*)(?:[-*+•]\\s*)?(?:(?:다시\\s*)?(?:정리하면|설명하면|말하면)[,，]\\s*)?${escaped}(?:이란|란|은|는)\\s`, "iu");
+  return definition.test(content.trim()) ? 2 : 1;
+}
+
 function genericRelevant(question: string, content: string): boolean {
+  const target = genericTarget(question);
+  if (target) return targetEvidenceScore(target, content) >= (/\s/u.test(target) ? 1 : 2);
   const terms = keywords(question);
   const matched = terms.filter((term) => content.toLocaleLowerCase().includes(term.toLocaleLowerCase()));
   return terms.length > 0 && matched.length >= Math.min(2, terms.length);
@@ -91,6 +116,19 @@ function genericRelevant(question: string, content: string): boolean {
 
 function splitSentences(text: string): string[] {
   return (text.match(/[^.!?。！？\n]+(?:[.!?。！？]+|$)/gu) ?? [text]).map((part) => part.trim()).filter(Boolean);
+}
+
+/** Rubric elements must describe facts in the source, not question boilerplate
+ * such as "the meaning of X", which a correct definition need not repeat. */
+function sourceRubric(sourceQuote: string): string {
+  const sentences = splitSentences(sourceQuote).slice(0, 2).map((part) => part.replaceAll(";", ","));
+  if (sentences.length > 1) return sentences.join(";");
+  const sentence = sentences[0] ?? sourceQuote;
+  const clauses = sentence.split(/,\s*/u).filter(Boolean);
+  if (clauses.length > 1) return `${clauses[0]};${clauses.slice(1).join(", ")}`;
+  const words = sentence.split(/\s+/u);
+  const midpoint = Math.max(1, Math.floor(words.length / 2));
+  return `${words.slice(0, midpoint).join(" ")};${words.slice(midpoint).join(" ")}`;
 }
 
 function selectedSources(question: string, taught: TaughtMsg[]): TaughtMsg[] {
@@ -128,23 +166,18 @@ function contradiction(chapter: ChapterText, content: string): "economics" | "os
   return undefined;
 }
 
-function chapterTopic(chapter: ChapterText, index: number): Topic | undefined {
+function chapterTopic(chapter: ChapterText, objective: { text: string }): Topic | undefined {
   const demo = demoFor(chapter);
   if (!demo) return undefined;
+  const index = demo.prepare.objectives.findIndex((item) => objectiveTopic(item) === objectiveTopic(objective));
+  if (index < 0) return undefined;
   return { domain: demo === economicsDemo ? "economics" : "os", index, demo };
 }
 
-/** 측면 목표(…의 이유/예시 적용/비교를 설명할 수 있다)는 그 측면을 실제로 말해야 달성된다 */
-const ASPECT_CUES: [RegExp, RegExp][] = [
-  [/의 이유[을를]? 설명/u, /왜|때문|이유|그래서|므로|덕분/u],
-  [/의 예시 적용[을를]? 설명/u, /예를 들|예시|예컨대|가령|경우|상황/u],
-  [/의 비교[을를]? 설명/u, /차이|다르|반면|비교|달리/u],
-];
 function covered(chapter: ChapterText, objectives: { id: string; text: string }[], messages: string[]): string[] {
-  return objectives.filter((objective, index) => {
-    const topic = chapterTopic(chapter, index % 3);
-    const cue = ASPECT_CUES.find(([pattern]) => pattern.test(objective.text))?.[1];
-    return messages.some((content) => (topic ? relevantTo(topic, content) : genericRelevant(objective.text, content)) && (!cue || cue.test(content)));
+  return objectives.filter((objective) => {
+    const topic = chapterTopic(chapter, objective);
+    return messages.some((content) => topic ? relevantTo(topic, content) : genericRelevant(objective.text, content));
   }).map((objective) => objective.id);
 }
 
@@ -199,44 +232,29 @@ function findExcerpt(chapter: ChapterText, question: string): string {
       checks.filter((check) => matches(right, check.patterns)).length - checks.filter((check) => matches(left, check.patterns)).length,
     )[0] ?? chapter.text.trim();
   }
+  const target = genericTarget(question);
+  if (target) return [...candidates].sort((left, right) => targetEvidenceScore(target, right) - targetEvidenceScore(target, left))[0] ?? chapter.text.trim();
   return candidates[0] ?? chapter.text.trim();
 }
 
 function withObjectiveChoices<T extends { questions: { qid: string; order: number; points: number; question: string; objectiveRef: string; rubric: string }[] }>(prepared: T, chapter: ChapterText, only?: (index: number) => boolean): T & { questions: (T["questions"][number] & { choices?: string[] })[] } {
   return { ...prepared, questions: prepared.questions.map((item, index) => {
     if (only && !only(index)) return item;
-    const point = item.rubric.split(";")[0].trim();
-    const excerpt = findExcerpt(chapter, item.question).replace(/\s+/gu, " ").trim().slice(0, 180);
-    return { ...item, question: `${item.question} 올바른 설명을 고르세요.`,
-      choices: [`① ${point}${josa(point, "은", "는")} 발생하지 않는다.`, `② ${excerpt}`, `③ ${point}${josa(point, "은", "는")} 아무 영향을 주지 않는다.`, `④ ${point}${josa(point, "은", "는")} 어떤 상황에서도 항상 동일하다.`],
-      rubric: `정답 ②;근거: ${item.rubric.replaceAll(";", ", ")}` };
+    const objective = (prepared as T & { objectives?: { id: string; text: string }[] }).objectives?.find((entry) => entry.id === item.objectiveRef);
+    const topic = objective ? objectiveTopic(objective) : item.question;
+    const focused = teachingChoicesFor({ ...chapter, text: findExcerpt(chapter, item.question) }, topic);
+    const options = focused.length === 4 ? focused : teachingChoicesFor(chapter, topic);
+    if (options.length !== 4) throw new Error(`자료에 근거한 객관식 보기를 준비하지 못했습니다: ${topic}`);
+    const marks = ["①", "②", "③", "④"];
+    const correct = options.findIndex((option) => option.id === "teach_statement");
+    return { ...item, question: `${item.question} 올바른 설명을 고르시오.`,
+      choices: options.map((option, optionIndex) => `${marks[optionIndex]} ${stripMarkdownBold(option.text)}`),
+      rubric: `정답 ${marks[correct]};근거: ${options[correct].text}` };
   }) };
 }
 
-/** Compare only exam options to USER evidence; position is never an answer key. */
-function chooseTaughtOption(choices: string[], sources: TaughtMsg[]): string {
-  if (!sources.length) return choices[0].slice(0, 1);
-  const taught = sources.map((source) => source.content).join(" ");
-  const negative = /맞지 않|성립하지 않|발생하지 않|아무 영향을 주지 않/u;
-  const increase = /가격.{0,15}(오르|올라|상승|높아).{0,20}수요량.{0,12}(늘|증가|많)/u;
-  const decrease = /가격.{0,15}(오르|올라|상승|높아).{0,20}수요량.{0,12}(줄|감소|적)/u;
-  const priceClauses = (text: string) => text.split(/[,;]|(?=가격)/u);
-  const rejects = [...taught.matchAll(/“([^”]+)”라는 설명은 맞지 않다/gu)].map((match) => match[1]);
-  const ranked = choices.map((option, index) => {
-    const content = option.replace(/^[①②③④]\s*/u, "");
-    const words = keywords(content);
-    let score = words.filter((word) => taught.includes(word)).length / Math.max(1, words.length);
-    if (taught.includes(content)) score += 2;
-    if (negative.test(taught) !== negative.test(content)) score -= 3;
-    if ((priceClauses(taught).some((clause) => increase.test(clause)) && priceClauses(content).some((clause) => decrease.test(clause)))
-      || (priceClauses(taught).some((clause) => decrease.test(clause)) && priceClauses(content).some((clause) => increase.test(clause)))) score -= 4;
-    if (rejects.some((claim) => claim.includes(content.replace(/[.!?]+$/u, "")))) score -= 10;
-    return { index, score };
-  }).sort((a, b) => b.score - a.score || a.index - b.index);
-  return choices[ranked[0].index].slice(0, 1);
-}
-
 export const stubLlm: Llm = {
+  async generateTeachingChoices({ chapter, topic }) { return teachingChoicesFor(chapter, topic); },
   async generateTeacherNote({ chapter }) {
     await pause();
     const fixture = { ...osTeacherNotes, ...econTeacherNotes } as Record<string, {
@@ -285,7 +303,7 @@ export const stubLlm: Llm = {
   async prepareSession({ chapter, level, persona, examFormat, questionCount, kind }) {
     await pause();
     const format = examFormat ?? personaFor(persona)?.examFormat ?? "DESCRIPTIVE";
-    const count = Math.max(1, questionCount ?? 3);
+    const count = Math.max(1, questionCount ?? (persona ? questionCountFor(persona) : PRACTICE_QUESTION_COUNT));
     const fixture = kind === "FINAL" ? undefined : demoFor(chapter);
     let base: { objectives: { id: string; text: string }[]; questions: { qid: string; order: number; points: number; question: string; objectiveRef: string; rubric: string }[]; firstQuestion: string };
     if (fixture) {
@@ -298,61 +316,40 @@ export const stubLlm: Llm = {
         objectives: points.map((point, index) => ({ id: `o${index + 1}`, text: `${point}${josa(point, "을", "를")} 설명할 수 있다` })),
         questions: points.map((point, index) => ({
           qid: `q${index + 1}`, order: index + 1, points: 0,
-          question: `${point}의 의미와 자료에서 제시한 근거를 설명하시오.`,
+          question: `${point}의 의미와 자료에서 제시한 근거를 설명하세요.`,
           objectiveRef: `o${index + 1}`, rubric: `${point}의 의미;자료 본문의 관련 근거`,
         })),
         firstQuestion: level === "EASY" ? `선배, ${points[0]}부터 알려줄래?` : `${points[0]}부터 말해 줘. 받아쓸게.`,
       };
     }
     if (persona) base.firstQuestion = personaQuestion(objectiveTopic(base.objectives[0]), persona, true);
-    // 문항 수에 맞춰 늘린다: 같은 목표의 다른 측면(이유 → 적용 → 비교)을 묻고 채점 요소는 그 목표의 기준을 따른다.
-    // 졸업시험은 chapter.points(= 각 챕터 제목)를 돌아가며 자료 전체에 고르게 출제한다.
-    const stems = [
-      (t: string) => `${t}${josa(t, "이", "가")} 성립하는 이유를 자료의 근거와 함께 설명하시오.`,
-      (t: string) => `${t}${josa(t, "을", "를")} 자료에 나온 예시나 상황에 적용하여 설명하시오.`,
-      (t: string) => `${t}${josa(t, "과", "와")} 가까운 다른 개념의 차이를 비교하여 서술하시오.`,
-    ];
+    // Prepared legacy practice sessions keep their original three targets.
+    // New sessions select source-grounded concepts rather than recycling o1-o3.
+    const concepts = count === 3 && fixture
+      ? base.objectives.map((objective, index) => ({ topic: objectiveTopic(objective), sourceQuote: findExcerpt(chapter, base.questions[index].question) }))
+      : sourceLearningConcepts(chapter, count, kind === "FINAL" ? chapter.points : base.objectives.map(objectiveTopic));
+    const objectives = concepts.map(({ topic }, index) => ({ id: objectiveRefFor(index), text: `${topic}${josa(topic, "을", "를")} 설명할 수 있다` }));
     const plan = pointsPlan(count);
-    // 목표 수 = 문항 수(일대일). 기본 3개를 넘는 목표는 같은 개념의 다른 측면(이유 → 예시 → 비교)이다.
-    const aspects = ["이유", "예시 적용", "비교"] as const;
-    const objectives: { id: string; text: string }[] = [];
-    const questions = plan.map((pointsValue, i) => {
-      const ref = objectiveRefFor(i);
-      if (kind === "FINAL") {
-        const topic = chapter.points[i % Math.max(1, chapter.points.length)] ?? chapter.title;
-        const round = Math.floor(i / Math.max(1, chapter.points.length));
-        objectives.push({ id: ref, text: round === 0 ? `${topic}${josa(topic, "을", "를")} 설명할 수 있다` : `${topic}의 ${aspects[(round - 1) % aspects.length]}${josa(aspects[(round - 1) % aspects.length], "을", "를")} 설명할 수 있다` });
-        return { qid: `q${i + 1}`, order: i + 1, points: pointsValue, objectiveRef: ref,
-          question: round === 0 ? `${topic}의 핵심 내용을 자료의 근거와 함께 설명하시오.` : stems[(round - 1) % stems.length](topic),
-          rubric: `${topic}의 핵심 내용;자료 본문의 관련 근거` };
-      }
-      const baseIndex = i % base.objectives.length;
-      const round = Math.floor(i / base.objectives.length);
-      const source = base.questions[baseIndex];
-      if (round === 0) {
-        objectives.push({ ...base.objectives[baseIndex], id: ref });
-        return { ...source, points: pointsValue, objectiveRef: ref };
-      }
-      const topic = objectiveTopic(base.objectives[baseIndex]);
-      const aspect = aspects[(round - 1) % aspects.length];
-      objectives.push({ id: ref, text: `${topic}의 ${aspect}${josa(aspect, "을", "를")} 설명할 수 있다` });
-      return { ...source, qid: `q${i + 1}`, order: i + 1, points: pointsValue, objectiveRef: ref,
-        question: stems[(round - 1) % stems.length](topic) };
+    const questions = concepts.map(({ topic, sourceQuote }, index) => {
+      const prior = fixture && base.questions[index] && objectiveTopic(base.objectives[index]) === topic ? base.questions[index] : undefined;
+      return { qid: `q${index + 1}`, order: index + 1, points: plan[index], objectiveRef: objectiveRefFor(index),
+        question: formatExamQuestion(prior?.question ?? `${topic}의 의미와 자료에 제시된 근거를 설명하시오.`),
+        rubric: prior?.rubric ?? sourceRubric(sourceQuote),
+      };
     });
-    base = { ...base, objectives };
-    const prepared = { ...base,
+    const prepared = { objectives,
+      firstQuestion: persona ? personaQuestion(concepts[0].topic, persona, true) : level === "HARD" ? `${concepts[0].topic}부터 말해 줘. 받아쓸게.` : `선배, ${concepts[0].topic}부터 알려줄래?`,
       questions: persona === "KU_HARD" && kind !== "FINAL"
-        ? questions.map((question, index) => index === 2 ? { ...question, question: `${question.question.replace(/[.。]\s*$/u, "")}. 자료에 나온 이유나 비교도 함께 서술하시오.` } : question)
+        ? questions.map((question, index) => index === 2 ? { ...question, question: `${question.question} 자료에 나온 이유나 비교도 함께 설명하시오.` } : question)
         : questions,
-      ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, objectiveTopic(base.objectives[0])) } : {}),
+      ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, concepts[0].topic) } : {}),
     };
-    const result = format === "DESCRIPTIVE" ? prepared : withObjectiveChoices(prepared, chapter, (i) => isObjectiveQuestion(format, i, count));
-    return { ...result, questions: result.questions.map((question) => ({ ...question, question: examQuestionText(question.question) })) };
+    return format === "DESCRIPTIVE" ? prepared : withObjectiveChoices(prepared, chapter, (i) => isObjectiveQuestion(format, i, count));
   },
 
   async *juniorTurn(input): AsyncGenerator<TurnEvent> {
     const { chapter, level, objectives, heardConcepts, history, explanation } = input;
-    const wrong = input.persona === "MALE_EASY" ? undefined : input.persona ? contradiction(chapter, explanation) : level === "EASY" ? contradiction(chapter, explanation) : undefined;
+    const wrong = (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL") ? undefined : input.persona ? contradiction(chapter, explanation) : level === "EASY" ? contradiction(chapter, explanation) : undefined;
     if (wrong) {
       yield { type: "concepts", heardConcepts: [...heardConcepts], added: [] };
       await pause();
@@ -364,24 +361,25 @@ export const stubLlm: Llm = {
         : doubt?.content ?? "어? 방금 설명을 한 번만 더 확인해줄래?" };
       return;
     }
-    const selectedObjective = selectedTeachingObjective(input);
+    const selectedObjective = explainedQuestionObjective(input);
     const current = isUnknownTeaching(explanation) ? [] : selectedObjective ? [selectedObjective] : covered(chapter, objectives, [explanation]);
     const observed = objectives.flatMap((objective) => current.includes(objective.id) ? [objectiveTopic(objective)] : []);
     const added = [...new Set(observed)].filter((concept) => !heardConcepts.includes(concept));
     const combined = [...new Set([...heardConcepts, ...added])];
     yield { type: "concepts", heardConcepts: combined, added };
     await pause();
-    yield { type: "reaction", content: isUnknownTeaching(explanation) ? (input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : "괜찮아요. 아직 배우지 않은 걸로 둘게요.") : input.persona === "KU_HARD" ? `“${explanation.slice(0, 18)}”라고 이해하면 될까?` : input.persona ? personaFor(input.persona)!.examples.reaction : level === "HARD" ? "응, 설명한 대로 받아쓸게." : "응응, 지금 설명해 준 내용을 기억할게." };
+    yield { type: "reaction", content: isUnknownTeaching(explanation) ? (input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : input.persona === "MALE_EASY" ? "괜찮습니다. 아직 배우지 않은 것으로 두겠습니다." : "괜찮아요. 아직 배우지 않은 걸로 둘게요.") : input.persona === "KU_HARD" ? `“${explanation.slice(0, 18)}”라고 이해하면 될까?` : input.persona ? personaFor(input.persona)!.examples.reaction : level === "HARD" ? "응, 설명한 대로 받아쓸게." : "응응, 지금 설명해 준 내용을 기억할게." };
     const accepted = acceptedExplanations(history).filter((message) => !isUnknownTeaching(message.content)).map((message) => message.content);
     const progress = advanceMastery(input, current, [...new Set([...covered(chapter, objectives, [...accepted, ...(!selectedObjective && current.length ? [explanation] : [])]), ...current])]);
     const { coveredObjectives } = progress;
-    const next = objectives.findIndex((objective) => !coveredObjectives.includes(objective.id));
+    const nextObjective = nextLearningObjective(input, coveredObjectives);
+    const next = nextObjective ? objectives.indexOf(nextObjective) : -1;
     await pause();
     yield {
       type: "question",
       content: normalizePersonaAddress(next < 0
-        ? input.persona === "MALE_EASY" ? "선배님, 더 말씀해 주세요. 궁금한 게 생기면 여쭤보겠습니다."
-          : input.persona === "FEMALE_NORMAL" ? "선배님, 더 말씀해 주세요! 궁금한 게 생기면 물어볼게요."
+        ? input.persona === "MALE_EASY" ? "더 말씀해 주시면 좋겠습니다. 궁금한 게 생기면 여쭤보겠습니다."
+          : input.persona === "FEMALE_NORMAL" ? "더 말씀해 주세요! 궁금한 게 생기면 물어볼게요."
           : "응응, 더 말해 줘! 궁금한 거 생기면 물어볼게."
         : input.persona
         ? personaQuestion(objectiveTopic(objectives[next]), input.persona) : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`, input.persona),
@@ -395,54 +393,64 @@ export const stubLlm: Llm = {
     // Do not consult chapter text, prepared rubrics, or golden answers here.
     const sources = selectedSources(question, taught);
     yield { type: "sources", sources };
-    const thought = sources.length ? "이 질문과 연결되는 설명을 떠올려 보자." : "이 부분은 아직 설명을 못 들었어.";
+    const thought = sources.length ? "학습한 근거 확인 중" : "학습한 근거 없음";
     const characters = [...thought];
     for (let index = 0; index < characters.length; index++) {
       yield { type: "thought", token: characters[index], closed: index === characters.length - 1 };
     }
     const topic = topicFor(question);
+    const target = genericTarget(question);
     const parts = sources.flatMap((source) => {
       const sentences = splitSentences(source.content);
       const relevant = sentences.filter((sentence) => topic ? relevantTo(topic, sentence) : genericRelevant(question, sentence));
-      // 답안지 문체: 배운 문장을 그대로 정답 문장으로 쓴다(“…”라고 배웠습니다 같은 대화체 없음).
-      return (relevant.length ? relevant : [source.content.trim()]).slice(0, 4).map((sentence) => {
-        return { text: answerStyle(plainText(sentence)), ref: source.ref, level: "STRONG" as const, unlearned: false };
-      });
+      if (!topic && target) relevant.sort((left, right) => targetEvidenceScore(target, right) - targetEvidenceScore(target, left));
+      return (relevant.length ? relevant : [source.content.trim()]).slice(0, 4).map((sentence) => ({
+        text: answerFromQuote(sentence), ref: source.ref, level: "STRONG" as const, unlearned: false,
+      }));
     });
-    const choice = choices ? chooseTaughtOption(choices, sources) : "";
-    if (!parts.length) {
+    if (choices?.length) {
+      const grounded = groundedChoice(choices, parts.map((part) => part.text));
+      const answer = formatExamChoice(grounded ?? "①");
+      const evidence = grounded ? parts.find((part) => groundedChoice(choices, [part.text]) === grounded) : undefined;
       await pause();
-      yield { type: "sentence", text: `${choice}${choice ? " " : ""}${unknownAnswer}`, ref: null, level: "NONE", unlearned: true };
-      yield { type: "final", answer: `${choice}${choice ? " " : ""}${unknownAnswer}` };
+      yield { type: "sentence", text: answer, ref: evidence?.ref ?? null, level: evidence?.level ?? "NONE", unlearned: !evidence };
+      yield { type: "final", answer };
       return;
     }
-    // 객관식은 고른 번호와 보기 내용만 답안으로 쓴다.
-    const written = choice ? [{ ...parts[0], text: plainText(choices!.find((item) => item.startsWith(choice)) ?? choice) }] : parts.slice(0, 4);
-    for (const sentence of written) {
+    if (!parts.length) {
+      await pause();
+      yield { type: "sentence", text: unknownAnswer, ref: null, level: "NONE", unlearned: true };
+      yield { type: "final", answer: unknownAnswer };
+      return;
+    }
+    for (const sentence of parts.slice(0, 4)) {
       await pause();
       yield { type: "sentence", ...sentence };
     }
-    yield { type: "final", answer: written.map((sentence) => sentence.text).join(" ") };
+    yield { type: "final", answer: parts.slice(0, 4).map((sentence) => sentence.text).join(" ") };
   },
 
   async *gradeExam({ chapter, questions, answers, taught }): AsyncGenerator<GradeEvent> {
     for (const question of questions) {
-      const answer = answers.find((entry) => entry.qid === question.qid)?.answer.trim() ?? "";
+      const recorded = answers.find((entry) => entry.qid === question.qid);
+      const answer = recorded?.answer.trim() ?? "";
       if (question.choices) {
         const key = question.rubric.match(/^정답 ([①②③④]);근거:/u)?.[1];
         if (!key || question.choices.length !== 4 || new Set(question.choices).size !== 4) throw new Error("객관식 형식이 올바르지 않습니다.");
-        const correct = answer.startsWith(key) && !isUnlearnedAnswer(answer);
+        const learned = !!recorded && hasLearnedAnswer(recorded, taught) && !recorded.sentences?.some((sentence) => sentence.unlearned);
+        const correct = examChoiceIndex(answer) === examChoiceIndex(key) && learned;
         await pause();
         yield { type: "grade", qid: question.qid, score: correct ? question.points : 0, maxScore: question.points,
-          verdict: correct ? "CORRECT" : "WRONG", comment: correct ? "자료의 정답 보기를 선택했습니다." : "자료의 정답 보기와 다릅니다." };
+          verdict: correct ? "CORRECT" : "WRONG", comment: correct ? "자료의 정답 보기를 선택했습니다." : !learned ? "학습한 근거가 없어 점수를 부여하지 않았습니다." : "자료의 정답 보기와 다릅니다." };
         if (!correct) {
           const source = selectedSources(question.question, taught)[0];
-          yield { type: "gap", qid: question.qid, title: "객관식 선택 근거 보완", diagnosis: "선배가 가르친 근거를 다시 확인하세요.",
+          const errorReason = !learned ? "INSUFFICIENT_LEARNING" : groundedErrorReason({ answer, evidenceQuote: source?.content ?? "", taught, wrongObjective: true, choices: question.choices });
+          yield { type: "gap", qid: question.qid, title: "객관식 선택 근거 보완", diagnosis: LEARNING_ERROR_LABELS[errorReason], errorReason,
             evidenceQuote: source?.content ?? "", concepts: [chapter.points[questions.indexOf(question)] ?? chapter.title], sourceExcerpt: findExcerpt(chapter, question.question) };
         }
         continue;
       }
-      const unknown = !answer || containsUnlearnedAnswer(answer) || /모르겠습니다|못 들었|못 들어/u.test(answer);
+      const unknown = !recorded || !hasLearnedAnswer(recorded, taught);
       const topic = topicFor(question.question);
       const fixture = demoFor(chapter);
       const checks = topic && topic.demo === fixture && question.rubric === fixture.prepare.questions[topic.index].rubric ? fixture.rubricChecks[topic.index].checks : undefined;
@@ -459,18 +467,20 @@ export const stubLlm: Llm = {
       // curve is named, but the distinction from other demand shifters is absent.
       if (chapter.title === "수요의 이해" && question.qid === "q2" && !unknown && !wrong
         && taught.some(({ content }) => content.includes("이것은 같은 수요곡선 위에서 움직이는 거야."))
-        && !taught.some(({ content }) => /재화 자체의 가격 변화/u.test(content))) score = 24;
+        && !taught.some(({ content }) => /재화 자체의 가격 변화/u.test(content))) score = Math.round(maxScore * 24 / 33);
       const verdict = score === maxScore && maxScore > 0 ? "CORRECT" : score > 0 ? "PARTIAL" : "WRONG";
       const comment = unknown ? "이 문항은 설명에서 다루지 않아 답하지 못했습니다." : wrong ? "답안에 자료와 반대되는 설명이 있습니다." : verdict === "CORRECT" ? "자료의 채점 요소를 모두 설명했습니다." : `채점 요소 ${denominator}개 중 ${earned}개를 설명했습니다. 빠진 내용을 다시 가르쳐 주세요.`;
       await pause();
       yield { type: "grade", qid: question.qid, score, maxScore, verdict, comment };
       if (verdict !== "CORRECT") {
         const source = selectedSources(question.question, taught)[0];
+        const errorReason = unknown ? "INSUFFICIENT_LEARNING" : groundedErrorReason({ answer, evidenceQuote: source?.content ?? "", taught, contradictsSource: !!wrong });
         const missing = checks ? checks.filter((check) => !matches(answer, check.patterns)).map((check) => check.label) : rubrics;
         yield {
           type: "gap", qid: question.qid,
           title: `${chapter.points[topic?.index ?? questions.indexOf(question)] ?? "핵심 설명"} 보완`.slice(0, 25),
-          diagnosis: `${comment} ${source && !unknown ? `관련 내용은 사용자 설명 [ref ${source.ref}]에서 비롯되었습니다.` : "이 부분은 설명에서 다루지 않음으로 확인됩니다."} 자료 발췌와 채점 요소를 비교해 빠진 조건을 자신의 말로 다시 설명해 보세요.`,
+          errorReason,
+          diagnosis: `${LEARNING_ERROR_LABELS[errorReason]} ${comment} ${source && !unknown ? `관련 내용은 사용자 설명 [ref ${source.ref}]에서 비롯되었습니다.` : "이 부분은 설명에서 다루지 않음으로 확인됩니다."} 자료 발췌와 채점 요소를 비교해 빠진 조건을 자신의 말로 다시 설명해 보세요.`,
           evidenceQuote: source && !unknown ? source.content : "",
           concepts: missing.length ? missing : [chapter.points[topic?.index ?? 0] ?? chapter.title],
           sourceExcerpt: findExcerpt(chapter, question.question),
@@ -482,13 +492,13 @@ export const stubLlm: Llm = {
   async *tutorExplain({ chapter, gap }): AsyncGenerator<TutorEvent> {
     const excerpt = gap.sourceExcerpt && chapter.text.includes(gap.sourceExcerpt) ? gap.sourceExcerpt : findExcerpt(chapter, gap.title);
     const first = splitSentences(excerpt)[0] ?? "자료의 해당 부분을 먼저 확인해 주세요.";
-    const response = [
+    const response = stripMarkdownBold([
       `자료에서는 “${first}”라고 설명합니다.`,
       "이 문장에서 어떤 조건이 정해져 있고 무엇이 변하는지 먼저 나누어 보세요.",
       "비유하면 조립 설명서를 볼 때 부품 이름과 연결 순서를 따로 확인하는 것과 같습니다.",
       "빠진 조건을 붙여 자신의 예시로 한 번 더 설명해 보세요.",
       `이것만 기억하면 됩니다: ${first}`,
-    ].join(" ");
+    ].join(" "));
     // Simulated provider emits characters; delay is once per sentence rather
     // than 300 ms per character so the demo remains usable.
     await pause();

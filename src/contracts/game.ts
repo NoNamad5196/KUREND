@@ -4,7 +4,7 @@
  * 상수 + 순수 함수 + zod 스키마 + 타입을 한 파일에 둔다.
  */
 import { z } from "zod";
-import type { JuniorLevel } from "./types";
+import { LearningErrorReasonSchema, type JuniorLevel } from "./types";
 
 /* ───────── 열거형 ───────── */
 export const JUNIOR_CHARACTERS = ["MALE_EASY", "FEMALE_NORMAL", "KU_HARD"] as const;
@@ -38,15 +38,15 @@ export type CharacterSpec = {
   level: JuniorLevel;
   examFormat: ExamFormat;
   passScore: number;
-  /** 챕터 시험 문항 수 (EASY 3 · NORMAL 5 · HARD 7) */
+  /** 챕터 학습 목표와 일대일 대응하는 시험 문항 수 */
   questionCount: number;
   tagline: string;
 };
 
 export const CHARACTERS: Record<JuniorCharacter, CharacterSpec> = {
-  MALE_EASY: { name: "남학생", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 3, tagline: "이해가 빠른 후배 · 객관식 3문항" },
-  FEMALE_NORMAL: { name: "여학생", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
-  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 7, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 7문항" },
+  MALE_EASY: { name: "컴돌이", label: "EASY", level: "EASY", examFormat: "OBJECTIVE", passScore: 60, questionCount: 5, tagline: "이해가 빠른 후배 · 객관식 5문항" },
+  FEMALE_NORMAL: { name: "컴순이", label: "NORMAL", level: "EASY", examFormat: "DESCRIPTIVE", passScore: 70, questionCount: 5, tagline: "이해는 빠르지만 서술형 5문항" },
+  KU_HARD: { name: "KU", label: "HARD", level: "HARD", examFormat: "DESCRIPTIVE", passScore: 80, questionCount: 5, tagline: "이해시키기 어려움 · 반복 설명 필요 · 서술형 5문항" },
 };
 
 export const DEFAULT_MAX_LIVES = 3;
@@ -69,10 +69,7 @@ export function pointsPlan(n: number): number[] {
   return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-/**
- * 문항 i(0-base)가 평가하는 학습 목표 — 목표 수 = 문항 수, 일대일(q1→o1, q2→o2 …).
- * 후배가 가르치기에서 묻는 질문 수와 시험 문항 수가 같아진다. (예전 세션의 o1~o3 반복 데이터는 그대로 읽힌다)
- */
+/** Each question evaluates its own learning objective, never a recycled topic. */
 export const objectiveRefFor = (index: number): string => `o${index + 1}`;
 
 /** MIXED(졸업시험)에서 객관식인 문항: 앞쪽 절반(올림) — 10문항이면 q1~q5 객관식, q6~q10 서술형 */
@@ -184,7 +181,7 @@ export const SessionGameSchema = z.object({
   mastery: z.array(ConceptMasterySchema),
   /** CHAPTER | FINAL(졸업시험) */
   kind: z.enum(SESSION_KINDS).optional(),
-  /** 이 세션의 문항 수 (남 3 · 여 5 · KU 7 · 졸업시험 10 · 연습 3) */
+  /** 이 세션의 문항 수 (챕터 5 · 졸업시험 10 · 연습 3, 기존 세션은 저장된 수 유지) */
   questionCount: z.number().int().optional(),
 });
 export type SessionGameDto = z.infer<typeof SessionGameSchema>;
@@ -245,6 +242,7 @@ export const WrongNoteSchema = z.object({
   aiDiagnosis: z.string(),
   aiComparison: z.string().nullable(),
   evidenceQuote: z.string(),
+  errorReason: LearningErrorReasonSchema.optional(),
   sourceExcerpt: z.string(),
   missedConcepts: z.array(z.string()),
   createdAt: z.string(),

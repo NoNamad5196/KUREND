@@ -1,3 +1,4 @@
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import type { FinalVerdict, GradeDto, GradeVerdict } from "@/contracts/types";
 import { Chip, Spinner, type ChipTone } from "@/components/session/ui";
@@ -18,6 +19,6 @@ export function GradeBox({ grade, state, className }: { grade: GradeDto | null; 
   if (state !== "done" || !grade) return <Chip tone="muted" className={className}>채점 전</Chip>;
   return <div className={clsx("rounded-sm border p-4", grade.verdict === "CORRECT" ? "border-ok/30 bg-ok/5" : grade.verdict === "PARTIAL" ? "border-warn/30 bg-accent-soft/50" : "border-danger/30 bg-danger-soft", className)}>
     <div className="flex flex-wrap items-center gap-3"><strong className="text-lg tabular-nums">{grade.score} / {grade.maxScore}</strong><GradeVerdictChip verdict={grade.verdict} /></div>
-    <p className="mt-2 break-words whitespace-pre-wrap text-sm leading-6">{grade.comment}</p>
+    <p className="mt-2 break-words whitespace-pre-wrap text-sm leading-6">{stripMarkdownBold(grade.comment)}</p>
   </div>;
 }

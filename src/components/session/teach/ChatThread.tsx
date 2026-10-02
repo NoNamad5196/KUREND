@@ -4,6 +4,7 @@
  * 왼쪽: 후배(질문·되물음·반응), 오른쪽: 내 설명. 마지막 후배 말풍선만 타이핑 연출.
  * 보내는 중이면 내 말풍선(보내는 중) → 후배 타이핑 점 → 반응 토큰 스트리밍 → 다음 질문 순으로 자연스럽게 붙는다.
  */
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import clsx from "clsx";
 import { useEffect, useRef, type ReactNode } from "react";
 import type { MessageDto } from "@/contracts/types";
@@ -83,8 +84,8 @@ export function ChatThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const groups = groupMessages(messages);
   const emptyGreeting = character === "MALE_EASY"
-    ? "선배님, 어떤 뜻인지 알려주세요!"
-    : character === "FEMALE_NORMAL" ? "선배님, 어떤 뜻인지 이유와 함께 설명해 주실래요?"
+    ? "이 개념의 뜻을 알려주시겠습니까?"
+    : character === "FEMALE_NORMAL" ? "어떤 뜻인지 이유와 함께 설명해 주실래요?"
       : "선배, 천천히 설명해 줘. 내가 이해한 걸 다시 말해 볼게.";
 
   // 새 말풍선이 생기면 스레드 안에서만 아래로 스크롤(페이지는 안 움직인다)
@@ -122,6 +123,7 @@ export function ChatThread({
                   const isReaction = m.stage === "REACTION";
                   const isLatest = isLastGroup && m.messageId === g.items[g.items.length - 1].messageId;
                   const animate = animateId === m.messageId;
+                  const content = normalizePersonaAddress(stripMarkdownBold(m.content), character, { kind: isReaction ? "reaction" : "question" });
                   return (
                     <Bubble
                       key={m.messageId}
@@ -131,7 +133,7 @@ export function ChatThread({
                       label={isDoubt ? `${juniorName} · 되물음` : isReaction ? undefined : `${juniorName} · 질문`}
                       className={animate ? (isDoubt ? "kurend-doubt" : "kurend-pop") : undefined}
                     >
-                      {animate ? <TypingText text={normalizePersonaAddress(m.content, character)} speedMs={18} /> : normalizePersonaAddress(m.content, character)}
+                      {animate ? <TypingText text={content} speedMs={18} /> : stripMarkdownBold(content)}
                     </Bubble>
                   );
                 })}
@@ -159,7 +161,7 @@ export function ChatThread({
         {sending && (
           <div className="flex items-end gap-2">
             <Bubble side="left" tone={reactionText ? "reaction" : "default"} className="kurend-pop">
-              {reactionText ? <TypingText text={normalizePersonaAddress(reactionText, character)} speedMs={20} cursor /> : <TypingDots />}
+              {reactionText ? <TypingText text={normalizePersonaAddress(stripMarkdownBold(reactionText, { streaming: true }), character, { kind: "reaction" })} speedMs={20} cursor streaming /> : <TypingDots />}
             </Bubble>
           </div>
         )}

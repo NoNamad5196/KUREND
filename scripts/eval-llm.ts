@@ -83,7 +83,7 @@ async function evaluateFixture(domain: "os" | "economics") {
     }
   }
 
-  const answers: { qid: string; answer: string }[] = [];
+  const answers: Parameters<Llm["gradeExam"]>[0]["answers"] = [];
   for (const question of prepared.questions) {
     const events = await collect(llm.writeExamAnswer({ question: question.question, taught: demo.taught, heardConcepts }));
     const final = events.find((event) => event.type === "final");
@@ -95,7 +95,7 @@ async function evaluateFixture(domain: "os" | "economics") {
       if (sentence.ref === null) assert.ok(sentence.unlearned && sentence.level === "NONE");
     }
     if (question.order === 3) assert.ok(sentences.every((sentence) => sentence.unlearned), "(d) 안 가르친 세 번째 문항은 unlearned");
-    answers.push({ qid: question.qid, answer: final.answer });
+    answers.push({ qid: question.qid, answer: final.answer, sentences: events.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []) });
   }
 
   const grading = await collect(llm.gradeExam({ chapter, questions: prepared.questions, answers, taught: demo.taught }));
@@ -132,10 +132,12 @@ async function evaluatePersonas() {
   for (const persona of Object.keys(CHARACTERS) as JuniorCharacter[]) {
     const spec = CHARACTERS[persona];
     const prepared = await llm.prepareSession({ chapter, level: spec.level, persona, examFormat: spec.examFormat });
-    assert.equal(prepared.questions.length, 3);
+    assert.equal(prepared.questions.length, spec.questionCount);
+    assert.equal(prepared.objectives.length, spec.questionCount);
+    assert.deepEqual(prepared.questions.map((question) => question.objectiveRef), prepared.objectives.map((objective) => objective.id));
     assert.equal(prepared.questions.every((question) => question.choices?.length === 4), spec.examFormat === "OBJECTIVE");
     for (const [label, content, expectedPass] of [
-      ["pass", DEMO_COMPLETE_EXPLANATION, true], ["fail", "아직 잘 모르겠어.", false],
+      ["pass", `${DEMO_COMPLETE_EXPLANATION}\n${chapter.text}`, true], ["fail", "아직 잘 모르겠어.", false],
     ] as const) {
       const taught = [{ ref: 1, content }];
       const answers = [];
@@ -143,12 +145,12 @@ async function evaluatePersonas() {
         const events = await collect(llm.writeExamAnswer({ question: question.question, taught, heardConcepts: [], persona, choices: question.choices }));
         const final = events.find((event) => event.type === "final");
         assert.ok(final?.type === "final");
-        answers.push({ qid: question.qid, answer: final.answer });
+        answers.push({ qid: question.qid, answer: final.answer, sentences: events.flatMap((event) => event.type === "sentence" ? [{ sentence: event.text, ref: event.ref, level: event.level, unlearned: event.unlearned }] : []) });
       }
       const events = await collect(llm.gradeExam({ chapter, questions: prepared.questions, answers, taught, persona }));
       const grades = events.filter((event) => event.type === "grade");
       const gaps = events.filter((event) => event.type === "gap");
-      assert.equal(grades.length, 3);
+      assert.equal(grades.length, spec.questionCount);
       assert.equal(gaps.length, grades.filter((grade) => grade.verdict !== "CORRECT").length);
       const score = grades.reduce((sum, grade) => sum + grade.score, 0);
       assert.equal(score >= spec.passScore, expectedPass, `${persona} ${label} score=${score}`);

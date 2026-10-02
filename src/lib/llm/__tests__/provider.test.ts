@@ -3,6 +3,18 @@ import { test } from "node:test";
 import { z } from "zod";
 import { completeJSONWith, LlmFailure } from "../provider";
 
+test("plain text output rule reaches initial and repair calls without rewriting user evidence", async () => {
+  const systems: string[] = [];
+  const user = JSON.stringify({ source: "**자료 원문**", code: "value ** 2" });
+  await completeJSONWith(async (system, input) => {
+    systems.push(system);
+    assert.equal(input, user);
+    return systems.length === 1 ? "invalid" : '{"ok":true}';
+  }, "출제 규칙", user, z.object({ ok: z.boolean() }));
+  assert.equal(systems.length, 2);
+  for (const system of systems) assert.ok(system.includes("Do not use Markdown bold syntax (**text**) under any circumstances."));
+});
+
 test("invalid JSON receives one repair instruction and a valid retry is returned", async () => {
   const systems: string[] = [];
   const users: string[] = [];

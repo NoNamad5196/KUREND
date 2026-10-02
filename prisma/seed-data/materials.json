@@ -18,7 +18,7 @@
           "프로젝트 계획 기법"
         ],
         "startOffset": 0,
-        "endOffset": 1917
+        "endOffset": 1915
       },
       {
         "title": "요구사항 분석과 모델링",
@@ -29,7 +29,7 @@
           "정형·비정형 명세"
         ],
         "startOffset": 1917,
-        "endOffset": 5774
+        "endOffset": 5772
       },
       {
         "title": "소프트웨어 설계와 모듈",
@@ -40,7 +40,7 @@
           "프레임워크와 API"
         ],
         "startOffset": 5774,
-        "endOffset": 9517
+        "endOffset": 9515
       },
       {
         "title": "객체지향과 디자인 패턴",
@@ -51,7 +51,7 @@
           "행위 패턴"
         ],
         "startOffset": 9517,
-        "endOffset": 12284
+        "endOffset": 12282
       },
       {
         "title": "테스트 원리와 검증 기법",
@@ -62,7 +62,7 @@
           "요구사항 검증"
         ],
         "startOffset": 12284,
-        "endOffset": 15312
+        "endOffset": 15310
       },
       {
         "title": "테스트 단계와 품질 관리",
@@ -73,7 +73,7 @@
           "형상 관리와 성숙도"
         ],
         "startOffset": 15312,
-        "endOffset": 18618
+        "endOffset": 18616
       },
       {
         "title": "데이터베이스 구조와 설계",
@@ -84,7 +84,7 @@
           "개체·속성·관계"
         ],
         "startOffset": 18618,
-        "endOffset": 20591
+        "endOffset": 20589
       },
       {
         "title": "키와 정규화·트랜잭션",
@@ -95,7 +95,7 @@
           "트랜잭션 특성"
         ],
         "startOffset": 20591,
-        "endOffset": 23749
+        "endOffset": 23747
       },
       {
         "title": "알고리즘과 관계 연산",
@@ -106,7 +106,7 @@
           "관계 대수와 해석"
         ],
         "startOffset": 23749,
-        "endOffset": 26600
+        "endOffset": 26598
       },
       {
         "title": "회복과 병행·분산 제어",
@@ -117,7 +117,7 @@
           "분산 투명성"
         ],
         "startOffset": 26600,
-        "endOffset": 28101
+        "endOffset": 28099
       },
       {
         "title": "운영체제와 기억장치 관리",
@@ -128,7 +128,7 @@
           "페이지 교체와 분할"
         ],
         "startOffset": 28101,
-        "endOffset": 31209
+        "endOffset": 31207
       },
       {
         "title": "프로세스와 자원 관리",
@@ -162,7 +162,7 @@
           "UML과 다이어그램"
         ],
         "startOffset": 0,
-        "endOffset": 3168
+        "endOffset": 3101
       },
       {
         "title": "객체지향 설계와 모듈",
@@ -172,8 +172,8 @@
           "객체지향 설계 원칙",
           "응집도와 결합도"
         ],
-        "startOffset": 3168,
-        "endOffset": 6693
+        "startOffset": 3103,
+        "endOffset": 6553
       },
       {
         "title": "디자인 패턴과 재사용",
@@ -183,8 +183,8 @@
           "소프트웨어 재사용",
           "미들웨어와 검증"
         ],
-        "startOffset": 6693,
-        "endOffset": 9282
+        "startOffset": 6555,
+        "endOffset": 9074
       },
       {
         "title": "자료 구조와 정렬 및 검색",
@@ -194,8 +194,8 @@
           "수식 표기법 변환",
           "정렬·검색·해싱"
         ],
-        "startOffset": 9282,
-        "endOffset": 13177
+        "startOffset": 9076,
+        "endOffset": 12926
       },
       {
         "title": "배포 관리와 소프트웨어 테스트",
@@ -205,8 +205,8 @@
           "단위·통합·인수 테스트",
           "코드 품질과 검증 도구"
         ],
-        "startOffset": 13177,
-        "endOffset": 16829
+        "startOffset": 12928,
+        "endOffset": 16502
       },
       {
         "title": "시스템 연계와 데이터 모델",
@@ -216,8 +216,8 @@
           "릴레이션과 키",
           "무결성과 관계 연산"
         ],
-        "startOffset": 16829,
-        "endOffset": 20035
+        "startOffset": 16504,
+        "endOffset": 19631
       },
       {
         "title": "정규화와 데이터베이스 관리",
@@ -227,8 +227,8 @@
           "인덱스와 뷰",
           "보안과 분산 저장"
         ],
-        "startOffset": 20035,
-        "endOffset": 23946
+        "startOffset": 19633,
+        "endOffset": 23443
       },
       {
         "title": "SQL과 프로그래밍 자료형",
@@ -238,8 +238,8 @@
           "그룹 함수와 집합 연산",
           "자료형과 변수"
         ],
-        "startOffset": 23946,
-        "endOffset": 27472
+        "startOffset": 23445,
+        "endOffset": 26917
       },
       {
         "title": "연산자와 제어문 및 포인터",
@@ -249,8 +249,8 @@
           "조건문과 반복문",
           "배열과 포인터"
         ],
-        "startOffset": 27472,
-        "endOffset": 31343
+        "startOffset": 26919,
+        "endOffset": 30729
       },
       {
         "title": "파이썬과 스크립트 언어",
@@ -260,8 +260,8 @@
           "반복문과 클래스",
           "스크립트와 라이브러리"
         ],
-        "startOffset": 31343,
-        "endOffset": 35038
+        "startOffset": 30731,
+        "endOffset": 34366
       },
       {
         "title": "운영체제와 프로세스 관리",
@@ -271,8 +271,8 @@
           "프로세스와 스케줄링",
           "유닉스 명령어와 IPv4"
         ],
-        "startOffset": 35038,
-        "endOffset": 36990
+        "startOffset": 34368,
+        "endOffset": 36288
       },
       {
         "title": "네트워크와 개발 방법론",
@@ -282,8 +282,8 @@
           "TCP/IP 프로토콜",
           "개발 방법론과 재사용"
         ],
-        "startOffset": 36990,
-        "endOffset": 38971
+        "startOffset": 36290,
+        "endOffset": 38235
       }
     ]
   },

@@ -9,7 +9,7 @@ import type { RunDto } from "@/contracts/game";
 import { gameApi } from "@/lib/client/game-api";
 import { JuniorCard } from "@/components/game/JuniorCard";
 import { TodayTasks } from "@/components/home/TodayTasks";
-import { JuniorAvatar } from "@/components/game/JuniorAvatar";
+import { JuniorTrio } from "@/components/game/JuniorTrio";
 import { StaticBackdrop } from "@/components/game/StaticBackdrop";
 import "@/components/game/editorial.css";
 
@@ -39,7 +39,7 @@ export default function HomePage() {
           <StaticBackdrop />
           <p className="editorial-label">MEET. TEACH. UNDERSTAND.</p>
           <span className="editorial-welcome-word" aria-hidden="true">HELLO,<br />SENIOR.</span>
-          <div className="editorial-welcome-characters"><JuniorAvatar character="MALE_EASY" size={270} pose="still" /><JuniorAvatar character="FEMALE_NORMAL" size={270} pose="still" /><JuniorAvatar character="KU_HARD" size={175} pose="still" /></div>
+          <JuniorTrio className="editorial-welcome-characters" />
           <p className="editorial-welcome-caption">선배의 첫 수업을 기다리고 있어요.</p>
         </div>}
       </section>

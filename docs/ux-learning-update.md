@@ -10,7 +10,8 @@ Google 로그인 → 계정 생성 여부 확인
                 └ 기존 계정 → 홈 (온보딩 미완료도 동일)
 
 자료 올리기 → AI 목차 정리 → 후배 선택 → 후배에게 가르치기
-→ 후배 시험 → 오답 확인·다시 가르치기 → 반복 학습 → 졸업
+→ 5개 핵심 개념 학습·후배 시험 5문항 → 오답 확인·다시 가르치기
+→ 반복 학습 → 전체 챕터 통과 → 졸업시험 10문항 → 졸업
 
 프로필 → 마이페이지 → 오답노트 / 선배의 학습노트 / 이용 방법 다시 보기 / 로그아웃
 ```
@@ -46,9 +47,11 @@ Google OAuth 콜백은 계정을 처음 생성할 때만 `/onboarding?mode=signu
 
 | 후배 | 가르치기 UI | 질문·기억 방식 | 시험 | 합격선 | 사용자 호칭 |
 | --- | --- | --- | --- | --- | --- |
-| 남학생 `MALE_EASY` | 선택형 중심, 보조 액션으로 직접 설명 | 단순한 질문, 알려준 설명을 빠르게 기억. 틀린 선택도 즉시 정답으로 교정하지 않음 | 객관식 4지선다 | 60 | 선배님 |
-| 여학생 `FEMALE_NORMAL` | 자유 서술 Composer | 의미·이유를 질문하고 명확한 설명은 한 번에 기억 | 서술형 | 70 | 선배님 |
-| KU `KU_HARD` | 자유 서술 Composer와 기억 다지기 표시 | 이해한 내용을 확인하고 같은 개념을 다른 표현으로 재질문 | 이유·비교·응용을 포함하는 서술형 | 80 | 선배 |
+| 남학생 `MALE_EASY` | 선택형 중심, 보조 액션으로 직접 설명 | 단순한 질문, 알려준 설명을 빠르게 기억. 틀린 선택도 즉시 정답으로 교정하지 않음 | 객관식 4지선다 5문항 | 60 | 일반 반응에는 없음, 도움 요청에만 가끔 선배님 |
+| 여학생 `FEMALE_NORMAL` | 자유 서술 Composer | 의미·이유를 질문하고 명확한 설명은 한 번에 기억 | 서술형 5문항 | 70 | 일반 반응에는 없음, 도움 요청에만 가끔 선배님 |
+| KU `KU_HARD` | 자유 서술 Composer와 기억 다지기 표시 | 이해한 내용을 확인하고 같은 개념을 다른 표현으로 재질문 | 이유·비교·응용을 포함하는 서술형 5문항 | 80 | 선배, 기존 말투 유지 |
+
+새 후배 챕터 세션은 자료에서 서로 다른 핵심 개념 5개를 선정합니다. 목표 `o1`~`o5`와 시험 `q1`~`q5`를 일대일로 연결하며, 학습 질문을 그대로 복사하지 않고 같은 개념을 검증하는 시험 문제로 출제합니다. 졸업시험은 10문항, Run 없는 연습 모드는 3문항을 유지합니다. 이미 저장된 과거 세션의 시험은 다시 쓰지 않습니다.
 
 후배 선택 카드·준비 화면·온보딩·가르치기 화면은 같은 캐릭터 메타데이터를 사용합니다. 후배 정보를 불러오지 못하면 오류와 재시도를 표시하며, 세션 전환 시 이전 후배의 UI가 잠시 보이지 않도록 조회 상태를 세션별로 구분합니다.
 
@@ -71,11 +74,15 @@ Google OAuth 콜백은 계정을 처음 생성할 때만 `/onboarding?mode=signu
 
 LIFE 차감, GAME OVER, 졸업, 오답노트와 TeacherNote 저장 모델은 기존 흐름을 사용합니다. 시험은 기존 사용자 설명만을 근거로 답하며, 미학습 응답과 호칭 변경으로 잘못 정답 처리되지 않도록 판별을 보완했습니다.
 
-## 호칭 통일 위치
+## 학습 말투와 시험 출력 분리
 
-`src/lib/llm/personas.ts`에 캐릭터별 voice·예문, 질문 생성 함수 `personaQuestion`, 직접 대사의 호칭을 보정하는 `normalizePersonaAddress`를 모았습니다. 준비·분석·반응 프롬프트와 live·stub 경로, 준비·다음 질문 저장, 기존 대화·스트리밍·빈 대화 UI에 반영했습니다.
+`src/lib/llm/personas.ts`에 캐릭터별 voice·예문, 질문 생성 함수 `personaQuestion`, 직접 대사의 호칭을 보정하는 `normalizePersonaAddress`를 모았습니다. 남학생은 `~습니다/~입니다/~것 같습니다`, 여학생은 친근한 `~요` 말투를 사용합니다. 일반 반응에서는 호칭을 빼고 설명에 반응하며, 직접 질문하거나 도움을 요청할 때만 가끔 “선배님”을 사용합니다. 기본 질문과 목표 완료 뒤 이어가기 문장에도 호칭을 강제로 붙이지 않습니다. KU의 기존 대사·호칭·성격은 유지합니다.
 
-기존 fixture 대사와 저장된 대화도 표시·생성 경로에서 캐릭터 호칭을 적용합니다. 인용된 사용자 설명은 보존하고, “선배의 학습노트”, “선배용 강의노트” 같은 일반 UI 역할명은 유지합니다.
+`normalizePersonaAddress`의 reaction 모드는 남녀 반응의 직접 호칭 prefix/suffix를 제거합니다. question 모드는 필요한 호칭을 허용하며 `allowAddress: false`로 반복 호출을 억제할 수 있습니다. 인용된 사용자 설명과 “선배가 맡은 역할”, “선배용 강의노트” 같은 일반 역할 어휘는 유지합니다.
+
+학습 반응은 `prompts/respond-turn.ts`에서 persona를 적용합니다. 시험 출제용 `prompts/prepare-session.ts`에는 캐릭터 대사를 생성시키지 않고, 출제 후 학습용 첫 질문을 별도로 만듭니다. 시험 답안용 `prompts/write-exam-answer.ts`에는 persona를 적용하지 않으며 저장된 사용자 설명만 근거로 사용합니다. 객관식은 번호만, 서술형은 시험지에 정답을 쓰는 평서문으로 표시합니다. 문제·답안에는 호칭·인사·리액션을 넣지 않습니다.
+
+채팅·문제·답안·채점·해설에는 Markdown 굵게 표시 문법을 금지하고 출력과 표시 경로에서 방어합니다. 사용자 설명 원문, 인용 근거 및 코드에서 실제로 필요한 별표는 보존합니다. 기존 58점 데모 기대값은 3문항 fixture에 대한 회귀 기준이며 새 5문항 시험의 점수를 고정하지 않습니다.
 
 ## 수정한 기존 파일 전체 목록
 
@@ -91,7 +98,7 @@ LIFE 차감, GAME OVER, 졸업, 오답노트와 TeacherNote 저장 모델은 기
 | `src/app/api/mock/auth/demo-accounts/route.ts` | 체험 계정 공개 응답 필드 유지 |
 | `src/app/api/mock/auth/me/route.ts` | 모의 인증의 온보딩 완료 상태 |
 | `src/app/materials/[id]/page.tsx` | 자료 분석 AI와 후배 학습 역할이 혼동되지 않는 안내 |
-| `src/app/page.tsx` | 첫 학습 가이드와 진입 링크 |
+| `src/app/page.tsx` | 학습 이어가기와 자료 진입; 중복 온보딩 안내 제거 |
 | `src/components/auth/LoginScreen.tsx` | 서비스 핵심 학습 루프와 공통 API·UI 사용 |
 | `src/components/game/JuniorSelect.tsx` | 후배 카드에 가르치기 방식 표시 |
 | `src/components/game/characters.ts` | 캐릭터별 학습 방식·도움말·대사 메타데이터 |
@@ -100,14 +107,14 @@ LIFE 차감, GAME OVER, 졸업, 오답노트와 TeacherNote 저장 모델은 기
 | `src/components/session/teach/ChatThread.tsx` | 직접 대사 호칭과 저장된 설명 재시도 상태 |
 | `src/components/session/teach/Composer.tsx` | 캐릭터별 입력 안내와 비활성 상태 |
 | `src/components/session/teach/TeachPage.tsx` | 선택형·자유 설명 분기, 진행 복원, 재시도, KU 기억 표시 |
-| `src/components/shell/AppShell.tsx` | 공통 온보딩 게이트·사용자 컨텍스트·프로필 링크 |
+| `src/components/shell/AppShell.tsx` | 사용자 컨텍스트·프로필 링크; 일반 페이지에서 온보딩 강제하지 않음 |
 | `src/contracts/events.ts` | 다음 질문 SSE의 선택적 teachingChoices |
 | `src/contracts/types.ts` | 온보딩 상태와 가르치기 선택지 계약 |
 | `src/lib/llm/__tests__/prisma-backend.test.ts` | 선택지의 DB·DTO 왕복 저장 회귀 검증 |
 | `src/lib/llm/live.ts` | 실제 모델 경로의 캐릭터별 질문·선택지·숙련도·호칭 |
 | `src/lib/llm/personas.ts` | 캐릭터 규칙과 호칭 공통 함수 |
 | `src/lib/llm/prompts/analyze-turn.ts` | 캐릭터별 설명 분석·현재 설명 근거 |
-| `src/lib/llm/prompts/prepare-session.ts` | persona가 우선하는 최초 질문 규칙 |
+| `src/lib/llm/prompts/prepare-session.ts` | persona 없는 시험 출제와 고유 목표·문항 일대일 대응 |
 | `src/lib/llm/prompts/respond-turn.ts` | 반응·질문·호칭·지식 범위 지침 |
 | `src/lib/llm/routes/handlers.ts` | 선택지 준비·보강·SSE·기존 mastery 전달 |
 | `src/lib/llm/routes/prisma-backend.ts` | 선택지 JSON 저장·복원 |
@@ -144,11 +151,13 @@ LIFE 차감, GAME OVER, 졸업, 오답노트와 TeacherNote 저장 모델은 기
 | `src/lib/llm/__tests__/teaching.test.ts` | 캐릭터별 학습·잘못된 선택·미학습·호칭 회귀 검증 |
 | `src/lib/server/__tests__/onboarding.test.ts` | DB 업그레이드·계정 격리·완료 상태 유지 검증 |
 
-## 검증 결과
+## 초기 UX 구현 당시 검증 기록
 
-별도 SQLite DB와 stub LLM으로 최종 운영 빌드를 실행해 검증했습니다. 실제 개발 DB는 백업 후 비파괴 업그레이드만 적용했습니다.
+아래 수치는 초기 온보딩·마이페이지·후배별 UX 구현 시점의 기록이며, 현재 학습 출력·5문항 수정의 검증 결과를 뜻하지 않습니다. 최신 버그 수정의 검증은 [학습 흐름 수정 보고](learning-flow-fixes.md)를 기준으로 확인합니다.
 
-| 검증 | 현재 결과 | 확인 범위 |
+당시 별도 SQLite DB와 stub LLM으로 운영 빌드를 실행해 검증했습니다. 실제 개발 DB는 백업 후 비파괴 업그레이드만 적용했습니다.
+
+| 검증 | 당시 결과 | 확인 범위 |
 | --- | --- | --- |
 | 통합 자동 테스트 | **86/86 통과**, 건너뜀 없음 | 기존 LLM·API·저장 검증, 새 인증·온보딩·학습·복구 회귀 테스트 |
 | 운영 빌드의 API 스모크 | **253/253 통과** | 기존 인증·자료·세션·시험·LIFE·GAME OVER·졸업·노트 API 계약과 흐름 |

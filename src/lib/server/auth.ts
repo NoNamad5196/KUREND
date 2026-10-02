@@ -1,11 +1,11 @@
 /**
  * [C 소유] 쿠키(tb_uid) → 사용자. D 는 requireUser(req) 만 import 한다.
  *
- *   const user = await requireUser(req);   // { userId, nickname } 또는 401 ApiError throw
+ *   const user = await requireUser(req);   // 사용자 또는 인증 실패 401 / 계정 확인 장애 503
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/server/db";
-import { unauthorized } from "@/lib/server/http";
+import { ApiError, unauthorized } from "@/lib/server/http";
 
 export const SESSION_COOKIE = process.env.SESSION_COOKIE || "tb_uid";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30일
@@ -43,25 +43,33 @@ export function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
-export function getUserIdFromRequest(req: Request): string | null {
-  return readSession(req)?.userId ?? null;
-}
+type SessionFailure = "MISSING_COOKIE" | "SIGNING_KEY_MISSING" | "INVALID_SESSION" | "EXPIRED_SESSION";
+type SessionIdentity = { userId: string; signed: boolean } | { userId: null; reason: SessionFailure };
 
-/** signed=true 는 서버 비밀키로 서명을 확인한 운영 세션(개발용 평문 쿠키는 false). */
-function readSession(req: Request): { userId: string; signed: boolean } | null {
+function sessionIdentity(req: Request): SessionIdentity {
   const value = readCookie(req, SESSION_COOKIE);
-  if (!value) return null;
+  if (!value) return { userId: null, reason: "MISSING_COOKIE" };
   if (fixtureCookiesAllowed() && USER_ID.test(value)) return { userId: value, signed: false };
   const secret = sessionSecret();
-  if (!secret) return null;
+  if (!secret) return { userId: null, reason: "SIGNING_KEY_MISSING" };
   const parts = value.split(".");
-  if (parts.length !== 4) return null;
+  if (parts.length !== 4) return { userId: null, reason: "INVALID_SESSION" };
   const [version, userId, expiresAt, suppliedSignature] = parts;
-  if (version !== "v1" || !USER_ID.test(userId) || !/^\d{1,12}$/.test(expiresAt) || !/^[A-Za-z0-9_-]{43}$/.test(suppliedSignature)) return null;
-  if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return null;
+  if (version !== "v1" || !USER_ID.test(userId) || !/^\d{1,12}$/.test(expiresAt) || !/^[A-Za-z0-9_-]{43}$/.test(suppliedSignature)) return { userId: null, reason: "INVALID_SESSION" };
   const expectedSignature = signature(`${version}.${userId}.${expiresAt}`, secret);
-  if (!timingSafeEqual(Buffer.from(suppliedSignature), Buffer.from(expectedSignature))) return null;
+  if (!timingSafeEqual(Buffer.from(suppliedSignature), Buffer.from(expectedSignature))) return { userId: null, reason: "INVALID_SESSION" };
+  if (Number(expiresAt) <= Math.floor(Date.now() / 1000)) return { userId: null, reason: "EXPIRED_SESSION" };
   return { userId, signed: true };
+}
+
+export function getUserIdFromRequest(req: Request): string | null {
+  return sessionIdentity(req).userId;
+}
+
+function authUnavailable(reason: "SIGNING_KEY_MISSING" | "ACCOUNT_NOT_FOUND"): ApiError {
+  // Deliberately omit cookies, keys, user IDs and provider/DB exception messages.
+  console.error("[auth] unavailable", { reason });
+  return new ApiError("AUTH_UNAVAILABLE", "로그인 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
 }
 
 /** 표시 이름 쿠키 — 세션이 아니다(권한 없음). 계정 행을 되살릴 때 닉네임으로만 쓴다. */
@@ -72,26 +80,36 @@ export function nameCookieHeader(nickname: string): string {
   return `${NAME_COOKIE}=${encodeURIComponent(nickname.slice(0, NICKNAME_MAX))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}${secure}`;
 }
 
-/** 쿠키의 userId 가 실제 존재하는 사용자일 때만 통과. 아니면 401. */
+const USER_SELECT = { id: true, nickname: true, onboardingCompletedAt: true } as const;
+
+/**
+ * Invalid/expired identity is 401. A valid signed identity whose account row is missing is restored:
+ * on free hosting the SQLite file is wiped on every restart/redeploy, and forcing a re-login (or an error)
+ * on every wake-up is exactly the "세션이 끊긴다" complaint. Prior study data is gone with the file either way.
+ */
 export async function requireUser(req: Request): Promise<AuthUser> {
-  const session = readSession(req);
-  if (!session) throw unauthorized();
-  const { userId } = session;
-  let user = await db.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
-  if (!user && session.signed) {
-    // 무료 호스팅처럼 DB 파일이 재시작·재배포 때 초기화되는 환경에서도, 서명이 확인된 로그인은
-    // 다시 로그인시키지 않고 계정 행만 되살린다(이전 학습 기록은 DB 와 함께 사라진 상태).
-    const nickname = (readCookie(req, NAME_COOKIE) ?? "").trim().slice(0, NICKNAME_MAX) || "선배";
-    const select = { id: true, nickname: true, onboardingCompletedAt: true } as const;
-    user = await db.user.upsert({
-      where: { id: userId },
-      create: { id: userId, nickname, onboardingCompletedAt: new Date() },
-      update: {},
-      select,
-    }).catch(() => db.user.findUnique({ where: { id: userId }, select })); // 동시 요청이 먼저 만든 경우
-    console.warn("[auth] 서명된 세션의 계정이 DB에 없어 다시 만들었습니다(DB 초기화 의심).");
+  const identity = sessionIdentity(req);
+  if (identity.userId === null) {
+    if (identity.reason === "SIGNING_KEY_MISSING") throw authUnavailable(identity.reason);
+    if (identity.reason !== "MISSING_COOKIE") console.warn("[auth] rejected", { reason: identity.reason });
+    throw unauthorized(identity.reason === "EXPIRED_SESSION" ? "로그인이 만료되었습니다. 다시 로그인해 주세요." : "로그인이 필요합니다.");
   }
-  if (!user) throw unauthorized("세션이 만료되었습니다. 다시 로그인해 주세요.");
+  let user = await db.user.findUnique({ where: { id: identity.userId }, select: USER_SELECT });
+  if (!user && identity.signed) {
+    const nickname = (readCookie(req, NAME_COOKIE) ?? "").trim().slice(0, NICKNAME_MAX) || "선배";
+    user = await db.user.upsert({
+      where: { id: identity.userId },
+      create: { id: identity.userId, nickname, onboardingCompletedAt: new Date() },
+      update: {},
+      select: USER_SELECT,
+    }).catch(() => db.user.findUnique({ where: { id: identity.userId }, select: USER_SELECT })); // 동시 요청이 먼저 만든 경우
+    // 진단에는 원인만 남긴다(쿠키·키·사용자 ID·닉네임 제외).
+    if (user) console.warn("[auth] restored", { reason: "ACCOUNT_NOT_FOUND" });
+  }
+  if (!user) {
+    if (identity.signed) throw authUnavailable("ACCOUNT_NOT_FOUND");
+    throw unauthorized("로그인 계정을 확인할 수 없습니다. 다시 로그인해 주세요.");
+  }
   return { userId: user.id, nickname: user.nickname, onboardingCompletedAt: user.onboardingCompletedAt };
 }
 

@@ -13,13 +13,14 @@ import type { ErrorDetails } from "@/contracts/errors";
 import { logRequestFailure } from "./request-diagnostics";
 
 /** FROZEN 오류 코드 + 게임 확장 코드(RUN_ACTIVE·NOT_READY·NO_RUN) */
-export type ApiErrorCode = FrozenApiErrorCode | GameErrorCode;
+export type ApiErrorCode = FrozenApiErrorCode | GameErrorCode | "AUTH_UNAVAILABLE";
 
 export const ERROR_STATUS: Record<ApiErrorCode, number> = {
   NOT_FOUND: 404,
   INVALID_STATE: 409,
   NO_EXPLANATION: 409,
   UNAUTHORIZED: 401,
+  AUTH_UNAVAILABLE: 503,
   VALIDATION: 400,
   LLM_FAILED: 502,
   RUN_ACTIVE: 409,

@@ -95,7 +95,9 @@ test("prepare refresh reuses exam/messages and never exposes rubric or source te
   success(first);
   const prepared = await session(backend, ids.prepareSession);
   assert.equal(prepared.status, "EXPLAINING");
+  // Legacy practice fixtures have no game persona and retain their three targets.
   assert.equal(prepared.exam?.questions.length, 3);
+  assert.equal(prepared.objectives.length, 3);
   assert.ok(prepared.exam?.questions.every((question) => question.rubric));
   const second = await events(await handlers.prepare(request(undefined, ids.user, "GET"), ids.prepareSession));
   assert.deepEqual(second.map((event) => event.event), ["ready", "done"]);

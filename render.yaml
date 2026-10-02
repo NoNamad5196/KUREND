@@ -15,7 +15,7 @@ services:
         value: "1"
       - key: DATABASE_URL
         value: file:./prisma/dev.db
-      # 데이터 유지: 무료 플랜 디스크는 재시작(15분 무접속 후 깨어날 때 포함)·재배포마다 지워진다.
+      # 데이터 유지: 무료 플랜의 로컬 디스크는 재배포·인스턴스 교체 때 보존을 보장하지 않는다.
       # 대시보드 Environment 에 TURSO_DATABASE_URL(libsql://…)·TURSO_AUTH_TOKEN 을 넣으면 그 DB 를 쓴다(docs/render.md).
       # 실제 AI: Render 대시보드 > Environment 에 OPENAI_API_KEY 를 비밀값으로 넣는다(yaml 에는 절대 쓰지 않음).
       # 키가 없으면 LLM_PROVIDER 를 stub 으로 되돌려야 서비스가 동작한다.

@@ -1,0 +1,18 @@
+:where(.junior-trio) {
+  --trio-male-size: 270px;
+  --trio-ku-size: 175px;
+  --trio-female-size: 270px;
+  /* Keep a compact group around KU instead of spreading across the whole panel. */
+  --trio-edge: max(calc(var(--trio-male-size) * var(--trio-male-half)), calc(var(--trio-female-size) * var(--trio-female-half)));
+  --trio-offset: min(calc(50% - var(--trio-edge)), calc(var(--trio-edge) + var(--trio-ku-size) * var(--trio-ku-half) + 8px));
+  position: relative;
+  width: 100%;
+  height: max(var(--trio-male-size), var(--trio-ku-size), var(--trio-female-size));
+  overflow: hidden;
+}
+.junior-trio-slot { position: absolute; bottom: 0; display: flex; justify-content: center; width: 0; }
+.junior-trio-male { left: calc(50% - var(--trio-offset)); --trio-size: var(--trio-male-size); }
+/* On narrow screens the shorter center figure stands in front of both arms. */
+.junior-trio-ku { left: 50%; z-index: 1; --trio-size: var(--trio-ku-size); }
+.junior-trio-female { right: calc(50% - var(--trio-offset)); --trio-size: var(--trio-female-size); }
+.junior-trio-slot > .jr { width: calc(var(--trio-size) * .8) !important; height: var(--trio-size) !important; max-width: none; }

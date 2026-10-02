@@ -1,3 +1,6 @@
+.material-preparation-viewport { position: fixed; inset: 0; z-index: 30; display: flex; overflow-y: auto; padding: 24px; background: var(--bg); }
+.material-preparation-content { width: min(100%, 42rem); flex-shrink: 0; margin: auto; }
+@media (max-width: 480px) { .material-preparation-viewport { padding: 16px; } }
 .material-book { position: relative; width: 110px; height: 88px; margin: 0 auto; }
 .material-book-page { position: absolute; inset: 12px 12px 0; border: 1px solid var(--primary); border-radius: 3px; background: var(--surface); transform: rotate(-5deg); }
 .material-book-page::after { content: ""; position: absolute; inset: 17px 13px; background: repeating-linear-gradient(transparent 0 8px, var(--line) 8px 10px); }

@@ -113,7 +113,7 @@ POST /api/sessions ──▶ PREPARING
 | GET | `/sessions/{id}/prepare` | – | PREPARING에서만. 학습목표·시험문항·첫 질문 생성 후 EXPLAINING으로 전이. 이미 EXPLAINING이면 즉시 `ready` 1개만 보내고 종료(새로고침 안전) |
 | POST | `/sessions/{id}/explanations` | `{content:string}` (1~2000자) | USER 메시지 저장 → 자료 대조(되묻기) → 반응·다음 질문 스트림 |
 | POST | `/sessions/{id}/exam/answers` | `{qid}` | 해당 문항 답안 생성 스트림. 이미 답했으면 `answer.recap`+`answer.saved{cached:true}` |
-| POST | `/sessions/{id}/evaluate` | – | 3문항 모두 답한 뒤. 문항별 `grade` → `gap`들 → `done`. 완료 시 RESULT_READY |
+| POST | `/sessions/{id}/evaluate` | – | 출제된 문항을 모두 답한 뒤(새 후배 챕터 5문항, 졸업시험 10문항, Run 없는 연습 3문항). 문항별 `grade` → `gap`들 → `done`. 완료 시 RESULT_READY |
 | POST | `/sessions/{id}/tutor` | `{gapId, content?}` (content 없으면 프리셋 "이 부분을 자료 기준으로 쉽게 설명해줘") | 글자 단위 스트림 |
 
 ---

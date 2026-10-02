@@ -55,7 +55,7 @@ if (remote) {
 /**
  * 원격 libSQL(Turso 등) — 무료 호스팅의 디스크가 재시작·재배포 때 지워져도 데이터가 남는다.
  * Prisma CLI 는 원격 libsql 에 db push 를 못 하므로, 임시 SQLite 에 스키마를 만든 뒤
- * 없는 테이블·인덱스·컬럼만 원격에 더한다(삭제·변경 없음). 사용자가 한 명도 없으면 데모 시드.
+ * 없는 테이블·인덱스·컬럼만 원격에 더한다. 완전히 빈 DB를 초기화할 때만 데모 시드.
  */
 async function prepareRemoteDatabase() {
   const referenceDir = mkdtempSync(join(resolve("prisma"), ".remote-ref-"));
@@ -68,6 +68,10 @@ async function prepareRemoteDatabase() {
     const objects = async (client) => (await client.execute(
       "SELECT type, name, tbl_name AS tableName, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma%'",
     )).rows;
+    const initialObjects = await objects(target);
+    const pristine = initialObjects.length === 0;
+    // Preserve pre-onboarding users before generic nullable-column additions.
+    await upgradeOnboarding(url);
     const wanted = await objects(reference);
     const existing = new Set((await objects(target)).map((row) => `${row.type}:${row.name}`));
     const statements = [];
@@ -77,8 +81,7 @@ async function prepareRemoteDatabase() {
       for (const column of (await reference.execute(`PRAGMA table_info("${table.name}")`)).rows) {
         if (have.has(column.name)) continue;
         if (column.notnull && column.dflt_value === null) {
-          console.warn(`[render-db] ${table.name}.${column.name}: 기본값 없는 필수 컬럼이라 자동 추가를 건너뜁니다.`);
-          continue;
+          throw new Error(`[render-db] ${table.name}.${column.name}: 기본값 없는 필수 컬럼은 별도 데이터 마이그레이션이 필요합니다.`);
         }
         statements.push(`ALTER TABLE "${table.name}" ADD COLUMN "${column.name}" ${column.type}${column.dflt_value !== null ? ` DEFAULT ${column.dflt_value}` : ""}${column.notnull ? " NOT NULL" : ""}`);
       }
@@ -88,8 +91,7 @@ async function prepareRemoteDatabase() {
     }
     for (const statement of statements) await target.execute(statement);
     console.log(`Remote database ready (${statements.length} additive schema change(s)).`);
-    const users = await target.execute('SELECT COUNT(*) AS count FROM "User"');
-    if (Number(users.rows[0].count) === 0) {
+    if (pristine) {
       runDatabaseCommand("db:seed", url);
       console.log("Remote database seeded with demo data.");
     }

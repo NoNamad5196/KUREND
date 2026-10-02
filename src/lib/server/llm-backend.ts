@@ -24,11 +24,12 @@ export function installLlmRouteBackend(): void {
           return { userId: user.userId };
         } catch (err) {
           // 이 어댑터는 instrumentation 번들에서 만들어져 D 라우트와 모듈 인스턴스가 다르다.
-          // 그래서 D 가 instanceof RouteError 로 알아보지 못하므로, 전역 Response 로 401 을 그대로 넘긴다.
-          if (err instanceof ApiError && err.code === "UNAUTHORIZED") {
+          // Preserve both expired identity (401) and unavailable auth storage (503).
+          // A Response survives the separate instrumentation/route bundles.
+          if (err instanceof ApiError && (err.code === "UNAUTHORIZED" || err.code === "AUTH_UNAVAILABLE")) {
             throw Response.json(
-              { error: { code: "UNAUTHORIZED", message: err.message } },
-              { status: 401, headers: { "Cache-Control": "no-store" } },
+              { error: { code: err.code, message: err.message } },
+              { status: err.status, headers: { "Cache-Control": "no-store" } },
             );
           }
           throw err;

@@ -1,8 +1,12 @@
 import { z } from "zod";
+import { LearningErrorReasonSchema } from "@/contracts/types";
+import { META_CHOICE } from "./teaching-choices";
 import { objectiveRefFor, pointsPlan } from "@/contracts/game";
 import type { SourceParagraph } from "./text";
-import { examQuestionText, isConversationalQuestion, isUnlearnedAnswer, plainText } from "./text";
+import { isUnlearnedAnswer } from "./text";
 import type { TaughtMsg } from "./types";
+import { formatExamQuestion, isFormalExamQuestion } from "@/lib/shared/exam-format";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 
 const nonempty = z.string().trim().min(1);
 const gradeVerdict = z.enum(["CORRECT", "PARTIAL", "WRONG"]);
@@ -37,35 +41,40 @@ export function chaptersSchema(paragraphs: SourceParagraph[], minChapters: numbe
 }
 
 /**
- * 출제 결과 검증. 목표 수 = 문항 수(count) — q1→o1, q2→o2 … 일대일(배점은 pointsPlan(count), 합계 100).
- * 후배가 가르치기에서 목표마다 한 번씩 물으므로 질문 수와 시험 문항 수가 같다.
- * 문항은 시험지 문체(호칭·해요체·반말·마크다운 금지). objectiveIndexes 의 문항은 4지선다 보기가 필수.
+ * Each question evaluates one distinct learning objective; old 3-item fixtures remain valid.
  */
-export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[]) {
+export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[], chapterText?: string) {
   const plan = pointsPlan(count);
-  const plain = nonempty.transform(plainText).pipe(nonempty);
   return z.object({
-    objectives: z.array(z.object({ id: z.string().regex(/^o([1-9]|1[0-9]|20)$/u), text: plain.pipe(z.string().max(200)) })).length(count),
+    objectives: z.array(z.object({ id: nonempty, text: nonempty.max(200).transform((value) => stripMarkdownBold(value)), sourceQuote: nonempty.max(1_000).optional() })).length(count),
     questions: z.array(z.object({
       qid: z.string().regex(/^q([1-9]|1[0-9]|20)$/u), order: z.number().int().min(1).max(count),
-      points: z.number().int(),
-      question: nonempty.max(500).transform(examQuestionText).pipe(nonempty).refine((value) => !isConversationalQuestion(value),
-        "시험 문항은 시험지 문체로 쓰세요(예: '~을 설명하시오.', '~으로 옳은 것은?'). 호칭(선배·선배님), 해요체·반말 의문문은 금지입니다."),
-      objectiveRef: z.string().regex(/^o([1-9]|1[0-9]|20)$/u),
+      points: z.number().int(), question: nonempty.max(500).transform(formatExamQuestion).refine(isFormalExamQuestion, "문제는 호칭과 대화체 없는 정식 시험 문장으로 작성하세요."),
+      objectiveRef: nonempty,
       rubric: nonempty.refine((value) => {
         const items = value.split(";").filter((item) => item.trim());
         return items.length >= 2 && items.length <= 3;
       }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
-      choices: z.array(nonempty.max(200).transform(plainText)).length(4).refine((items) => new Set(items).size === 4, "보기는 서로 다른 4개여야 합니다.").optional(),
+      choices: z.array(nonempty.max(200).transform((value) => stripMarkdownBold(value)).pipe(nonempty)
+        .refine((value) => !META_CHOICE.test(value), "같은 개념의 구체적인 보기를 쓰세요. 메타 부정이나 모르겠다는 보기는 금지합니다."))
+        .length(4).refine((items) => new Set(items.map((item) => item.replace(/^[①②③④]\s*/u, "").replace(/[\s.!?]/gu, ""))).size === 4, "보기는 서로 다른 4개여야 합니다.")
+        .refine((items) => { const lengths = items.map((item) => item.replace(/^[①②③④]\s*/u, "").length); return Math.max(...lengths) <= Math.max(8, Math.min(...lengths)) * 2; }, "보기의 길이와 구체성을 비슷하게 맞추세요.").optional(),
     })).length(count),
-    firstQuestion: nonempty.max(200).transform(plainText),
+    firstQuestion: z.string().max(200).default(""),
   }).superRefine((result, ctx) => {
     result.objectives.forEach((objective, index) => {
       if (objective.id !== `o${index + 1}`) ctx.addIssue({ code: "custom", path: ["objectives", index, "id"], message: `목표 ID는 순서대로 o1~o${count}입니다.` });
+      if (chapterText !== undefined && (!objective.sourceQuote || !chapterText.includes(objective.sourceQuote))) {
+        ctx.addIssue({ code: "custom", path: ["objectives", index, "sourceQuote"], message: "각 핵심 개념을 설명하는 자료의 연속된 원문을 인용하세요." });
+      }
     });
+    const concepts = result.objectives.map(({ text }) => text.replace(/(?:을|를)?\s*설명할 수 있다[.!?]?$/u, "").replace(/\s+/gu, "").toLocaleLowerCase());
+    if (new Set(concepts).size !== count) ctx.addIssue({ code: "custom", path: ["objectives"], message: "서로 다른 핵심 개념을 선정하고 같은 개념을 중복하지 마세요." });
+    const questions = result.questions.map(({ question }) => question.replace(/^\d+[.)]\s*/u, "").replace(/\s+/gu, ""));
+    if (new Set(questions).size !== count) ctx.addIssue({ code: "custom", path: ["questions"], message: "각 학습 개념에 맞는 서로 다른 시험 문제를 출제하세요." });
     result.questions.forEach((question, index) => {
       if (question.qid !== `q${index + 1}` || question.order !== index + 1 || question.objectiveRef !== objectiveRefFor(index) || question.points !== plan[index]) {
-        ctx.addIssue({ code: "custom", path: ["questions", index], message: `문항은 q1~q${count}, 순서 1~${count}, 문항 qN은 목표 oN(일대일), 배점 ${plan.join("/")}이어야 합니다.` });
+        ctx.addIssue({ code: "custom", path: ["questions", index], message: `문항은 q1~q${count}, 순서 1~${count}, 각 목표 o1~o${count}에 일대일 대응하고 배점은 ${plan.join("/")}이어야 합니다.` });
       }
       if (!objectiveIndexes) return; // 형식 미지정(기존 호환): 보기는 선택
       const mustChoose = objectiveIndexes.includes(index);
@@ -129,7 +138,7 @@ export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
     }, z.enum(["①", "②", "③", "④"])).optional(),
     sentences: z.array(z.object({
       quote: nonempty.max(1_000).nullable(), ref: z.number().int().positive().nullable(),
-      // 답안지 문장(서버가 근거 인용과 비교해 내용이 늘지 않았을 때만 쓴다)
+      // 모델이 자료의 용어로 다듬은 답안 문장. 서버가 근거(quote)·관련 자료 문장과 비교해 범위를 넘으면 버린다.
       answer: z.string().max(600).nullish(),
       level: z.enum(["STRONG", "FAINT", "NONE"]),
     })).min(1).max(4),
@@ -154,6 +163,7 @@ export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
 }
 
 const gapSchema = z.object({
+  errorReason: LearningErrorReasonSchema.optional(),
   title: nonempty.max(25), diagnosis: nonempty.max(1_000), evidenceQuote: z.string().max(2_000),
   concepts: z.array(nonempty.max(80)).min(1).max(10), sourceExcerpt: nonempty.max(2_000),
 });
@@ -167,14 +177,14 @@ export function objectiveGapSchema(chapterText: string, taught: TaughtMsg[]) {
 }
 
 export function gradeExamSchema(input: {
-  qid: string; rubricCount: number; chapterText: string; taught: { content: string }[]; answer: string;
+  qid: string; rubricCount: number; chapterText: string; taught: { content: string }[]; answer: string; unlearned?: boolean;
 }) {
   return z.object({
     qid: z.literal(input.qid), score: z.number().finite(), verdict: gradeVerdict,
     comment: nonempty.max(120), rubricChecks: z.array(z.boolean()).length(input.rubricCount),
     contradictsSource: z.boolean(), gap: gapSchema.nullable(),
   }).superRefine((result, ctx) => {
-    if (isUnlearnedAnswer(input.answer) && (result.rubricChecks.some(Boolean) || result.contradictsSource)) {
+    if ((input.unlearned || isUnlearnedAnswer(input.answer)) && (result.rubricChecks.some(Boolean) || result.contradictsSource)) {
       ctx.addIssue({ code: "custom", path: ["rubricChecks"], message: "미학습 응답은 충족한 요소가 없으며 자료와 모순된 주장도 아닙니다." });
     }
     const correct = !result.contradictsSource && result.rubricChecks.every(Boolean);

@@ -1,5 +1,5 @@
 /**
- * [③] 세션·시험 화면의 후배 그림. Run 이 있으면 고른 후배(남학생/여학생/KU 사진 아바타), 없으면(연습 모드) 기존 KU 마스코트.
+ * [③] 세션·시험 화면의 후배 그림. Run 이 있으면 고른 후배(컴돌이/컴순이/KU 사진 아바타), 없으면(연습 모드) 기존 KU 마스코트.
  * Mascot 의 상태 이름을 그대로 받아 JuniorAvatar 의 mood/pose 로 옮긴다.
  */
 import type { JuniorCharacter } from "@/contracts/game";
@@ -26,9 +26,9 @@ export function JuniorOrMascot({ character, identityPending = false, state = "id
   return <JuniorAvatar character={character} mood={mood} pose={pose} size={Math.round(size * 1.15)} className={className} />;
 }
 
-/** 화면 문구의 주어: Run 이 있으면 캐릭터 이름(남학생/여학생/KU), 없으면 "새내기" */
+/** 화면 문구의 주어: Run 이 있으면 캐릭터 이름(컴돌이/컴순이/KU), 없으면 "새내기" */
 export function juniorLabel(character?: JuniorCharacter | null): string {
-  return character === "MALE_EASY" ? "남학생" : character === "FEMALE_NORMAL" ? "여학생" : character === "KU_HARD" ? "KU" : "새내기";
+  return character === "MALE_EASY" ? "컴돌이" : character === "FEMALE_NORMAL" ? "컴순이" : character === "KU_HARD" ? "KU" : "새내기";
 }
 
 /** 한국어 조사: 받침 유무로 이/가, 은/는, 을/를, 의(그대로) 를 고른다. KU 처럼 영문은 발음(케이유)으로 받침 없음 처리. */

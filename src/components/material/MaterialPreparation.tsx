@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card, Button } from "@/components/shell/ui";
 import "./material-preparation.css";
 
@@ -12,7 +14,10 @@ const labels: Record<MaterialStep, string> = {
 export function MaterialPreparation({ step, busy, error, onRetry }: {
   step: MaterialStep; busy: boolean; error: string | null; onRetry: () => void;
 }) {
-  return <Card className="mx-auto my-8 w-full max-w-2xl py-10 text-center" aria-busy={busy}>
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const content = <Card className="mx-auto my-8 w-full material-preparation-content py-10 text-center" aria-busy={busy}>
     <div className={`material-book ${busy ? "material-book-reading" : ""}`} aria-hidden="true">
       <span className="material-book-page" /><span className="material-book-page" /><span className="material-book-page" />
       <span className="material-book-star">✦</span>
@@ -26,4 +31,9 @@ export function MaterialPreparation({ step, busy, error, onRetry }: {
     </ol>
     {!busy && <Button className="mt-6" onClick={onRetry}>목차 생성 다시 시도</Button>}
   </Card>;
+  // Keep retry/delete controls in their normal page when extraction stops.
+  if (!busy) return content;
+  if (!mounted) return null;
+  // Portal placement keeps header height and parent layout out of the centering calculation.
+  return createPortal(<div className="material-preparation-viewport">{content}</div>, document.body);
 }

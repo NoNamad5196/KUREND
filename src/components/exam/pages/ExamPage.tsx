@@ -1,4 +1,5 @@
 "use client";
+import { stripMarkdownBold } from "@/lib/shared/plain-text";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -18,12 +19,11 @@ import { useExamViewSettings, ViewSettingsMenu } from "../ViewSettings";
 import { emptyPlayback, reduceAnswer, type AnswerPlayback } from "./exam-state";
 import { PageError, PageLoading, stream, useTask } from "./shared";
 
-/** 시험 직전 후배 대사 — 남학생은 ~습니다체, 여학생은 해요체, KU(와 연습 모드)는 원래 반말 그대로 */
-function examStartLine(character?: JuniorCharacter | null): string {
-  if (character === "MALE_EASY") return "선배님, 이제 시험 보겠습니다! 알려주신 만큼만 답하겠습니다. 끝까지 지켜봐 주세요!";
-  if (character === "FEMALE_NORMAL") return "선배님, 이제 시험 볼게요. 배운 내용으로 차근차근 답해 볼게요. 끝날 때까지 지켜봐 주세요.";
-  return "나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘.";
-}
+const EXAM_INTRO: Record<JuniorCharacter, string> = {
+  MALE_EASY: "지금까지 알려주신 내용으로 한번 풀어보겠습니다!",
+  FEMALE_NORMAL: "지금까지 알려주신 내용으로 한번 풀어볼게요!",
+  KU_HARD: "나 이제 시험 볼게! 배운 만큼만 답할게. 끝날 때까지 조용히 지켜봐 줘.",
+};
 
 export function ExamPage({ sessionId }: { sessionId: string }) {
   const state = useSession(sessionId, (session) => session.status === "EXAM_IN_PROGRESS" || (session.status === "EXPLAINING" && session.phase === "EXAM_READY"));
@@ -35,7 +35,8 @@ export function ExamPage({ sessionId }: { sessionId: string }) {
 function ExamContent({ session: initial, reload }: { session: SessionDto; reload: () => Promise<unknown> }) {
   const router = useRouter();
   const [session, setSession] = useState(initial);
-  const { run: juniorRun, identityPending } = useSessionGame(initial.sessionId);
+  const { run: juniorRun, loading: gameLoading, identityPending } = useSessionGame(initial.sessionId);
+  const character = session.character ?? juniorRun?.character;
   const [settings, updateSettings] = useExamViewSettings();
   const { busy, error, run } = useTask(reload);
   const [answers, setAnswers] = useState<Record<string, AnswerPlayback>>(() => Object.fromEntries((initial.exam?.answers ?? []).map((answer) => [answer.qid, { ...emptyPlayback(), text: answer.answer, saved: true, cached: true }])));
@@ -94,18 +95,20 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
     });
   }
 
+  if (!character && gameLoading) return <PageLoading />;
+
   return <div className="page-enter min-w-0 space-y-8 sm:space-y-10">
-    <StepperHeader session={session} step={2} chipLabel="시험" subtitle={`${withJosa(juniorLabel(juniorRun?.character), "이/가")} 선배에게 배운 내용만으로 시험을 봅니다`} right={<RunHeaderBadge run={juniorRun} />} />
+    <StepperHeader session={session} step={2} chipLabel="시험" subtitle={`${withJosa(juniorLabel(character), "이/가")} 선배에게 배운 내용만으로 시험을 봅니다`} right={<RunHeaderBadge run={juniorRun} />} />
     {session.status === "EXPLAINING" ? <Card className="mx-auto grid max-w-4xl items-center gap-8 overflow-hidden p-6 sm:grid-cols-[minmax(0,1fr)_200px] sm:p-10 lg:p-14">
       <div className="min-w-0">
         <p className="editorial-label text-muted">TIME TO REMEMBER</p>
         <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tighter sm:text-4xl">가르친 만큼,<br />기억한 만큼.</h2>
-        <div className="mt-6"><SpeechBubble speaker={juniorLabel(juniorRun?.character)} tail="none">{examStartLine(juniorRun?.character)}</SpeechBubble></div>
-        <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? "객관식" : "서술형"} {questions.length || 3}문항 · 총 100점</p>
+        <div className="mt-6"><SpeechBubble speaker={juniorLabel(character)} tail="none">{character ? EXAM_INTRO[character] : "배운 내용을 바탕으로 시험을 시작할게요."}</SpeechBubble></div>
+        <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? questions.every((q) => q.choices?.length) ? "객관식" : "객관식+서술형" : "서술형"} {questions.length}문항 · 총 100점</p>
         <Button size="lg" className="mt-5 w-full sm:w-auto" loading={busy} onClick={startExam}>시험 시작 →</Button>
         {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
       </div>
-      <div className="flex justify-center border-t border-line pt-6 sm:border-t-0 sm:pt-0"><JuniorOrMascot character={juniorRun?.character} identityPending={identityPending} state="writing" size={184} /></div>
+      <div className="flex justify-center border-t border-line pt-6 sm:border-t-0 sm:pt-0"><JuniorOrMascot character={character} identityPending={identityPending} state="writing" size={184} /></div>
     </Card> : <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div aria-live="polite"><p className="editorial-label mb-3 text-muted">THE EXAM</p><h2 className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{allDone && !busy ? "답안 작성 완료" : `답안 작성 중 ${Math.max(1, activeIndex + 1)} / ${questions.length}`}</h2><p className="mt-2 text-xs text-muted">{completed}문항 저장됨</p></div>
@@ -114,7 +117,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
       <ProgressBar value={completed} max={questions.length} />
       <div className="grid min-w-0 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-10">
         <div className="min-w-0 space-y-6">
-          <AnswerSheet studentName={juniorLabel(juniorRun?.character)} courseName={session.material.courseName} activeQid={activeQid} instant={settings.instant || active?.cached} onTypingDone={(qid) => setTyped((value) => ({ ...value, [qid]: answers[qid]?.text ?? "" }))}
+          <AnswerSheet studentName={juniorLabel(character)} courseName={session.material.courseName} activeQid={activeQid} instant={settings.instant || active?.cached} onTypingDone={(qid) => setTyped((value) => ({ ...value, [qid]: answers[qid]?.text ?? "" }))}
             items={questions.filter((question) => question.qid === activeQid).map((question) => ({ ...question, text: active?.text ?? "", unlearned: active?.unlearned, status: active?.cached ? "done" : "writing", badge: <Chip tone={active?.saved ? "ok" : "muted"}>{active?.saved ? "작성 완료" : "작성 중"}</Chip> }))} />
           <nav aria-label="시험 문항" className="flex flex-wrap items-center justify-center gap-2 border-y border-line py-4">
             <Button variant="ghost" className="min-h-11 min-w-11" aria-label="이전 문항" disabled={busy || activeIndex <= 0} onClick={() => play(questions[activeIndex - 1].qid)}>◁</Button>
@@ -127,10 +130,10 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
           </div>
         </div>
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-28">
-          <div className="flex items-center gap-4 py-2"><JuniorOrMascot character={juniorRun?.character} identityPending={identityPending} state={busy ? "writing" : "idle"} size={88} />
-            {settings.showThought && active?.thought && !thoughtHidden ? <SpeechBubble speaker={`${juniorLabel(juniorRun?.character)} · 속마음`} tone="muted" className="min-w-0 flex-1"><span className="break-words" aria-live="polite">{active.thought}</span></SpeechBubble> : <p className="text-sm text-muted">{busy ? "배운 내용을 떠올리고 있어요…" : "선배의 설명을 기억했어요."}</p>}
+          <div className="flex items-center gap-4 py-2"><JuniorOrMascot character={character} identityPending={identityPending} state={busy ? "writing" : "idle"} size={88} />
+            {settings.showThought && active?.thought && !thoughtHidden ? <SpeechBubble speaker={`${juniorLabel(character)} · 속마음`} tone="muted" className="min-w-0 flex-1"><span className="break-words" aria-live="polite">{stripMarkdownBold(active.thought, { streaming: busy })}</span></SpeechBubble> : <p className="text-sm text-muted">{busy ? "배운 내용을 떠올리고 있어요…" : "선배의 설명을 기억했어요."}</p>}
           </div>
-          <RecallPanel title={`${withJosa(juniorLabel(juniorRun?.character), "이/가")} 떠올리는 내 설명`} sources={active?.sources ?? []} highlights={active?.highlights ?? {}} unlearned={active?.unlearned} />
+          <RecallPanel title={`${withJosa(juniorLabel(character), "이/가")} 떠올리는 내 설명`} sources={active?.sources ?? []} highlights={active?.highlights ?? {}} unlearned={active?.unlearned} />
         </aside>
       </div>
     </>}
