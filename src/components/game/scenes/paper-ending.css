@@ -7,7 +7,7 @@
 .paper-ending-control:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .paper-puppet { display: grid; position: relative; transform-origin: 50% 100%; filter: drop-shadow(2px 3px 1px rgb(30 35 48 / .12)); }
 .paper-facing { grid-area: 1 / 1; min-width: 0; }
-.paper-facing-side { visibility: hidden; }
+.paper-facing-side { opacity: 0; }
 .paper-graduate { position: relative; }
 .paper-graduate-cutout { transform-origin: 50% 100%; }
 .paper-ending--playing .paper-graduate-cutout { animation: paper-arrive 700ms steps(1, end) both; }
@@ -53,8 +53,8 @@
   66.7% { transform: translate(-3px, 1px) rotate(1deg); }
   83.3%, 100% { transform: translate(0, 0) rotate(0); opacity: 1; }
 }
-@keyframes paper-face-front { to { visibility: hidden; } }
-@keyframes paper-face-side { to { visibility: visible; } }
+@keyframes paper-face-front { to { opacity: 0; } }
+@keyframes paper-face-side { to { opacity: 1; } }
 @keyframes paper-board {
   from { transform: translateX(0); visibility: visible; }
   to { transform: translateX(140%); visibility: hidden; }
