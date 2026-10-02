@@ -1,7 +1,7 @@
 "use client";
 /**
- * 졸업앨범 — [미졸업자] 지금 가르치는 후배(재학생)와 체력이 다해 떠난 후배(졸업 실패) · [졸업생] 졸업시킨 후배(학사모).
- * 졸업하면 미졸업자 탭에서 사라지고 졸업생 탭에 사진이 걸린다. GET /api/runs/album
+ * [미졸업] 재학생·졸업 직전·졸업 실패 후배 명단 · [졸업앨범] 졸업시킨 후배(학사모) 사진.
+ * 졸업하면 미졸업에서 사라지고 졸업앨범에 사진이 걸린다. GET /api/runs/album
  */
 import clsx from "clsx";
 import Link from "next/link";
@@ -48,7 +48,7 @@ function Polaroid({ e, i }: { e: AlbumEntryDto; i: number }) {
   );
 }
 
-/** 미졸업자 카드: 재학생은 이어서 가르치기/졸업하기, 졸업 실패는 새 후배로 다시 도전 */
+/** 미졸업 카드: 재학생은 이어서 가르치기, 졸업 직전은 졸업시험·졸업하기, 졸업 실패는 새 후배로 다시 도전 */
 function RosterCard({ e, i }: { e: RosterEntry; i: number }) {
   const meta = CHARACTER_META[e.character];
   const failed = e.status === "FAILED";
@@ -92,7 +92,7 @@ export function AlbumPage() {
   const [tab, setTab] = useState<Tab | null>(null);
   useEffect(() => { gameApi.getAlbum().then(setAlbum).catch((e: unknown) => setError(e instanceof Error ? e.message : "졸업앨범을 불러오지 못했습니다.")); }, []);
   const roster = useMemo(() => (album ? rosterOf(album) : []), [album]);
-  // 가르치는 후배가 있으면 미졸업자부터, 없으면 졸업생부터 연다
+  // 가르치는 후배가 있으면 미졸업부터, 없으면 졸업앨범부터 연다
   const current: Tab = tab ?? (roster.length > 0 || !album?.graduated.length ? "enrolled" : "graduated");
   const tabButton = (key: Tab, title: string, count: number) => (
     <button type="button" role="tab" id={`al-tab-${key}`} aria-selected={current === key} aria-controls={`al-panel-${key}`} className={clsx("al-tab", current === key && "is-active")} onClick={() => setTab(key)}>
@@ -101,20 +101,20 @@ export function AlbumPage() {
   );
   return (
     <div className="album-page page-enter">
-      <PageHeader title="졸업앨범" description="재학생·졸업 직전·졸업 실패 후배는 미졸업자에, 졸업 성공한 후배는 졸업생에 걸려요." />
+      <PageHeader title="졸업앨범" description="재학생·졸업 직전·졸업 실패 후배는 미졸업에, 졸업 성공한 후배는 졸업앨범에 걸려요." />
       {error && <Card role="alert" className="border-danger text-danger">{error}</Card>}
       {!album && !error && <p className="py-20 text-center text-muted" role="status">졸업앨범을 펼치는 중…</p>}
       {album && (
         <>
-          <div className="al-tabs" role="tablist" aria-label="졸업앨범 구분">
-            {tabButton("enrolled", "미졸업자", roster.length)}
-            {tabButton("graduated", "졸업생", album.graduated.length)}
+          <div className="al-tabs" role="tablist" aria-label="미졸업 · 졸업앨범">
+            {tabButton("enrolled", "미졸업", roster.length)}
+            {tabButton("graduated", "졸업앨범", album.graduated.length)}
           </div>
           {current === "enrolled" && (
             <section id="al-panel-enrolled" role="tabpanel" aria-labelledby="al-tab-enrolled" className="al-section !mt-6">
               {roster.length ? (
                 <>
-                  <p className="text-sm text-muted">후배의 상태는 네 가지예요 — 가르칠 목차가 남은 <b>재학생</b>, 목차를 모두 통과해 졸업시험·졸업식만 남은 <b>졸업 직전</b>, 체력이 다해 떠난 <b>졸업 실패</b>, 그리고 졸업식을 마쳐 졸업생 탭으로 옮겨 가는 <b>졸업 성공</b>.</p>
+                  <p className="text-sm text-muted">후배의 상태는 네 가지예요 — 가르칠 목차가 남은 <b>재학생</b>, 목차를 모두 통과해 최종 졸업시험만 남은 <b>졸업 직전</b>, 체력이 다해 떠난 <b>졸업 실패</b>, 그리고 졸업식을 마쳐 졸업앨범으로 옮겨 가는 <b>졸업 성공</b>.</p>
                   <ul className="al-roster">{roster.map((e, i) => <RosterCard key={e.key} e={e} i={i} />)}</ul>
                 </>
               ) : (
@@ -138,7 +138,7 @@ export function AlbumPage() {
                   <div className="al-empty-portrait"><JuniorAvatar character="KU_HARD" size={280} mood="think" /></div>
                   <div>
                     <h2 className="text-3xl font-semibold leading-tight tracking-tight">아직 졸업한<br />후배가 없어요</h2>
-                    <p className="mb-7 mt-4 max-w-sm text-sm leading-7 text-muted">모든 챕터를 통과하고 졸업시험({FINAL_QUESTION_COUNT}문항)까지 붙으면 후배가 졸업하고, 이곳에 사진이 걸려요.</p>
+                    <p className="mb-7 mt-4 max-w-sm text-sm leading-7 text-muted">모든 챕터를 통과하고 졸업시험({FINAL_QUESTION_COUNT}문항)까지 붙어 졸업식을 마치면, 미졸업에서 졸업앨범으로 옮겨 와 사진이 걸려요.</p>
                     <Link href="/"><Button>가르치러 가기</Button></Link>
                   </div>
                 </div>

@@ -36,7 +36,7 @@ export const GET = withApi(async (req) => {
     endedAt: r.endedAt!.toISOString(),
     summary: summaryOf(r.summaryJson),
   }));
-  // 미졸업자 탭: 아직 가르치는 중인 후배(재학생). 졸업 실패(GAME_OVER)는 departed 로 같은 탭에 표시한다.
+  // 미졸업 탭: 아직 가르치는 중인 후배(재학생·졸업 직전). 졸업 실패(GAME_OVER)는 departed 로 같은 탭에 표시한다.
   const activeRuns = await db.juniorRun.findMany({ where: { userId: user.userId, status: "ACTIVE" }, orderBy: { updatedAt: "desc" }, include: runInclude });
   const body: AlbumResponse = {
     graduated: entries.filter((e) => e.status === "GRADUATED"),

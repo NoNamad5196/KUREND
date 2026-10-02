@@ -34,7 +34,7 @@
   .al-empty-portrait { min-height: 300px; }
 }
 
-/* 미졸업자 탭: 재학생 + 졸업 실패 후배 명단 */
+/* 미졸업 탭: 재학생·졸업 직전·졸업 실패 후배 명단 */
 .al-tabs { display: flex; gap: .25rem; margin-top: .5rem; border-bottom: 1px solid var(--ink); }
 .al-tab { padding: .95rem 1rem .8rem; margin-bottom: -1px; font-size: 1.05rem; font-weight: 650; letter-spacing: -.03em; color: var(--muted); border-bottom: 2px solid transparent; transition: color .18s ease, border-color .18s ease; }
 .al-tab:hover { color: var(--ink); }

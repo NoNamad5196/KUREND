@@ -1,11 +1,11 @@
 import type { AlbumResponse, JuniorCharacter, RunDto } from "@/contracts/game";
 
 /**
- * 졸업앨범 "미졸업자" 탭의 명단. 후배의 상태는 네 가지다.
+ * "미졸업" 탭의 명단. 후배의 상태는 네 가지다.
  * - 재학생(ENROLLED): 아직 가르칠 목차가 남은 후배
  * - 졸업 직전(NEAR_GRADUATION): 목차를 모두 통과해 최종 졸업시험만 남은 후배(시험을 통과해 졸업식만 남은 경우 포함)
  * - 졸업 실패(FAILED): 체력이 다해 떠난 후배(GAME OVER)
- * - 졸업 성공(GRADUATED): 졸업생 탭으로 옮겨 가므로 이 명단에서 사라진다
+ * - 졸업 성공(GRADUATED): 졸업앨범으로 옮겨 가므로 이 명단에서 사라진다
  */
 export type RosterStatus = "NEAR_GRADUATION" | "ENROLLED" | "FAILED";
 export const ROSTER_LABEL: Record<RosterStatus, string> = { NEAR_GRADUATION: "졸업 직전", ENROLLED: "재학생", FAILED: "졸업 실패" };
@@ -63,7 +63,7 @@ export function rosterOf(album: Pick<AlbumResponse, "active" | "departed">, now 
 /** 카드의 한 줄 상태 설명 */
 export function rosterNote(entry: RosterEntry): string {
   if (entry.status === "FAILED") return "체력이 모두 떨어져 졸업하지 못했어요. 자료는 그대로 남아 있어요.";
-  if (entry.canGraduate) return "졸업시험 통과! 졸업식을 열면 졸업 성공으로 졸업생 탭에 걸려요.";
+  if (entry.canGraduate) return "졸업시험 통과! 졸업식을 열면 졸업 성공으로 졸업앨범에 걸려요.";
   const exam = entry.finalExam;
   if (exam?.status === "IN_PROGRESS") return `졸업시험 진행 중 · ${exam.questionCount}문항`;
   if (exam?.status === "READY") return exam.attempts > 0 ? `졸업시험 ${exam.attempts}회 불합격 · 다시 도전할 수 있어요` : "목차를 모두 통과했어요 · 최종 졸업시험만 남았어요";

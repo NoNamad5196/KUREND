@@ -286,7 +286,7 @@ export type AlbumEntryDto = z.infer<typeof AlbumEntrySchema>;
 export const AlbumResponseSchema = z.object({
   graduated: z.array(AlbumEntrySchema),
   departed: z.array(AlbumEntrySchema),
-  /** 미졸업자 탭의 재학생: ACTIVE 런(최근 활동순). 졸업하면 graduated 로 옮겨 가고 여기서 사라진다 */
+  /** 미졸업 탭의 재학생: ACTIVE 런(최근 활동순). 졸업하면 graduated(졸업앨범)로 옮겨 가고 여기서 사라진다 */
   active: z.array(RunSchema).default([]),
 });
 export type AlbumResponse = z.infer<typeof AlbumResponseSchema>;

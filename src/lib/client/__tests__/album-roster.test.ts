@@ -17,7 +17,7 @@ const ended = (overrides: Partial<AlbumEntryDto> & { runId: string; status: Albu
   ...overrides,
 });
 
-test("미졸업자 명단: 졸업 직전 → 재학생 → 졸업 실패(최근 순) 순서이고, 졸업 성공은 빠진다", () => {
+test("미졸업 명단: 졸업 직전 → 재학생 → 졸업 실패(최근 순) 순서이고, 졸업 성공(졸업앨범)은 빠진다", () => {
   const roster = rosterOf({
     active: [run({ runId: "run_a" }), run({ runId: "run_b", character: "KU_HARD", lives: 1, canGraduate: true, progress: { cleared: 12, total: 12, chapters: [] },
       finalExam: { status: "PASSED", sessionId: "sess", bestScore: 84, attempts: 1, questionCount: 10 } })],
