@@ -7,7 +7,8 @@ import {
   type AnswerSentenceDto, type GapDto, TeachingChoicesSchema,
 } from "@/contracts/types";
 import type { SseEvent } from "@/contracts/events";
-import { objectiveTopic, modelAnswersFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
+import { objectiveTopic, modelAnswersFor, modelKeywordsFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
+import { teachingHintModeFor } from "@/lib/server/demo-auth";
 import { normalizePersonaAddress, personaQuestion } from "@/lib/llm/personas";
 import { examChoiceIndex } from "@/lib/shared/exam-format";
 import type { ConceptMasteryDto } from "@/contracts/game";
@@ -220,9 +221,10 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
               ?? session.objectives.find((item) => !session.heardConcepts.includes(objectiveTopic(item)));
             if (objective) {
               const topic = objectiveTopic(objective);
+              const mode = teachingHintModeFor(session.userId);
               const teachingChoices = llm.generateTeachingChoices
-                ? await llm.generateTeachingChoices({ chapter: session.chapter, topic, objective: objective.text, question: last.content })
-                : modelAnswersFor(session.chapter, topic);
+                ? await llm.generateTeachingChoices({ chapter: session.chapter, topic, objective: objective.text, question: last.content, mode })
+                : (mode === "keywords" ? modelKeywordsFor : modelAnswersFor)(session.chapter, topic);
               if (teachingChoices.length) resumed = await saveSession(request, session, { ...session,
                 messages: session.messages.map((item) => item.messageId === last.messageId ? {
                   ...item, content: session.game?.character === "MALE_EASY" ? personaQuestion(topic, "MALE_EASY") : item.content, teachingChoices,
@@ -238,8 +240,9 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         // 새 챕터: 학습 목표/시험 각 5개. 졸업시험 10개, 기존 연습은 3개.
         const questionCount = session.game?.questionCount ?? 3;
         const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
+        const hintMode = teachingHintModeFor(session.userId);
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
-          persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
+          persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind, hintMode });
         // 출제 결과의 마지막 안전망. 어떤 조건에 걸렸는지 로그로 남겨야 502 원인을 찾을 수 있다(내용은 남기지 않는다).
         const rejected = prepared.objectives.length !== questionCount || new Set(prepared.objectives.map((item) => item.id)).size !== questionCount ? "objectives"
           : prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount ? "questions"
@@ -252,7 +255,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         if (rejected) { console.warn("[prepare] 출제 결과 거절", { reason: rejected, questionCount, examFormat }); modelFailure(); }
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
         const firstQuestion = message("JUNIOR", "QUESTION", normalizePersonaAddress(prepared.firstQuestion, session.game?.character));
-        const choices = prepared.firstTeachingChoices ?? modelAnswersFor(session.chapter, objectiveTopic(prepared.objectives[0]));
+        const choices = prepared.firstTeachingChoices ?? (hintMode === "keywords" ? modelKeywordsFor : modelAnswersFor)(session.chapter, objectiveTopic(prepared.objectives[0]));
         if (choices.length) firstQuestion.teachingChoices = TeachingChoicesSchema.parse(choices);
         send("progress", { step: "GREETING", message: "새내기가 선배의 설명을 기다리고 있어요.", elapsedMs: Date.now() - started });
         const saved = await saveSession(request, session, {
@@ -286,6 +289,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         for await (const event of llm.juniorTurn({
           chapter: session.chapter, level: session.juniorLevel, persona: session.game?.character, objectives: session.objectives,
           heardConcepts: session.heardConcepts, history, explanation: body.content, mastery: session.game?.mastery,
+          hintMode: teachingHintModeFor(session.userId),
         })) {
           checkActive(request);
           if (event.type === "concepts") {

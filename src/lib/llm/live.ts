@@ -1,5 +1,6 @@
 import { answerFromQuote, completeTeachingQuote, evidenceSimilarity, groundedChoice, groundedErrorReason, groundedDiagnosis } from "./exam-grounding";
-import { MODEL_ANSWERS_PROMPT } from "./prompts/model-answers";
+import { MODEL_ANSWERS_PROMPT, MODEL_KEYWORDS_PROMPT } from "./prompts/model-answers";
+import type { TeachingHintMode } from "@/lib/shared/teaching-hints";
 import type { TeachingChoiceDto } from "@/contracts/types";
 import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./transport";
@@ -24,7 +25,7 @@ import { acceptedExplanations, nextObjectiveQuestion, nextLearningObjective } fr
 import { createTutorExplain } from "./tutor";
 import { TEACHER_NOTE_PROMPT } from "./prompts/teacher-note";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
-import { objectiveTopic, isUnknownTeaching, explainedQuestionObjective, matchQuestionObjective, modelAnswersFor, modelAnswersSchema, modelAnswerChoices } from "./teaching-choices";
+import { objectiveTopic, isUnknownTeaching, explainedQuestionObjective, matchQuestionObjective, modelAnswersFor, modelAnswersSchema, modelAnswerChoices, modelKeywordsFor, modelKeywordsSchema, modelKeywordChoices } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
 
 function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
@@ -183,14 +184,21 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
    * 모델이 실패하면 자료 문장 그대로(modelAnswersFor). rubric·시험 정답은 넘기지 않는다.
    */
   async function authorModelAnswers(chapter: Parameters<Llm["prepareSession"]>[0]["chapter"], topic: string,
-    extra: { objective?: string; question?: string; previous?: string[] } = {}): Promise<TeachingChoiceDto[]> {
+    extra: { objective?: string; question?: string; previous?: string[]; mode?: TeachingHintMode } = {}): Promise<TeachingChoiceDto[]> {
+    if (extra.mode === "keywords") {
+      // 실제 계정: 답안 대신 자료 용어 3개. 모델이 실패하면 주제 문장의 빈출 용어.
+      const picked = await calls.completeJSON(MODEL_KEYWORDS_PROMPT, JSON.stringify({
+        topic, objective: extra.objective ?? "", question: extra.question ?? "", source: compactChapter(chapter),
+      }), modelKeywordsSchema(chapter, topic), { temperature: 0.2, maxOutputTokens: 200, timeoutMs: 10_000, stage: "model-keywords" }).catch(() => null);
+      return picked ? modelKeywordChoices(picked.keywords.map((text) => stripMarkdownBold(text))) : modelKeywordsFor(chapter, topic);
+    }
     const authored = await calls.completeJSON(MODEL_ANSWERS_PROMPT, JSON.stringify({
       topic, objective: extra.objective ?? "", question: extra.question ?? "", source: compactChapter(chapter), previous: extra.previous ?? [],
     }), modelAnswersSchema(chapter, topic), { temperature: 0.3, maxOutputTokens: 600, timeoutMs: 12_000, stage: "model-answers" }).catch(() => null);
     return authored ? modelAnswerChoices(authored.answers.map((text) => stripMarkdownBold(text))) : modelAnswersFor(chapter, topic);
   }
   return {
-    generateTeachingChoices: ({ chapter, topic, objective, question, previous }) => authorModelAnswers(chapter, topic, { objective, question, previous }),
+    generateTeachingChoices: ({ chapter, topic, objective, question, previous, mode }) => authorModelAnswers(chapter, topic, { objective, question, previous, mode }),
     async generateTeacherNote({ chapter }) {
       const note = await calls.completeJSON(TEACHER_NOTE_PROMPT, JSON.stringify({ chapter: compactChapter(chapter) }), teacherNoteSchema,
         { temperature: 0.2, maxOutputTokens: 1_200 });
@@ -219,7 +227,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       };
     },
 
-    async prepareSession({ chapter, level, persona, examFormat, questionCount, kind }) {
+    async prepareSession({ chapter, level, persona, examFormat, questionCount, kind, hintMode }) {
       const spec = personaFor(persona);
       const format = examFormat ?? spec?.examFormat ?? "DESCRIPTIVE";
       const count = questionCount ?? (persona ? questionCountFor(persona) : PRACTICE_QUESTION_COUNT);
@@ -236,7 +244,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       });
       const topic = objectiveTopic(prepared.objectives[0]);
       const firstQuestion = persona ? personaQuestion(topic, persona, true) : level === "HARD" ? `${topic}부터 말해 줘. 받아쓸게.` : `선배, ${topic}부터 알려줄래?`;
-      const firstTeachingChoices = await authorModelAnswers(chapter, topic, { objective: prepared.objectives[0].text, question: firstQuestion });
+      const firstTeachingChoices = await authorModelAnswers(chapter, topic, { objective: prepared.objectives[0].text, question: firstQuestion, mode: hintMode });
       return { ...prepared, objectives: prepared.objectives.map(({ id, text }) => ({ id, text })), firstQuestion,
         ...(firstTeachingChoices.length ? { firstTeachingChoices } : {}),
       };
@@ -314,7 +322,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       const choicesCall: Promise<TeachingChoiceDto[]> = !nextObjective ? Promise.resolve([])
         : unknown && previousChoices.length ? Promise.resolve(previousChoices)
         : authorModelAnswers(input.chapter, objectiveTopic(nextObjective), { objective: nextObjective.text, question: fallbackQuestion,
-          previous: sameTopicAgain ? previousChoices.map((choice) => choice.text) : [] });
+          previous: sameTopicAgain ? previousChoices.map((choice) => choice.text) : [], mode: input.hintMode });
       const [responded, teachingChoices] = await Promise.all([respondCall, choicesCall]);
       const reactions = unknown ? [input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : input.persona === "MALE_EASY" ? "괜찮습니다. 아직 배우지 않은 것으로 두겠습니다." : "괜찮아요. 아직 배우지 않은 걸로 둘게요."] : (analysis.contradictions.length > 0 && (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")
         ? [personaFor(input.persona)!.examples.reaction] : responded.reactions).map((reaction) => (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")

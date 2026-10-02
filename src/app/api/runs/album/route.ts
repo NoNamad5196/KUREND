@@ -1,9 +1,10 @@
-// [① 게임 코어 P2] GET /api/runs/album → {graduated: AlbumEntry[], departed: AlbumEntry[]} (최근 종료순)
+// [① 게임 코어 P2] GET /api/runs/album → {graduated, departed: AlbumEntry[] (최근 종료순), active: RunDto[] (재학생, 최근 활동순)}
 import type { AlbumEntryDto, AlbumResponse, GraduationSummaryDto, JuniorCharacter } from "@/contracts/game";
 import { GraduationSummarySchema } from "@/contracts/game";
 import { requireUser } from "@/lib/server/auth";
 import { db } from "@/lib/server/db";
 import { json, withApi } from "@/lib/server/http";
+import { runInclude, toRunDto } from "@/lib/server/run-dto";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,12 @@ export const GET = withApi(async (req) => {
     endedAt: r.endedAt!.toISOString(),
     summary: summaryOf(r.summaryJson),
   }));
-  const body: AlbumResponse = { graduated: entries.filter((e) => e.status === "GRADUATED"), departed: entries.filter((e) => e.status === "GAME_OVER") };
+  // 미졸업자 탭: 아직 가르치는 중인 후배(재학생). 졸업 실패(GAME_OVER)는 departed 로 같은 탭에 표시한다.
+  const activeRuns = await db.juniorRun.findMany({ where: { userId: user.userId, status: "ACTIVE" }, orderBy: { updatedAt: "desc" }, include: runInclude });
+  const body: AlbumResponse = {
+    graduated: entries.filter((e) => e.status === "GRADUATED"),
+    departed: entries.filter((e) => e.status === "GAME_OVER"),
+    active: activeRuns.map(toRunDto),
+  };
   return json(body);
 });

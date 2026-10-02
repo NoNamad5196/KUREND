@@ -212,3 +212,64 @@ export function modelAnswersSchema(chapter: ChapterText, topic: string) {
       }
     });
 }
+
+/* ── 모범 키워드: 실제 계정에서는 답안 대신 설명에 꼭 들어가야 할 자료 용어 3개만 보여 준다(설명은 직접 쓴다) ── */
+export const MODEL_KEYWORD_COUNT = 3;
+const KEYWORD_MAX = 24;
+const KEYWORD_PARTICLE = /(?:으로|에서|부터|까지|에게|처럼|보다|마다|조차|이란|란|의|을|를|은|는|이|가|과|와|로|에|도)$/u;
+const KEYWORD_STOPWORDS = /^(?:때문|경우|이후|이전|전체|부분|각각|해당|모든|같은|다른|여러|하나|가지|정도|이상|이하|방법|방식|내용|의미|이유|특징|설명|예시|관련|사용|이용|가능|필요|중요|기본|일반|대표|주요|구성|요소|과정|결과|상태|형태|종류|기준|조건|대상|문제|해결|것|수|등|및|또는|그리고|그래서|그러나|하지만|즉|또|또한|먼저|다음|이것|그것|우리|자료|후배|선배)$/u;
+const KEYWORD_VERB_END = /[다요야고서며면니께해돼][.!?]?$/u;
+
+function keywordTokens(text: string): string[] {
+  return (text.match(/[가-힣A-Za-z0-9]{2,}/gu) ?? []).map((token) => {
+    const stripped = token.replace(KEYWORD_PARTICLE, "");
+    return stripped.length >= 2 ? stripped : token;
+  }).filter((token) => token.length >= 2 && token.length <= KEYWORD_MAX && !KEYWORD_STOPWORDS.test(token) && !KEYWORD_VERB_END.test(token) && !ANSWER_STOPWORDS.test(token));
+}
+
+export function modelKeywordChoices(keywords: string[]): TeachingChoiceDto[] {
+  const seen = new Set<string>();
+  return keywords.map((text) => cleanSourceSentence(text).replace(/[.!?]+$/u, "")).filter((text) => {
+    const key = text.replace(/\s/gu, "");
+    if (!text || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, MODEL_KEYWORD_COUNT).map((text, index) => ({ id: `keyword_${index + 1}`, text }));
+}
+
+/** 자료에서 그 주제를 설명한 문장들에 자주 나오는 용어(주제어 제외) — 모델이 없을 때의 결정적 키워드 */
+export function modelKeywordsFor(chapter: ChapterText, topic: string): TeachingChoiceDto[] {
+  const exclude = new Set([topic.replace(/\s/gu, ""), ...topicTerms(topic)]);
+  const counts = new Map<string, { count: number; first: number }>();
+  teachingFactsFor(chapter, topic, 3).forEach((sentence, sentenceIndex) => {
+    keywordTokens(sentence).forEach((token, index) => {
+      if (exclude.has(token) || [...exclude].some((term) => term.length >= 2 && (token.includes(term) || term.includes(token)))) return;
+      const entry = counts.get(token) ?? { count: 0, first: sentenceIndex * 1_000 + index };
+      entry.count += 1;
+      counts.set(token, entry);
+    });
+  });
+  const ranked = [...counts.entries()].sort((a, b) => b[1].count - a[1].count || a[1].first - b[1].first).map(([token]) => token);
+  return modelKeywordChoices(ranked);
+}
+
+/** 모델이 고른 키워드는 자료 원문에 있는 용어여야 하고, 주제어 자체나 문장이면 안 된다. */
+export function modelKeywordsSchema(chapter: ChapterText, topic: string) {
+  const compactSource = chapter.text.replace(/\s+/gu, "");
+  const inSource = (text: string) => chapter.text.includes(text) || compactSource.includes(text.replace(/\s+/gu, ""))
+    || (text.replace(KEYWORD_PARTICLE, "").length >= 2 && compactSource.includes(text.replace(KEYWORD_PARTICLE, "").replace(/\s+/gu, "")));
+  return z.object({ keywords: z.array(z.string().trim().min(1).max(KEYWORD_MAX)).min(1).max(MODEL_KEYWORD_COUNT) })
+    .superRefine(({ keywords }, ctx) => {
+      const compact = (text: string) => text.replace(/\s|[.!?]/gu, "");
+      if (new Set(keywords.map(compact)).size !== keywords.length) ctx.addIssue({ code: "custom", message: "키워드는 서로 달라야 합니다." });
+      for (const [index, text] of keywords.entries()) {
+        if (/\*\*|__|`|#|선배|후배님|[?？]$/u.test(text) || KEYWORD_VERB_END.test(text) || /[.。]\s*\S/u.test(text)) {
+          ctx.addIssue({ code: "custom", path: ["keywords", index], message: "문장이 아닌 명사형 키워드만 쓰세요(호칭·마크다운 금지)." });
+        } else if (compact(text) === topic.replace(/\s/gu, "")) {
+          ctx.addIssue({ code: "custom", path: ["keywords", index], message: "질문의 주제어 자체는 키워드가 아닙니다." });
+        } else if (!inSource(text)) {
+          ctx.addIssue({ code: "custom", path: ["keywords", index], message: "자료(source) 원문에 있는 용어를 그대로 쓰세요." });
+        }
+      }
+    });
+}

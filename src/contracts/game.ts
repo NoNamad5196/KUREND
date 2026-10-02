@@ -270,7 +270,7 @@ export type WrongNoteListResponse = z.infer<typeof WrongNoteListResponseSchema>;
 export const ReteachResponseSchema = z.object({ sessionId: z.string(), focusConcepts: z.array(z.string()) });
 export type ReteachResponse = z.infer<typeof ReteachResponseSchema>;
 
-/** P2 졸업앨범: 졸업생 + 떠나간 후배 */
+/** P2 졸업앨범: 졸업생 + 떠나간 후배(졸업 실패) + 재학생(active, 아직 가르치는 중인 후배) */
 export const AlbumEntrySchema = z.object({
   runId: z.string(),
   character: JuniorCharacterSchema,
@@ -283,7 +283,12 @@ export const AlbumEntrySchema = z.object({
   summary: GraduationSummarySchema.nullable(),
 });
 export type AlbumEntryDto = z.infer<typeof AlbumEntrySchema>;
-export const AlbumResponseSchema = z.object({ graduated: z.array(AlbumEntrySchema), departed: z.array(AlbumEntrySchema) });
+export const AlbumResponseSchema = z.object({
+  graduated: z.array(AlbumEntrySchema),
+  departed: z.array(AlbumEntrySchema),
+  /** 미졸업자 탭의 재학생: ACTIVE 런(최근 활동순). 졸업하면 graduated 로 옮겨 가고 여기서 사라진다 */
+  active: z.array(RunSchema).default([]),
+});
 export type AlbumResponse = z.infer<typeof AlbumResponseSchema>;
 
 /* ───────── 요청 ───────── */

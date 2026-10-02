@@ -23,6 +23,7 @@ import { Button, Card, EmptyState, ProgressBar, Spinner, toast } from "@/compone
 import { useSession } from "@/components/session/useSession";
 import { CHARACTER_META } from "@/components/game/characters";
 import { coveredTeachingObjectives } from "@/lib/client/teaching-progress";
+import { teachingChoiceKind } from "@/lib/shared/teaching-hints";
 import { explanationRecovery, type ExplanationAttempt } from "@/lib/client/explanation-recovery";
 import { ChatThread } from "./ChatThread";
 import { Composer } from "./Composer";
@@ -92,6 +93,9 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const waitingQuestion = lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
   const lastQuestion = useMemo(() => [...messages].reverse().find((m) => m.role === "JUNIOR" && m.stage === "QUESTION"), [messages]);
   const teachingChoices = (lastMessage?.role === "JUNIOR" ? lastQuestion?.teachingChoices : undefined) ?? [];
+  // 체험 계정은 모범답안(골라서 전송), 실제 계정은 모범 키워드(입력창에 추가하고 직접 설명)
+  const hintKind = teachingChoiceKind(teachingChoices);
+  const appendKeyword = (keyword: string) => setDraft((value) => (value.includes(keyword) ? value : value.trim() ? `${value.trim()} ${keyword}` : keyword));
   // A brief listening/reply gesture; draft edits and streamed tokens keep the same take.
   const juniorMotionKey = sending ? "listening" : lastMessage?.role === "JUNIOR" ? lastMessage.messageId : "idle";
 
@@ -113,9 +117,9 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           setSession(next);
         }
       }, ac.signal);
-      if (!ac.signal.aborted && !received) setChoicesError("모범답안을 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
+      if (!ac.signal.aborted && !received) setChoicesError("힌트를 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
     } catch (e) {
-      if (!ac.signal.aborted && !recover(e)) setChoicesError(e instanceof ApiError ? e.message : "모범답안을 불러오지 못했어요.");
+      if (!ac.signal.aborted && !recover(e)) setChoicesError(e instanceof ApiError ? e.message : "힌트를 불러오지 못했어요.");
     } finally {
       if (!ac.signal.aborted) setChoicesLoading(false);
     }
@@ -430,7 +434,23 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                   <p className="text-xs leading-5 text-muted">더 알려줄 내용이 있다면 아래에 직접 설명해 주세요.</p>
                 </div>
               ) : choicesLoading ? (
-                <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 후배의 질문에 맞는 모범답안을 준비하고 있어요…</p>
+                <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 후배의 질문에 맞는 힌트를 준비하고 있어요…</p>
+              ) : teachingChoices.length > 0 && hintKind === "keywords" ? (
+                <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
+                  <legend className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+                    이 키워드를 넣어 설명해 보세요
+                    <span className="text-xs font-normal text-muted">모범 키워드 {teachingChoices.length}개 · 누르면 입력창에 들어가요</span>
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {teachingChoices.map((choice, index) => (
+                      <Button key={choice.id} variant="secondary" className="study-choice study-keyword h-auto min-h-10 gap-2 whitespace-normal px-3 py-2 text-left text-sm leading-6" onClick={() => appendKeyword(stripMarkdownBold(choice.text))}>
+                        <span className="text-[11px] font-semibold tracking-wide text-primary">{index + 1}</span>
+                        <span>{stripMarkdownBold(choice.text)}</span>
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-muted">키워드는 자료에서 뽑은 핵심 용어예요. 뜻과 이유를 연결해 선배의 말로 설명해 주세요.</p>
+                </fieldset>
               ) : teachingChoices.length > 0 ? (
                 <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
                   <legend className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
@@ -450,7 +470,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
               ) : choicesError && waitingQuestion ? (
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted" role="status">
                   <p>{choicesError}</p>
-                  <Button size="sm" variant="secondary" disabled={interactionBusy} onClick={() => void loadTeachingChoices()}>모범답안 다시 불러오기</Button>
+                  <Button size="sm" variant="secondary" disabled={interactionBusy} onClick={() => void loadTeachingChoices()}>힌트 다시 불러오기</Button>
                 </div>
               ) : null}
             </div>

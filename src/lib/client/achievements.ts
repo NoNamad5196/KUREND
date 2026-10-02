@@ -40,7 +40,7 @@ export type AchievementInputs = {
   partial: boolean;
 };
 
-const EMPTY_ALBUM: AlbumResponse = { graduated: [], departed: [] };
+const EMPTY_ALBUM: AlbumResponse = { graduated: [], departed: [], active: [] };
 /** 가장 높은 합격선(KU 80점). 이 점수 이상이면 어느 후배든 합격이다. */
 const HIGHEST_PASS = Math.max(...JUNIOR_CHARACTERS.map((c) => CHARACTERS[c].passScore));
 

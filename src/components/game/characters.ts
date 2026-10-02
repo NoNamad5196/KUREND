@@ -30,7 +30,7 @@ export const CHARACTER_META: Record<JuniorCharacter, CharacterMeta> = {
     intro: ["이해가 빠른 후배", "선택형 중심 · 필요하면 직접 설명"],
     teachLabel: "선택지로 쉽게 가르치기",
     exampleLine: "이 개념은 어떤 뜻인지 궁금합니다.",
-    teachingHint: "질문마다 뜨는 모범답안을 골라 보내거나 직접 설명해 주세요. 보낸 내용 그대로 후배가 배워요.",
+    teachingHint: "질문마다 뜨는 힌트(모범답안이나 키워드)를 참고해 설명해 주세요. 보낸 내용 그대로 후배가 배워요.",
     traits: { 이해력: 5, 기억력: 5, 되묻기: 2, 시험난이도: 2 },
     examLabel: "객관식 4지선다 5문항",
     gameOver: {
