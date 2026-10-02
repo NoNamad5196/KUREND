@@ -7,7 +7,7 @@ import {
   type AnswerSentenceDto, type GapDto, TeachingChoicesSchema,
 } from "@/contracts/types";
 import type { SseEvent } from "@/contracts/events";
-import { objectiveTopic, teachingChoicesFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
+import { objectiveTopic, modelAnswersFor, matchQuestionObjective } from "@/lib/llm/teaching-choices";
 import { normalizePersonaAddress, personaQuestion } from "@/lib/llm/personas";
 import { examChoiceIndex } from "@/lib/shared/exam-format";
 import type { ConceptMasteryDto } from "@/contracts/game";
@@ -213,17 +213,19 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         if (session.status === "EXPLAINING") {
           let resumed = session;
           const last = session.messages.at(-1);
-          if (session.game?.character === "MALE_EASY" && session.phase === "QUESTION"
-            && last?.role === "JUNIOR" && last.stage === "QUESTION" && !last.teachingChoices
-            && !session.objectives.every((objective) => session.game!.mastery.some((item) => item.concept === objectiveTopic(objective) && item.mastery >= 100))) {
+          // 선택지(모범답안)가 없는 질문으로 돌아온 세션은 질문을 바꾸지 않고 선택지만 채운다(기록·시험은 그대로).
+          if (session.phase === "QUESTION" && last?.role === "JUNIOR" && last.stage === "QUESTION" && !last.teachingChoices
+            && !(session.objectives.length > 0 && session.objectives.every((objective) => session.game?.mastery.some((item) => item.concept === objectiveTopic(objective) && item.mastery >= 100)))) {
             const objective = matchQuestionObjective(session.objectives, last.content)
               ?? session.objectives.find((item) => !session.heardConcepts.includes(objectiveTopic(item)));
             if (objective) {
               const topic = objectiveTopic(objective);
-              const teachingChoices = llm.generateTeachingChoices ? await llm.generateTeachingChoices({ chapter: session.chapter, topic }) : teachingChoicesFor(session.chapter, topic);
+              const teachingChoices = llm.generateTeachingChoices
+                ? await llm.generateTeachingChoices({ chapter: session.chapter, topic, objective: objective.text, question: last.content })
+                : modelAnswersFor(session.chapter, topic);
               if (teachingChoices.length) resumed = await saveSession(request, session, { ...session,
                 messages: session.messages.map((item) => item.messageId === last.messageId ? {
-                  ...item, content: personaQuestion(topic, "MALE_EASY"), teachingChoices,
+                  ...item, content: session.game?.character === "MALE_EASY" ? personaQuestion(topic, "MALE_EASY") : item.content, teachingChoices,
                 } : item),
               });
             }
@@ -250,10 +252,8 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         if (rejected) { console.warn("[prepare] 출제 결과 거절", { reason: rejected, questionCount, examFormat }); modelFailure(); }
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
         const firstQuestion = message("JUNIOR", "QUESTION", normalizePersonaAddress(prepared.firstQuestion, session.game?.character));
-        if (session.game?.character === "MALE_EASY") {
-          const choices = prepared.firstTeachingChoices ?? teachingChoicesFor(session.chapter, objectiveTopic(prepared.objectives[0]));
-          if (choices.length) firstQuestion.teachingChoices = TeachingChoicesSchema.parse(choices);
-        }
+        const choices = prepared.firstTeachingChoices ?? modelAnswersFor(session.chapter, objectiveTopic(prepared.objectives[0]));
+        if (choices.length) firstQuestion.teachingChoices = TeachingChoicesSchema.parse(choices);
         send("progress", { step: "GREETING", message: "새내기가 선배의 설명을 기다리고 있어요.", elapsedMs: Date.now() - started });
         const saved = await saveSession(request, session, {
           ...session, status: "EXPLAINING", phase: "QUESTION", error: null,
@@ -305,7 +305,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
             if (!concepts || doubt || !reactions.length || question || !event.content.trim()
               || event.coveredObjectives.some((ref) => !session.objectives.some((objective) => objective.id === ref))) modelFailure();
             const record = message("JUNIOR", "QUESTION", normalizePersonaAddress(event.content, session.game?.character));
-            if (session.game?.character === "MALE_EASY" && event.teachingChoices?.length) record.teachingChoices = TeachingChoicesSchema.parse(event.teachingChoices);
+            if (event.teachingChoices?.length) record.teachingChoices = TeachingChoicesSchema.parse(event.teachingChoices);
             question = { record, coveredObjectives: event.coveredObjectives, mastery: event.mastery };
           }
         }

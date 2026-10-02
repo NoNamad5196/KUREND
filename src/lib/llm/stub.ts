@@ -10,7 +10,7 @@ import osTeacherNotes from "./fixtures/teacher-notes.os.json";
 import econTeacherNotes from "./fixtures/teacher-notes.econ.json";
 import type { ChapterText, Llm, TaughtMsg } from "./types";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
-import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, explainedQuestionObjective } from "./teaching-choices";
+import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, explainedQuestionObjective, modelAnswersFor } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
 import { UNLEARNED_ANSWER, hasLearnedAnswer } from "./text";
 import { examChoiceIndex, formatExamChoice, formatExamQuestion } from "@/lib/shared/exam-format";
@@ -254,7 +254,7 @@ function withObjectiveChoices<T extends { questions: { qid: string; order: numbe
 }
 
 export const stubLlm: Llm = {
-  async generateTeachingChoices({ chapter, topic }) { return teachingChoicesFor(chapter, topic); },
+  async generateTeachingChoices({ chapter, topic }) { return modelAnswersFor(chapter, topic); },
   async generateTeacherNote({ chapter }) {
     await pause();
     const fixture = { ...osTeacherNotes, ...econTeacherNotes } as Record<string, {
@@ -342,7 +342,7 @@ export const stubLlm: Llm = {
       questions: persona === "KU_HARD" && kind !== "FINAL"
         ? questions.map((question, index) => index === 2 ? { ...question, question: `${question.question} 자료에 나온 이유나 비교도 함께 설명하시오.` } : question)
         : questions,
-      ...(persona === "MALE_EASY" ? { firstTeachingChoices: teachingChoicesFor(chapter, concepts[0].topic) } : {}),
+      ...(modelAnswersFor(chapter, concepts[0].topic).length ? { firstTeachingChoices: modelAnswersFor(chapter, concepts[0].topic) } : {}),
     };
     return format === "DESCRIPTIVE" ? prepared : withObjectiveChoices(prepared, chapter, (i) => isObjectiveQuestion(format, i, count));
   },
@@ -385,7 +385,7 @@ export const stubLlm: Llm = {
         ? personaQuestion(objectiveTopic(objectives[next]), input.persona) : level === "HARD" ? `${objectiveTopic(objectives[next])}도 말해 줘.` : `선배, ${objectiveTopic(objectives[next])}도 설명해줄래?`, input.persona),
       coveredObjectives,
       ...(progress.mastery ? { mastery: progress.mastery } : {}),
-      ...(input.persona === "MALE_EASY" && next >= 0 ? { teachingChoices: teachingChoicesFor(chapter, objectiveTopic(objectives[next])) } : {}),
+      ...(next >= 0 && modelAnswersFor(chapter, objectiveTopic(objectives[next])).length ? { teachingChoices: modelAnswersFor(chapter, objectiveTopic(objectives[next])) } : {}),
     };
   },
 

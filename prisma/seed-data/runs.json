@@ -77,11 +77,11 @@
       "key": "demo1-chochigi",
       "userId": "usr_demo1",
       "materialSlug": "jeongcheogi-chochigi",
-      "character": "KU_HARD",
+      "character": "FEMALE_NORMAL",
       "maxLives": 3,
       "startedDaysAgo": 4,
       "historySessions": true,
-      "_scenario": "졸업 실패: LIFE 1개 남음(3번째 챕터 두 번 불합격). 한 번 더 떨어지면 GAME OVER",
+      "_scenario": "졸업 실패: 컴순이(FEMALE_NORMAL, 합격 70점) LIFE 1개 남음(3번째 챕터 62·66점으로 두 번 불합격). 한 번 더 떨어지면 GAME OVER",
       "history": [
         {
           "chapterIndex": 0,
@@ -100,7 +100,7 @@
         },
         {
           "chapterIndex": 2,
-          "score": 71,
+          "score": 66,
           "daysAgo": 1
         }
       ]

@@ -57,7 +57,7 @@ test("live P3 doubt uses one call and never discloses source facts", async () =>
 
 test("live P4 request contains question, taught messages, heard concepts and the chapter as a wording reference, never the rubric", async () => {
   const model = createLiveLlm(provider((input) => {
-    assert.deepEqual(Object.keys(input).sort(), ["chapter", "heardConcepts", "question", "taught"]);
+    assert.deepEqual(Object.keys(input).sort(), ["chapter", "heardConcepts", "question", "taught", "taughtHints"]);
     assert.ok(!JSON.stringify(input).includes("DO_NOT_LEAK"));
     return { thought: "들은 설명을 떠올려 보자.", sentences: [{ quote: "가격이 오르면 수요량은 줄어.", ref: 2, level: "STRONG" }], unlearned: false };
   }));

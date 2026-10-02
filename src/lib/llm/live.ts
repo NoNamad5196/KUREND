@@ -1,5 +1,6 @@
-import { answerFromQuote, completeTeachingQuote, groundedChoice, groundedErrorReason, groundedDiagnosis } from "./exam-grounding";
-import { TEACHING_CHOICES_PROMPT } from "./prompts/teaching-choices";
+import { answerFromQuote, completeTeachingQuote, evidenceSimilarity, groundedChoice, groundedErrorReason, groundedDiagnosis } from "./exam-grounding";
+import { MODEL_ANSWERS_PROMPT } from "./prompts/model-answers";
+import type { TeachingChoiceDto } from "@/contracts/types";
 import type { Llm, TaughtMsg } from "./types";
 import { completeJSON, streamText } from "./transport";
 import {
@@ -23,7 +24,7 @@ import { acceptedExplanations, nextObjectiveQuestion, nextLearningObjective } fr
 import { createTutorExplain } from "./tutor";
 import { TEACHER_NOTE_PROMPT } from "./prompts/teacher-note";
 import { personaFor, normalizePersonaAddress, personaQuestion } from "./personas";
-import { objectiveTopic, teachingChoicesFor, isUnknownTeaching, explainedQuestionObjective, teachingFactFor, teachingDistractorsSchema, teachingChoicesFrom } from "./teaching-choices";
+import { objectiveTopic, isUnknownTeaching, explainedQuestionObjective, matchQuestionObjective, modelAnswersFor, modelAnswersSchema, modelAnswerChoices } from "./teaching-choices";
 import { advanceMastery } from "./mastery";
 
 function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
@@ -38,7 +39,7 @@ function taughtMessages(messages: TaughtMsg[]): TaughtMsg[] {
 /* ── 시험 답안 안전망: 모델 JSON 이 두 번 검증에 실패해도 시험이 멈추지 않도록, 가르친 문장만으로 결정적 답안을 만든다 ── */
 const CHOICE_MARKS = ["①", "②", "③", "④"] as const;
 function bigrams(text: string): Set<string> {
-  const plain = text.replace(/[\s.,!?“”"'()·~\-:;]/gu, "");
+  const plain = text.replace(/[\s.,!?“”"'()·~\-:;→⇒]/gu, "");
   const out = new Set<string>();
   for (let i = 0; i < plain.length - 1; i += 1) out.add(plain.slice(i, i + 2));
   return out;
@@ -52,6 +53,52 @@ function overlap(a: string, b: string): number {
 }
 function taughtSentences(messages: TaughtMsg[]): { ref: number; quote: string }[] {
   return messages.flatMap(({ ref, content }) => content.split(/(?<=[.!?。])\s+|\n+/u).map((quote) => quote.trim()).filter((quote) => quote.length >= 6).map((quote) => ({ ref, quote })));
+}
+/**
+ * 졸업시험처럼 가르친 설명이 많으면(10여 개·1만 자 이상) 모델이 인용을 못 찾고 "못 배움"으로 답하기 쉽다.
+ * 질문·보기와 어휘가 겹치는 설명 순으로 추려 넘긴다(ref 는 그대로이므로 인용 검증과 근거 표시는 바뀌지 않는다).
+ */
+const RELEVANT_TAUGHT_LIMIT = 6;
+function relevantTaught(question: string, messages: TaughtMsg[], choices?: string[]): TaughtMsg[] {
+  if (messages.length <= RELEVANT_TAUGHT_LIMIT) return messages;
+  const targets = [question, ...(choices ?? [])];
+  const scored = messages.map((message) => ({ message, score: Math.max(...taughtSentences([message])
+    .map((item) => Math.max(...targets.map((target) => overlap(item.quote, target))))) }));
+  const kept = new Set(scored.sort((a, b) => b.score - a.score).slice(0, RELEVANT_TAUGHT_LIMIT).map(({ message }) => message.ref));
+  return messages.filter((message) => kept.has(message.ref));
+}
+/** 질문·보기와 어휘가 겹치는 가르친 문장(원문 그대로)을 미리 골라 준다. 모델은 이 중에서 답의 근거를 복사하면 인용 검증을 통과한다. */
+function taughtHints(question: string, messages: TaughtMsg[], choices?: string[]): { ref: number; quote: string }[] {
+  const targets = [question, ...(choices ?? []).map((choice) => choice.replace(/^[①②③④]\s*/u, ""))];
+  return taughtSentences(messages)
+    .map((item) => ({ ...item, score: Math.max(...targets.map((target) => overlap(item.quote, target))) }))
+    .filter((item) => item.score >= 0.12)
+    .sort((a, b) => b.score - a.score).slice(0, 8)
+    .map(({ ref, quote }) => ({ ref, quote }));
+}
+/**
+ * 출제된 보기들이 한두 단어만 다른 최소 대립쌍이면 어휘 유사도만으로는 하나를 못 가린다(groundedChoice 가 null).
+ * 그때는 검증된 인용(선배 설명 원문)이 모델이 고른 보기와 충분히 겹치고 다른 보기보다 뒤지지 않을 때만 모델의 선택을 받아들인다.
+ * 인용과 무관한 보기를 고른 경우(자기 지식으로 찍기)는 여전히 근거 없음이다.
+ */
+function supportedModelChoice(choices: string[], quotes: string[], choice?: string | null): string | null {
+  if (!choice || !quotes.length) return null;
+  const scores = choices.map((text) => Math.max(...quotes.map((quote) => evidenceSimilarity(quote, text))));
+  const index = choices.findIndex((text) => text.startsWith(choice));
+  if (index < 0 || scores[index] < 0.25 || scores[index] < Math.max(...scores) - 0.05) return null;
+  return choice;
+}
+/**
+ * 질문이 묻는 개념(첫 조사 앞의 머리 어구: "나선형 개발 모형의 단계 순서로…" → 나선형 개발 모형, "대기 상태에 대하여…" → 대기 상태)의
+ * 낱말이 모두 그 설명에 등장해야 "그 개념을 배운 설명"으로 본다. 이름만 비슷한 다른 개념(준비 상태 ↔ 대기 상태)의 설명은 근거가 아니다.
+ */
+const QUESTION_BOILERPLATE = /^(?:설명|옳은|옳지|틀린|않은|것|고르시오|관한|관하여|대한|대하여|방식|내용|다음|가장|적절|경우|무엇|어떤|하시오|서술|비교|제시|이유|특징|의미|차이|설명하시오|쓰시오|기술|중|및|또는|그리고|있는|없는|대해|따라|관련|해당|이용|사용|통해|위한|위해)$/u;
+function questionMentioned(question: string, content: string): boolean {
+  const head = question.match(/^(.+?)(?:의|에서|에게|에|과|와|은|는|을|를|으로|로)\s/u)?.[1] ?? question;
+  const terms = (head.match(/[가-힣A-Za-z0-9]{2,}/gu) ?? [])
+    .map((term) => term.replace(/(?:으로|에서|부터|까지|의|을|를|은|는|이|가|과|와|로|에|도)$/u, ""))
+    .filter((term) => term.length >= 2 && !QUESTION_BOILERPLATE.test(term));
+  return terms.length > 0 && terms.every((term) => content.includes(term));
 }
 function fallbackExamAnswer(question: string, messages: TaughtMsg[], choices?: string[]) {
   const ranked = taughtSentences(messages)
@@ -72,13 +119,6 @@ function fallbackExamAnswer(question: string, messages: TaughtMsg[], choices?: s
 /** 반응은 호칭 없이 감탄으로: 앞뒤의 "선배님," "…, 선배님!"을 떼고 마크다운을 지운다 */
 /** 답안 문장이 시험 답안 문체(평서형 ~다/~음)로 끝나는지 */
 const isAnswerStyle = (text: string) => /(다|음|함|됨|임)\s*[.。]?\s*$/u.test(text.trim());
-function reactionText(text: string, character?: Parameters<typeof normalizePersonaAddress>[1]): string {
-  const cleaned = stripMarkdownBold(text)
-    .replace(/^선배님?\s*[,，!~.…]*\s*/u, "")
-    .replace(/\s*[,，]?\s*선배님?(?=\s*[.!?~…]*\s*$)/u, "")
-    .trim();
-  return normalizePersonaAddress(cleaned || personaFor(character)?.examples.reaction || "아하, 그렇구나.", character).slice(0, 40);
-}
 /** 답안 문장의 바이그램 중 허용 본문(근거 + 관련 자료 문장)에도 있는 비율 — 새 사실이 끼어들면 낮아진다 */
 function precision(answer: string, allowed: string): number {
   const a = bigrams(answer); const q = bigrams(allowed);
@@ -138,15 +178,19 @@ export type LiveProviderCalls = {
 };
 
 export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamText }): Llm {
-  async function authorTeachingChoices(chapter: Parameters<Llm["prepareSession"]>[0]["chapter"], topic: string) {
-    const statement = teachingFactFor(chapter, topic);
-    if (!statement) return [];
-    const authored = await calls.completeJSON(TEACHING_CHOICES_PROMPT, JSON.stringify({ topic, statement, source: compactChapter(chapter) }),
-      teachingDistractorsSchema(statement, topic), { temperature: 0.2, maxOutputTokens: 700, timeoutMs: 10_000 }).catch(() => null);
-    return authored ? teachingChoicesFrom(statement, authored.distractors, topic) : teachingChoicesFor(chapter, topic);
+  /**
+   * 후배의 질문마다 채팅 위에 보여 줄 모범답안 2개. 자료(source)의 사실만으로 선배 말투로 쓰게 하고, 서버가 자료 근거·호칭·마크다운을 검증한다.
+   * 모델이 실패하면 자료 문장 그대로(modelAnswersFor). rubric·시험 정답은 넘기지 않는다.
+   */
+  async function authorModelAnswers(chapter: Parameters<Llm["prepareSession"]>[0]["chapter"], topic: string,
+    extra: { objective?: string; question?: string; previous?: string[] } = {}): Promise<TeachingChoiceDto[]> {
+    const authored = await calls.completeJSON(MODEL_ANSWERS_PROMPT, JSON.stringify({
+      topic, objective: extra.objective ?? "", question: extra.question ?? "", source: compactChapter(chapter), previous: extra.previous ?? [],
+    }), modelAnswersSchema(chapter, topic), { temperature: 0.3, maxOutputTokens: 600, timeoutMs: 12_000, stage: "model-answers" }).catch(() => null);
+    return authored ? modelAnswerChoices(authored.answers.map((text) => stripMarkdownBold(text))) : modelAnswersFor(chapter, topic);
   }
   return {
-    generateTeachingChoices: ({ chapter, topic }) => authorTeachingChoices(chapter, topic),
+    generateTeachingChoices: ({ chapter, topic, objective, question, previous }) => authorModelAnswers(chapter, topic, { objective, question, previous }),
     async generateTeacherNote({ chapter }) {
       const note = await calls.completeJSON(TEACHER_NOTE_PROMPT, JSON.stringify({ chapter: compactChapter(chapter) }), teacherNoteSchema,
         { temperature: 0.2, maxOutputTokens: 1_200 });
@@ -191,9 +235,10 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         timeoutMs: Math.max(20_000, 10_000 + count * 5_000),
       });
       const topic = objectiveTopic(prepared.objectives[0]);
-      return { ...prepared, objectives: prepared.objectives.map(({ id, text }) => ({ id, text })),
-        firstQuestion: persona ? personaQuestion(topic, persona, true) : level === "HARD" ? `${topic}부터 말해 줘. 받아쓸게.` : `선배, ${topic}부터 알려줄래?`,
-        ...(persona === "MALE_EASY" ? { firstTeachingChoices: await authorTeachingChoices(chapter, topic) } : {}),
+      const firstQuestion = persona ? personaQuestion(topic, persona, true) : level === "HARD" ? `${topic}부터 말해 줘. 받아쓸게.` : `선배, ${topic}부터 알려줄래?`;
+      const firstTeachingChoices = await authorModelAnswers(chapter, topic, { objective: prepared.objectives[0].text, question: firstQuestion });
+      return { ...prepared, objectives: prepared.objectives.map(({ id, text }) => ({ id, text })), firstQuestion,
+        ...(firstTeachingChoices.length ? { firstTeachingChoices } : {}),
       };
     },
 
@@ -253,7 +298,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         ? personaQuestion(objectiveTopic(nextObjective), input.persona)
         : normalizePersonaAddress(nextObjectiveQuestion(input, coveredObjectives), input.persona);
       const persona = personaFor(input.persona);
-      const responded = await calls.completeJSON(`${RESPOND_TURN_PROMPT}${persona ? `\n현재 후배: ${persona.name}. 말투: ${persona.voice}` : ""}`, JSON.stringify({
+      const respondCall = calls.completeJSON(`${RESPOND_TURN_PROMPT}${persona ? `\n현재 후배: ${persona.name}. 말투: ${persona.voice}` : ""}`, JSON.stringify({
           level: input.level,
           persona: input.persona ? { id: input.persona, ...persona } : null,
           history: input.history.slice(-6).map(({ role, stage, content }) => ({ role, stage, content: compactText(content, 240) })),
@@ -262,6 +307,15 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
           objectives: input.objectives.map(({ id, text }) => ({ id, text })),
           nextQuestionHint: fallbackQuestion,
       }), respondTurnSchema, { temperature: 0.7, maxOutputTokens: 400, timeoutMs: 12_000, stage: "respond-turn" });
+      // 모범답안은 후배 반응 생성과 병렬로 쓴다. '모르겠다'면 같은 주제이므로 직전 선택지를 그대로 둔다.
+      const lastQuestion = [...input.history].reverse().find((message) => message.role === "JUNIOR" && message.stage === "QUESTION");
+      const previousChoices = lastQuestion?.teachingChoices ?? [];
+      const sameTopicAgain = Boolean(nextObjective && lastQuestion && matchQuestionObjective(input.objectives, lastQuestion.content)?.id === nextObjective.id);
+      const choicesCall: Promise<TeachingChoiceDto[]> = !nextObjective ? Promise.resolve([])
+        : unknown && previousChoices.length ? Promise.resolve(previousChoices)
+        : authorModelAnswers(input.chapter, objectiveTopic(nextObjective), { objective: nextObjective.text, question: fallbackQuestion,
+          previous: sameTopicAgain ? previousChoices.map((choice) => choice.text) : [] });
+      const [responded, teachingChoices] = await Promise.all([respondCall, choicesCall]);
       const reactions = unknown ? [input.persona === "KU_HARD" ? "괜찮아. 아직 못 배웠으니 함께 다시 보자." : input.persona === "MALE_EASY" ? "괜찮습니다. 아직 배우지 않은 것으로 두겠습니다." : "괜찮아요. 아직 배우지 않은 걸로 둘게요."] : (analysis.contradictions.length > 0 && (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")
         ? [personaFor(input.persona)!.examples.reaction] : responded.reactions).map((reaction) => (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL")
           && /믿|신뢰|말씀하셨으니|틀렸|잘못|아니에요|아닙니다|정답|자료에는|사실은/u.test(reaction) ? personaFor(input.persona)!.examples.reaction : reaction);
@@ -277,39 +331,50 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       yield { type: "question", coveredObjectives, content: stripMarkdownBold(normalizePersonaAddress(
         (input.persona === "MALE_EASY" || input.persona === "FEMALE_NORMAL") && nextObjective ? fallbackQuestion : question, input.persona)),
         ...(progress.mastery ? { mastery: progress.mastery } : {}),
-        ...(input.persona === "MALE_EASY" && nextObjective ? { teachingChoices: unknown && input.history.at(-1)?.teachingChoices?.length ? input.history.at(-1)!.teachingChoices : await authorTeachingChoices(input.chapter, objectiveTopic(nextObjective)) } : {}),
+        ...(teachingChoices.length ? { teachingChoices } : {}),
       };
     },
 
     async *writeExamAnswer({ question, taught, heardConcepts, choices, chapter }) {
       const messages = taughtMessages(taught);
+      const shown = relevantTaught(question, messages, choices);
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
         // Knowledge boundary: taught decides what the junior knows. The chapter is only a wording reference
         // (never the rubric or answer key), and the server rejects answers that grow beyond the cited basis.
-        question, taught: messages, heardConcepts: uniqueStrings(heardConcepts), choices,
+        question, taught: shown, taughtHints: taughtHints(question, shown, choices), heardConcepts: uniqueStrings(heardConcepts), choices,
         // 자료(chapter)는 용어·표현 참고용일 뿐 지식의 범위는 taught 가 정한다. rubric·정답은 절대 넘기지 않는다.
         ...(chapter ? { chapter: compactChapter(chapter) } : {}),
-      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 1_200 })
+      }), examAnswerSchema(shown, choices), { temperature: 0, maxOutputTokens: 1_200 })
         .catch(() => fallbackExamAnswer(question, messages, choices)) : {
         thought: "아직 선배에게 들은 설명이 없어.",
         sentences: [{ quote: null, ref: null, level: "NONE" as const }],
         unlearned: true, choice: choices ? "①" : undefined,
       };
-      const groundedSentences = response.sentences.map((sentence) => {
+      let groundedSentences = response.sentences.map((sentence) => {
         const source = messages.find((message) => message.ref === sentence.ref);
         return { ...sentence, quote: sentence.quote && source ? completeTeachingQuote(sentence.quote, source.content) : sentence.quote };
       });
-      const grounded = choices ? groundedChoice(choices, groundedSentences.flatMap((sentence) => sentence.quote ? [sentence.quote] : [])) : null;
+      const quotes = groundedSentences.flatMap((sentence) => sentence.quote ? [sentence.quote] : []);
+      let grounded = choices ? groundedChoice(choices, quotes) ?? supportedModelChoice(choices, quotes, response.choice) : null;
+      let unlearned = response.unlearned;
+      // 모델이 근거를 못 찾아 "못 배움"으로 답했어도, 질문·보기와 겹치는 가르친 문장이 보기 하나를 분명히 가리키면
+      // 그 문장을 FAINT 근거로 쓴다. 어느 보기인지 가릴 수 없으면(groundedChoice null) 추측하지 않고 그대로 둔다.
+      // 다른 개념을 설명한 문장이 보기와 우연히 겹치는 경우를 막기 위해, 질문의 개념어가 등장하는 설명(ref)만 복구 근거가 된다.
+      if (choices?.length && !grounded && messages.length) {
+        const rescue = fallbackExamAnswer(question, messages.filter((message) => questionMentioned(question, message.content)), choices);
+        const rescued = rescue.unlearned ? null : groundedChoice(choices, rescue.sentences.flatMap((sentence) => sentence.quote ? [sentence.quote] : []));
+        if (rescued) { groundedSentences = rescue.sentences; grounded = rescued; unlearned = false; }
+      }
       const citedRefs = new Set(groundedSentences.map((sentence) => sentence.ref));
       yield { type: "sources", sources: messages.filter((message) => citedRefs.has(message.ref)) };
       for (const token of "학습한 근거 확인 중") yield { type: "thought", token, closed: false };
       yield { type: "thought", token: "", closed: true };
       if (choices?.length) {
         const evidence = grounded ? groundedSentences.find((sentence) => sentence.ref !== null && sentence.quote !== null
-          && groundedChoice(choices, [sentence.quote]) === grounded) : undefined;
+          && (groundedChoice(choices, [sentence.quote]) ?? supportedModelChoice(choices, [sentence.quote], grounded)) === grounded) : undefined;
         const answer = formatExamChoice(grounded ?? response.choice ?? "①");
         yield { type: "sentence", text: answer, ref: evidence?.ref ?? null,
-          level: evidence?.level ?? "NONE", unlearned: response.unlearned || !evidence };
+          level: evidence?.level ?? "NONE", unlearned: unlearned || !evidence };
         yield { type: "final", answer };
         return;
       }
@@ -320,7 +385,7 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       for (const sentence of sentences) {
         yield { type: "sentence", text: sentence.text, ref: sentence.ref,
           level: sentence.ref === null ? "NONE" : sentence.level,
-          unlearned: response.unlearned || sentence.ref === null };
+          unlearned: unlearned || sentence.ref === null };
       }
       yield { type: "final", answer: sentences.map((sentence) => sentence.text).join(" ") };
     },

@@ -32,7 +32,8 @@ test("selected persona reaches the live response system prompt and payload", asy
     const events = [];
     for await (const event of llm.juniorTurn({ chapter: { title: "수요", points: ["수요"], text: "학습자료" }, level: "EASY", persona: character,
       objectives: [{ id: "o1", text: "수요를 설명한다" }], heardConcepts: [], history: [], explanation: "수요는 구매하려는 양이다." })) events.push(event);
-    assert.equal(calls.length, 2);
+    // 분석 → 반응(두 번째) → 모범답안(반응과 병렬, 실패하면 자료 문장으로 대체)
+    assert.equal(calls.length, 3);
     assert.ok(calls[1].system.includes(PERSONAS[character].voice));
     assert.deepEqual(calls[1].body.persona, { id: character, ...PERSONAS[character] });
     assert.deepEqual(calls[1].body.history, [], "fresh conversations carry no previous persona history");
@@ -57,7 +58,8 @@ test("a failed wording call is not disguised as a successful template", async ()
       assert.equal(event.type, "concepts");
     }
   }, (error: unknown) => error === failure);
-  assert.equal(calls, 2);
+  // 반응 호출(2번째)의 실패가 그대로 전달된다. 병렬로 시작된 모범답안 호출(3번째)은 실패를 가리지 않는다.
+  assert.equal(calls, 3);
 });
 
 test("provider parse failures keep diagnostic reason and stage without private output", async () => {

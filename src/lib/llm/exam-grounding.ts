@@ -6,7 +6,7 @@ import { stripMarkdownBold } from "@/lib/shared/plain-text";
 import { LEARNING_ERROR_LABELS } from "@/lib/learning/error-reason";
 
 function grams(text: string): Set<string> {
-  const clean = stripMarkdownBold(text).replace(/^(?:[①②③④]|[1-4]번)\s*/u, "").replace(/[\s\p{P}]/gu, "").toLowerCase();
+  const clean = stripMarkdownBold(text).replace(/^(?:[①②③④]|[1-4]번)\s*/u, "").replace(/[\s\p{P}→⇒]/gu, "").toLowerCase();
   return new Set(Array.from({ length: Math.max(0, clean.length - 1) }, (_, i) => clean.slice(i, i + 2)));
 }
 export function evidenceSimilarity(left: string, right: string): number {

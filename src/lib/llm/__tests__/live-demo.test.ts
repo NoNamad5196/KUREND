@@ -20,6 +20,8 @@ function provider(reply: (input: Record<string, unknown>) => unknown): LiveProvi
       // Wording is now a real validated request: a failing analysis mock must
       // not be swallowed by a production fallback on the second call.
       if (options?.stage === "respond-turn") return schema.parse({ reactions: [reaction], question: input.nextQuestionHint });
+      // 모범답안 선택지는 별도 호출이다. 여기서는 모델 없이 자료 문장 그대로(결정적 안전망)로 둔다.
+      if (options?.stage === "model-answers") throw new Error("model answers offline in this test");
       const parsed = schema.parse(reply(input));
       // 검증을 통과한(=설명에 실제로 있는) 인용만 반응에 쓴다 — 실제 RESPOND_TURN 입력에는 원시 인용이 들어가지 않는다.
       if (parsed && typeof parsed === "object" && "reactionQuote" in parsed && parsed.reactionQuote) reaction = `“${parsed.reactionQuote}”라고 설명해 줬구나.`;
@@ -58,7 +60,7 @@ test("semantic concept labels need teaching evidence, not a literal label substr
   })).juniorTurn(base));
   assert.equal(calls, 1, "analysis runs once; the separate wording request uses a valid mock response");
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["수요 법칙"], added: ["수요 법칙"] });
-  assert.deepEqual(events.at(-1), { type: "question", coveredObjectives: ["o1"], content: "선배, 수요량의 변화도 알려줄래?" });
+  assert.deepEqual({ ...events.at(-1), teachingChoices: undefined }, { type: "question", coveredObjectives: ["o1"], content: "선배, 수요량의 변화도 알려줄래?", teachingChoices: undefined });
   assert.ok(events.some((event) => event.type === "reaction" && event.content.includes("사람들이 사려는 양은 줄어")));
 });
 
@@ -95,7 +97,9 @@ test("cumulative coverage keeps earlier evidence and asks only the missing objec
     });
   })).juniorTurn({ ...base, history, explanation: second, heardConcepts: ["수요 법칙"] }));
   assert.deepEqual(events[0], { type: "concepts", heardConcepts: ["수요 법칙", "수요량의 변화"], added: ["수요량의 변화"] });
-  assert.deepEqual(events.at(-1), { type: "question", coveredObjectives: ["o1", "o2"], content: "선배, 수요 결정요인도 알려줄래?" });
+  const { teachingChoices, ...question } = events.at(-1) as { teachingChoices?: unknown[] };
+  assert.ok(teachingChoices?.length, "다음 주제의 모범답안이 질문에 붙는다");
+  assert.deepEqual(question, { type: "question", coveredObjectives: ["o1", "o2"], content: "선배, 수요 결정요인도 알려줄래?" });
 });
 
 test("source-only concept quotes, rejected refs and injected reactions fail validation", async () => {
@@ -117,7 +121,8 @@ test("legacy HARD practice remains compatible; KU asks about a contradiction", a
   }))).juniorTurn({ ...base, level: "HARD", explanation }));
   assert.ok(!events.some((event) => event.type === "doubt"));
   assert.ok(events.some((event) => event.type === "reaction"));
-  assert.ok(!JSON.stringify(events).includes("줄어"));
+  // 후배의 말(반응·질문)에는 자료의 정답이 새지 않는다. 모범답안 선택지는 선배를 위한 자료 인용이라 제외하고 본다.
+  assert.ok(!JSON.stringify(events.map((event) => ({ ...event, teachingChoices: undefined }))).includes("줄어"));
   const ku = await collect(createLiveLlm(provider(() => analysis({
     contradictions: [{ claim: explanation }], concepts: [{ name: "수요량", quote: "수요량" }],
   }))).juniorTurn({ ...base, level: "HARD", persona: "KU_HARD", explanation }));

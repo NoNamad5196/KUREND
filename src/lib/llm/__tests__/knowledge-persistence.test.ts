@@ -63,7 +63,7 @@ test("incorrect teaching survives real SQLite, answer generation, result and wro
             return schema.parse(value.rubricElements ? { qid: value.question.qid, score: 0, verdict: "WRONG", comment: "자료의 기준을 충족하지 못했습니다.", rubricChecks: [false, false], contradictsSource: index === 0, gap } : { gap });
           }
           answerCalls += 1;
-          assert.deepEqual(Object.keys(value).sort(), character === "MALE_EASY" ? ["chapter", "choices", "heardConcepts", "question", "taught"] : ["chapter", "heardConcepts", "question", "taught"]);
+          assert.deepEqual(Object.keys(value).sort(), character === "MALE_EASY" ? ["chapter", "choices", "heardConcepts", "question", "taught", "taughtHints"] : ["chapter", "heardConcepts", "question", "taught", "taughtHints"]);
           assert.equal(value.taught[0].content, wrong);
           const learned = value.question.includes("준비 상태");
           // The model deliberately offers the corrected definition and correct choice.

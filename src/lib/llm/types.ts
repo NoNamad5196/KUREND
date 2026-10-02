@@ -5,7 +5,8 @@ export type ChapterText = { title: string; points: string[]; text: string };    
 export type TaughtMsg = { ref: number; content: string };                        // 사용자 USER 메시지(excluded 제외), 1-base 순번
 
 export interface Llm {
-  generateTeachingChoices?(input: { chapter: ChapterText; topic: string }): Promise<TeachingChoiceDto[]>;
+  /** 후배 질문에 대한 모범답안 선택지(자료 근거). objective·question·previous 는 표현을 고르는 참고일 뿐이다. */
+  generateTeachingChoices?(input: { chapter: ChapterText; topic: string; objective?: string; question?: string; previous?: string[] }): Promise<TeachingChoiceDto[]>;
   generateChapters(input: { sources: { sourceId: string; text: string }[]; persona?: JuniorCharacter }):
     Promise<{ title: string; chapters: { title: string; points: string[]; sourceId: string; startOffset: number; endOffset: number }[] }>;
   prepareSession(input: { chapter: ChapterText; level: "EASY"|"HARD"; persona?: JuniorCharacter; examFormat?: "DESCRIPTIVE"|"OBJECTIVE"|"MIXED"; questionCount?: number; kind?: "CHAPTER"|"FINAL" }):

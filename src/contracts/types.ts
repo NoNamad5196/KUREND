@@ -200,7 +200,7 @@ export type ObjectiveDto = z.infer<typeof ObjectiveSchema>;
 
 /** Choices describe what the user teaches; they never include exam answer keys. */
 export const TeachingChoiceSchema = z.object({ id: z.string().min(1), text: z.string().min(1).max(2000) });
-export const TeachingChoicesSchema = z.array(TeachingChoiceSchema).min(2).max(4);
+export const TeachingChoicesSchema = z.array(TeachingChoiceSchema).min(1).max(4);
 export type TeachingChoiceDto = z.infer<typeof TeachingChoiceSchema>;
 
 export const MessageSchema = z.object({

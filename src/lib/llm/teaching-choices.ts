@@ -43,20 +43,7 @@ export function cleanSourceSentence(text: string): string {
 
 /** Pick an actual assertion from the source, never material directions or an answer key. */
 export function teachingFactFor(chapter: ChapterText, topic: string): string | undefined {
-  const terms = topicTerms(topic);
-  const raw = (chapter.text.match(/[^.!?。！？\n]+(?:[.!?。！？]+|$)/gu) ?? [])
-    .filter((text) => !/^\s*(?:#|\|)/u.test(text))
-    .map(cleanSourceSentence);
-  const sentences = raw.map((text, index) => /^(?:이는|이것이|이것은) /u.test(text) && index > 0 ? `${raw[index - 1]} ${text}` : text)
-    .filter((text) => text.length > 12 && text.length <= 200 && !isMaterialDirection(text));
-  const ranked = sentences.map((text, index) => {
-    const matches = terms.filter((term) => text.includes(term)).length;
-    const relationship = matches > 0 && /요인|원인|조건/u.test(topic)
-      ? Math.min(3, (text.match(/[,·]/gu) ?? []).length) + Number(/때|면|따라|때문|영향|조건/u.test(text)) : 0;
-    const definition = text.includes(`${topic}는 `) || text.includes(`${topic}은 `) || text.includes(`${topic}이란 `);
-    return { text, index, score: matches * 10 + relationship + (text.includes(topic) ? 100 : 0) + (definition ? 100 : 0) };
-  }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || a.index - b.index);
-  return ranked[0]?.text;
+  return teachingFactsFor(chapter, topic, 1)[0];
 }
 
 export const META_CHOICE = /(?:맞지|옳지)\s*않|(?:설명|문장|내용|주장|보기).{0,8}(?:맞지|옳지|틀렸|관계없)|(?:아직|잘)\s*모르|정답|오답|(?:^|\s)위의\s*(?:보기|설명|모든)|위 설명|모두 맞|해당 없|선배|\*\*/u;
@@ -153,4 +140,75 @@ export function isUnknownTeaching(text: string): boolean {
 /** A selected proposition is an explanation, not a correctness judgement. */
 export function selectedTeachingObjective(input: Parameters<Llm["juniorTurn"]>[0]): string | undefined {
   return input.persona === "MALE_EASY" ? explainedQuestionObjective(input) : undefined;
+}
+
+/* ── 모범답안 선택지: 후배의 질문마다 자료에 근거한 답안 2개를 채팅 위에 제안한다(고르거나 직접 입력) ── */
+export const MODEL_ANSWER_COUNT = 2;
+const MODEL_ANSWER_MIN = 20;
+const MODEL_ANSWER_MAX = 240;
+const ANSWER_STOPWORDS = /^(?:그래서|그리고|그런데|그러면|이렇게|그렇게|때문에|때문이야|예를|들어|이것은|이건|그건|거야|이야|같아|있어|없어|돼|해|한다|된다|이다|말이야|쉽게|보면|즉|또|또한|먼저|그냥|정리하면|이걸|그걸|우리가|내가)$/u;
+
+/** Ranked source assertions for a topic (most specific first), without directions or duplicates. */
+export function teachingFactsFor(chapter: ChapterText, topic: string, limit = MODEL_ANSWER_COUNT): string[] {
+  const terms = topicTerms(topic);
+  const raw = (chapter.text.match(/[^.!?。！？\n]+(?:[.!?。！？]+|$)/gu) ?? [])
+    .filter((text) => !/^\s*(?:#|\|)/u.test(text))
+    .map(cleanSourceSentence);
+  const sentences = raw.map((text, index) => /^(?:이는|이것이|이것은) /u.test(text) && index > 0 ? `${raw[index - 1]} ${text}` : text)
+    .filter((text) => text.length > 12 && text.length <= 200 && !isMaterialDirection(text));
+  const ranked = sentences.map((text, index) => {
+    const matches = terms.filter((term) => text.includes(term)).length;
+    const relationship = matches > 0 && /요인|원인|조건/u.test(topic)
+      ? Math.min(3, (text.match(/[,·]/gu) ?? []).length) + Number(/때|면|따라|때문|영향|조건/u.test(text)) : 0;
+    const definition = text.includes(`${topic}는 `) || text.includes(`${topic}은 `) || text.includes(`${topic}이란 `);
+    return { text, index, score: matches * 10 + relationship + (text.includes(topic) ? 100 : 0) + (definition ? 100 : 0) };
+  }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || a.index - b.index);
+  const out: string[] = [];
+  for (const { text, score } of ranked) {
+    if (out.some((seen) => seen.replace(/\s/gu, "") === text.replace(/\s/gu, ""))) continue;
+    // 두 번째 이후 문장은 주제를 온전히 담은 것만(한 단어만 겹치는 다른 개념의 문장은 모범답안이 아니다).
+    if (out.length > 0 && score < 100 && score < terms.length * 10) break;
+    out.push(text);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export function modelAnswerChoices(answers: string[]): TeachingChoiceDto[] {
+  return answers.map((text, index) => ({ id: `answer_${index + 1}`, text: cleanSourceSentence(text) })).filter((choice) => choice.text.length > 0);
+}
+
+/** Deterministic model answers straight from the source (offline, demo, or when the model's draft fails validation). */
+export function modelAnswersFor(chapter: ChapterText, topic: string): TeachingChoiceDto[] {
+  return modelAnswerChoices(teachingFactsFor(chapter, topic));
+}
+
+/** Share of content words of an answer that appear in the source (particles and verb endings tolerated). */
+export function groundedInSource(answer: string, source: string): number {
+  const tokens = (answer.match(/[가-힣A-Za-z0-9]{2,}/gu) ?? []).filter((token) => !ANSWER_STOPWORDS.test(token));
+  if (!tokens.length) return 0;
+  const compact = source.replace(/\s+/gu, "");
+  const hits = tokens.filter((token) => [token, token.slice(0, -1), token.slice(0, -2)]
+    .filter((candidate) => candidate.length >= 2)
+    .some((candidate) => source.includes(candidate) || compact.includes(candidate))).length;
+  return hits / tokens.length;
+}
+
+/** The model may only phrase what the source says: no new facts, no address, no markdown, on topic. */
+export function modelAnswersSchema(chapter: ChapterText, topic: string) {
+  const terms = topicTerms(topic);
+  return z.object({ answers: z.array(z.string().trim().min(MODEL_ANSWER_MIN).max(MODEL_ANSWER_MAX)).min(1).max(MODEL_ANSWER_COUNT) })
+    .superRefine(({ answers }, ctx) => {
+      const compact = (text: string) => text.replace(/\s|[.!?]/gu, "");
+      if (new Set(answers.map(compact)).size !== answers.length) ctx.addIssue({ code: "custom", message: "두 답안은 서로 달라야 합니다." });
+      for (const [index, text] of answers.entries()) {
+        if (META_CHOICE.test(text) || /\*\*|__|`|#|선배|후배님|[?？]\s*$/u.test(text)) {
+          ctx.addIssue({ code: "custom", path: ["answers", index], message: "호칭·질문형·마크다운·메타 표현 없이 설명 문장만 쓰세요." });
+        } else if (groundedInSource(text, chapter.text) < 0.5) {
+          ctx.addIssue({ code: "custom", path: ["answers", index], message: "자료(source)에 있는 용어와 사실만으로 쓰세요." });
+        } else if (terms.length && !terms.some((term) => text.includes(term)) && !text.includes(topic)) {
+          ctx.addIssue({ code: "custom", path: ["answers", index], message: `${topic}에 대한 설명이어야 합니다.` });
+        }
+      }
+    });
 }

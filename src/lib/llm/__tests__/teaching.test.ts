@@ -6,7 +6,7 @@ import { CHARACTERS } from "@/contracts/game";
 import { stubLlm } from "../stub";
 import { createLiveLlm } from "../live";
 import { normalizePersonaAddress, PERSONAS } from "../personas";
-import { teachingChoicesFor, teachingFactFor, selectedTeachingObjective, teachingDistractorsSchema } from "../teaching-choices";
+import { teachingChoicesFor, selectedTeachingObjective, teachingDistractorsSchema } from "../teaching-choices";
 import { sourceLearningConcepts } from "../learning-plan";
 import { createRouteHandlers } from "../routes/handlers";
 import { createDefaultStubSeed, createStubBackend, D_STUB_IDS } from "../routes/backend-stub";
@@ -44,7 +44,9 @@ test("source-grounded teaching options are distinct from exam options and carry 
     else assert.doesNotMatch(prepared.firstQuestion, /선배님?[,.~]/u);
     assert.equal(prepared.objectives.length, 5);
     assert.equal(prepared.questions.length, 5);
-    assert.equal(Boolean(prepared.firstTeachingChoices), persona === "MALE_EASY");
+    // 모범답안 선택지는 모든 후배의 질문에 붙는다(자료 문장 그대로, 정답 표시 없음).
+    assert.ok(prepared.firstTeachingChoices?.length);
+    assert.ok(prepared.firstTeachingChoices!.every((choice) => /^answer_\d$/u.test(choice.id) && chapter.text.includes(choice.text.replace(/[.!?]$/u, ""))));
     assert.equal(prepared.questions.every((question) => question.choices?.length === 4), persona === "MALE_EASY");
   }
 });
@@ -53,7 +55,9 @@ test("male choice uses the existing USER answer pipeline, accepts wrong teaching
   const { backend, handlers, id } = maleBackend();
   assert.doesNotMatch(await (await handlers.prepare(request(), id)).text(), /event: error/u);
   const prepared = (await backend.getSession(id, D_STUB_IDS.user))!;
-  const wrong = prepared.messages.at(-1)!.teachingChoices!.find((choice) => choice.id === "teach_alternative")!.text;
+  assert.ok(prepared.messages.at(-1)!.teachingChoices!.length, "모범답안이 첫 질문에 붙는다");
+  // 모범답안 대신 직접 적은 틀린 설명도 그대로 배운다(채점·교정 없음).
+  const wrong = "수요 법칙은 다른 조건이 일정할 때 가격이 오르면 수요량도 함께 늘어난다는 거야.";
   const stream = await (await handlers.explanations(request(wrong), id)).text();
   assert.match(stream, /event: junior.message/u);
   assert.doesNotMatch(stream, /event: junior.doubt|event: error/u);
@@ -109,7 +113,7 @@ test("KU requires distinct repeated explanations while female remembers one clea
   assert.deepEqual(female.coveredObjectives, ["o1"]);
   assert.match(female.content, /의미와 이유/u);
   assert.doesNotMatch(female.content, /선배님/u);
-  assert.equal(female.teachingChoices, undefined);
+  assert.ok(female.teachingChoices?.length, "여학생 질문에도 모범답안이 붙는다");
 });
 
 test("live male learns source contradictions without passing the source or alternatives into junior response", async () => {
@@ -197,7 +201,7 @@ test("overlapping objective names preserve the specific legacy question and cred
   await (await handlers.prepare(request(), id)).text();
   const resumed = (await backend.getSession(id, D_STUB_IDS.user))!;
   assert.match(resumed.messages.at(-1)!.content, /프로세스 상태에 대해/u);
-  const selected = resumed.messages.at(-1)!.teachingChoices!.find((choice) => choice.id === "teach_statement")!.text;
+  const selected = resumed.messages.at(-1)!.teachingChoices![0].text;
   assert.match(selected, /프로세스 상태/u);
   const stream = await (await handlers.explanations(request(selected), id)).text();
   assert.doesNotMatch(stream, /event: error/u);
@@ -326,19 +330,27 @@ test("MCQ authoring rejects meta negation, unrelated options, duplicates and len
   }
 });
 
-test("teaching MCQ authoring receives a literal source assertion, without a persona or hidden exam key", async () => {
-  const readiness = { title: "프로세스 상태", points: ["준비 상태"], text: "준비 상태는 CPU 할당을 기다리는 상태이다." };
+test("model answers are authored from the source only, validated for grounding, without a persona or hidden exam key", async () => {
+  const readiness = { title: "프로세스 상태", points: ["준비 상태"], text: "준비 상태는 CPU 할당을 기다리는 상태이다. 실행 상태는 CPU를 사용해 명령을 실행하는 상태이다." };
+  let attempts = 0;
   const llm = createLiveLlm({ async completeJSON(_prompt, user, schema) {
     const input = JSON.parse(user);
-    assert.equal(input.statement, teachingFactFor(readiness, "준비 상태"));
+    attempts += 1;
+    assert.equal(input.topic, "준비 상태");
     assert.equal(input.source.text, readiness.text);
-    for (const key of ["persona", "rubric", "exam", "answers"]) assert.equal(input[key], undefined);
-    return schema.parse({ distractors: ["준비 상태는 입출력 완료를 기다리는 상태이다.", "준비 상태는 이미 CPU를 사용하고 있는 상태이다.", "준비 상태는 프로세스 실행이 종료된 상태이다."] });
+    for (const key of ["persona", "rubric", "exam", "answers", "statement"]) assert.equal(input[key], undefined);
+    // 자료에 없는 사실·호칭·마크다운은 거절된다
+    assert.throws(() => schema.parse({ answers: ["준비 상태는 선배님이 말한 대로 CPU 할당을 기다리는 상태야.", "준비 상태는 CPU 할당을 기다리는 상태야."] }));
+    assert.throws(() => schema.parse({ answers: ["준비 상태는 네트워크 패킷이 도착하기를 기다리는 소켓의 상태를 뜻해.", "준비 상태는 CPU 할당을 기다리는 상태야."] }));
+    return schema.parse({ answers: ["준비 상태는 CPU 할당을 기다리는 상태야.", "준비 상태는 CPU 할당만 기다리는 상태라서, CPU를 사용해 명령을 실행하는 실행 상태와 구분돼."] });
   }, async *streamText() { throw new Error("unused"); } });
-  const choices = await llm.generateTeachingChoices!({ chapter: readiness, topic: "준비 상태" });
-  assert.equal(choices.length, 4);
-  assert.equal(choices.filter((choice) => choice.text === readiness.text).length, 1);
-  assert.equal(new Set(choices.map((choice) => choice.text)).size, 4);
+  const choices = await llm.generateTeachingChoices!({ chapter: readiness, topic: "준비 상태", question: "준비 상태부터 설명해 주시면 좋겠습니다." });
+  assert.equal(attempts, 1);
+  assert.deepEqual(choices.map((choice) => choice.id), ["answer_1", "answer_2"]);
+  assert.ok(choices.every((choice) => /준비 상태/u.test(choice.text) && !/선배|\*\*/u.test(choice.text)));
+  // 모델이 실패하면 자료 문장 그대로
+  const offline = createLiveLlm({ async completeJSON() { throw new Error("down"); }, async *streamText() { throw new Error("unused"); } });
+  assert.deepEqual((await offline.generateTeachingChoices!({ chapter: readiness, topic: "준비 상태" })).map((choice) => choice.text), ["준비 상태는 CPU 할당을 기다리는 상태이다."]);
 });
 
 test("quiz preparation separates five formal questions from the human junior persona", async () => {

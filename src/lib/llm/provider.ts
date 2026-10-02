@@ -2,7 +2,7 @@
 import type { Llm } from "./types";
 import { createLiveLlm } from "./live";
 import { stubLlm } from "./stub";
-import { teachingChoicesFor } from "./teaching-choices";
+import { modelAnswersFor } from "./teaching-choices";
 import { providerName } from "./transport";
 
 export * from "./transport";
@@ -13,7 +13,7 @@ function implementation(): Llm {
   return providerName() === "stub" ? stubLlm : (live ??= createLiveLlm());
 }
 export const llm: Llm = {
-  generateTeachingChoices: input => implementation().generateTeachingChoices?.(input) ?? Promise.resolve(teachingChoicesFor(input.chapter, input.topic)),
+  generateTeachingChoices: input => implementation().generateTeachingChoices?.(input) ?? Promise.resolve(modelAnswersFor(input.chapter, input.topic)),
   generateChapters: input => implementation().generateChapters(input),
   generateTeacherNote: input => implementation().generateTeacherNote(input),
   prepareSession: input => implementation().prepareSession(input),

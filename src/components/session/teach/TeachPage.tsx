@@ -63,7 +63,6 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const [animateId, setAnimateId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [directExplanation, setDirectExplanation] = useState(false);
   const [choicesLoading, setChoicesLoading] = useState(false);
   const [choicesError, setChoicesError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
@@ -77,7 +76,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     setCovered(readCovered(sessionId));
     setDraft(""); setPending(null); setReactionText(""); setTurnError(null); setSending(false);
-    setDirectExplanation(false); setChoicesLoading(false); setChoicesError(null); setRecovering(false);
+    setChoicesLoading(false); setChoicesError(null); setRecovering(false);
     setAnimateId(null); setFinishing(false); setPanelOpen(false);
     sendingRef.current = false; recoveryRef.current = false; enrichmentRef.current = null;
     return () => { abortRef.current?.abort(); choicesAbortRef.current?.abort(); };
@@ -87,11 +86,12 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const userCount = useMemo(() => messages.filter((m) => m.role === "USER").length, [messages]);
   const lastMessage = messages.at(-1);
   const character = session?.character ?? run?.character ?? (session?.juniorLevel === "HARD" ? "KU_HARD" : "MALE_EASY");
-  const male = character === "MALE_EASY";
   const restoredCovered = coveredTeachingObjectives(session?.objectives ?? [], covered, game?.mastery);
   const allObjectivesCovered = !!session?.objectives.length && restoredCovered.length === session.objectives.length;
-  const waitingQuestion = male && lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
-  const teachingChoices = waitingQuestion?.teachingChoices ?? [];
+  // 모범답안은 모든 후배에게 보인다. 되묻기(DOUBT) 중에도 같은 주제이므로 직전 질문의 모범답안을 그대로 둔다.
+  const waitingQuestion = lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
+  const lastQuestion = useMemo(() => [...messages].reverse().find((m) => m.role === "JUNIOR" && m.stage === "QUESTION"), [messages]);
+  const teachingChoices = (lastMessage?.role === "JUNIOR" ? lastQuestion?.teachingChoices : undefined) ?? [];
 
   // Existing sessions can predate teaching choices. Preparing an already active
   // session enriches its unanswered question without resetting its history/exam.
@@ -111,9 +111,9 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           setSession(next);
         }
       }, ac.signal);
-      if (!ac.signal.aborted && !received) setChoicesError("선택지를 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
+      if (!ac.signal.aborted && !received) setChoicesError("모범답안을 준비하지 못했어요. 다시 시도하거나 직접 설명해 주세요.");
     } catch (e) {
-      if (!ac.signal.aborted && !recover(e)) setChoicesError(e instanceof ApiError ? e.message : "선택지를 불러오지 못했어요.");
+      if (!ac.signal.aborted && !recover(e)) setChoicesError(e instanceof ApiError ? e.message : "모범답안을 불러오지 못했어요.");
     } finally {
       if (!ac.signal.aborted) setChoicesLoading(false);
     }
@@ -174,7 +174,6 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
       setPending({ ...attempt, failed: false });
       setReactionText("");
       setDraft("");
-      setDirectExplanation(false);
       const now = new Date().toISOString();
       let saved = !!attempt.messageId;
       let answered = false;
@@ -424,43 +423,40 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
                 <Button size="sm" variant="secondary" disabled={interactionBusy} onClick={() => void retryExplanation(recoveringExplanation)}>응답 다시 받기</Button>
               </div>
             )}
-            {male && (
-              <div className="space-y-4 border-t border-line bg-bg/50 p-4 sm:p-6">
-                {allObjectivesCovered && !teachingChoices.length ? (
-                  <div className="space-y-1" role="status">
-                    <p className="text-sm font-semibold text-primary">모든 학습 목표를 다뤘어요. 이제 후배의 시험을 볼 수 있어요!</p>
-                    <p className="text-xs leading-5 text-muted">더 알려줄 내용이 있다면 직접 설명해 주세요.</p>
+            <div className="space-y-3 border-t border-line bg-bg/50 p-4 sm:p-6" aria-label="모범답안">
+              {allObjectivesCovered && !teachingChoices.length ? (
+                <div className="space-y-1" role="status">
+                  <p className="text-sm font-semibold text-primary">모든 학습 목표를 다뤘어요. 이제 후배의 시험을 볼 수 있어요!</p>
+                  <p className="text-xs leading-5 text-muted">더 알려줄 내용이 있다면 아래에 직접 설명해 주세요.</p>
+                </div>
+              ) : choicesLoading ? (
+                <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 후배의 질문에 맞는 모범답안을 준비하고 있어요…</p>
+              ) : teachingChoices.length > 0 ? (
+                <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
+                  <legend className="mb-2 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+                    이렇게 설명해 볼까요?
+                    <span className="text-xs font-normal text-muted">모범답안 {teachingChoices.length}개 · 골라서 보내거나 아래에 직접 설명해도 돼요</span>
+                  </legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {teachingChoices.map((choice, index) => (
+                      <Button key={choice.id} variant="secondary" className="study-choice h-auto min-h-12 flex-col items-start justify-start gap-1 whitespace-normal px-4 py-3 text-left leading-6" onClick={() => void send(choice.text)}>
+                        <span className="text-[11px] font-semibold tracking-wide text-primary">모범답안 {index + 1}</span>
+                        <span>{stripMarkdownBold(choice.text)}</span>
+                      </Button>
+                    ))}
                   </div>
-                ) : choicesLoading ? (
-                  <p className="flex items-center gap-2 text-sm text-muted" role="status"><Spinner /> 자료에서 가르칠 선택지를 준비하고 있어요…</p>
-                ) : teachingChoices.length > 0 ? (
-                  <fieldset className="study-choice-fieldset" disabled={interactionBusy}>
-                    <legend className="mb-2 text-sm font-semibold">후배에게 알려줄 내용을 골라 주세요</legend>
-                    <div className="grid gap-2">
-                      {teachingChoices.map((choice) => (
-                        <Button key={choice.id} variant="secondary" className="study-choice h-auto min-h-12 justify-start whitespace-normal px-4 py-4 text-left leading-6" onClick={() => void send(choice.text)}>
-                          {stripMarkdownBold(choice.text)}
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-muted">내 답을 채점하는 퀴즈가 아니에요. 선택한 내용을 후배가 배우고 시험에 사용해요.</p>
-                  </fieldset>
-                ) : choicesError && waitingQuestion ? (
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted" role="status">
-                    <p>{choicesError}</p>
-                    <Button size="sm" variant="secondary" disabled={interactionBusy} onClick={() => void loadTeachingChoices()}>선택지 다시 불러오기</Button>
-                  </div>
-                ) : null}
-                <Button size="sm" variant="ghost" disabled={interactionBusy} aria-expanded={directExplanation} aria-controls="direct-explanation" onClick={() => setDirectExplanation((value) => !value)}>
-                  {directExplanation ? "직접 설명 닫기" : "직접 설명하기"}
-                </Button>
-              </div>
-            )}
-            {(!male || directExplanation) && (
-              <div id="direct-explanation">
-                <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} disabled={recovering || choicesLoading || finishing || gameLoading} placeholder={composerPlaceholder} />
-              </div>
-            )}
+                  <p className="mt-2 text-xs leading-5 text-muted">내 답을 채점하는 퀴즈가 아니에요. 보낸 내용 그대로 후배가 배우고 시험에 사용해요.</p>
+                </fieldset>
+              ) : choicesError && waitingQuestion ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted" role="status">
+                  <p>{choicesError}</p>
+                  <Button size="sm" variant="secondary" disabled={interactionBusy} onClick={() => void loadTeachingChoices()}>모범답안 다시 불러오기</Button>
+                </div>
+              ) : null}
+            </div>
+            <div id="direct-explanation">
+              <Composer embedded value={draft} onChange={setDraft} onSend={() => void send(draft)} sending={sending} disabled={recovering || choicesLoading || finishing || gameLoading} placeholder={composerPlaceholder} />
+            </div>
           </Card>
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
             <p className="text-xs text-muted">

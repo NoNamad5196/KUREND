@@ -156,7 +156,7 @@ test("uploaded sample supports labelled definitions, natural repetitions and com
     let choices = prepared.firstTeachingChoices;
     for (const [index, concept] of concepts.entries()) {
       const explanations = persona === "MALE_EASY"
-        ? [choices!.find((choice) => choice.id === "teach_statement")!.text]
+        ? [choices![0].text]
         : [`${concept.topic}: ${concept.sourceQuote}`, ...(persona === "KU_HARD" ? [`다시 정리하면, ${concept.sourceQuote} 즉 ${concept.topic}의 의미는 이와 같습니다.`] : [])];
       for (const [repeat, explanation] of explanations.entries()) {
         const actualQuestion = history.filter((message) => message.role === "JUNIOR" && message.stage === "QUESTION").at(-1)!;
