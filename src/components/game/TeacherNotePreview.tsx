@@ -14,7 +14,6 @@ export function TeacherNotePreview({ materialId, chapterId }: { materialId: stri
   if (error) return null;
   return (
     <section className="border-t border-line pt-6" aria-labelledby="note-preview-heading">
-      <p className="editorial-label mb-3 text-muted">WHILE YOU WAIT</p>
       <h3 id="note-preview-heading" className="text-xl font-semibold tracking-tight">기다리는 동안 강의노트 훑어보기</h3>
       <p className="mt-2 text-xs leading-5 text-muted">무엇을 설명할지 미리 떠올려 두면 수업이 훨씬 빨라져요.</p>
       <div className="mt-4 max-h-[46vh] overflow-y-auto border-l-2 border-primary bg-surface p-4 pr-3">

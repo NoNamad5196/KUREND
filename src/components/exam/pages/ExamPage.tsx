@@ -101,8 +101,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
     <StepperHeader session={session} step={2} chipLabel="시험" subtitle={`${withJosa(juniorLabel(character), "이/가")} 선배에게 배운 내용만으로 시험을 봅니다`} right={<RunHeaderBadge run={juniorRun} />} />
     {session.status === "EXPLAINING" ? <Card className="mx-auto grid max-w-4xl items-center gap-8 overflow-hidden p-6 sm:grid-cols-[minmax(0,1fr)_200px] sm:p-10 lg:p-14">
       <div className="min-w-0">
-        <p className="editorial-label text-muted">TIME TO REMEMBER</p>
-        <h2 className="mt-4 text-3xl leading-tight font-semibold tracking-tighter sm:text-4xl">가르친 만큼,<br />기억한 만큼.</h2>
+        <h2 className="text-3xl leading-tight font-semibold tracking-[-0.03em] sm:text-4xl">가르친 만큼,<br />기억한 만큼.</h2>
         <div className="mt-6"><SpeechBubble speaker={juniorLabel(character)} tail="none">{character ? EXAM_INTRO[character] : "배운 내용을 바탕으로 시험을 시작할게요."}</SpeechBubble></div>
         <p className="mt-6 border-t border-line pt-5 text-sm text-muted">{questions.some((q) => q.choices?.length) ? questions.every((q) => q.choices?.length) ? "객관식" : "객관식+서술형" : "서술형"} {questions.length}문항 · 총 100점</p>
         <Button size="lg" className="mt-5 w-full sm:w-auto" loading={busy} onClick={startExam}>시험 시작 →</Button>
@@ -111,7 +110,7 @@ function ExamContent({ session: initial, reload }: { session: SessionDto; reload
       <div className="flex justify-center border-t border-line pt-6 sm:border-t-0 sm:pt-0"><JuniorOrMascot character={character} identityPending={identityPending} state="writing" size={184} /></div>
     </Card> : <>
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div aria-live="polite"><p className="editorial-label mb-3 text-muted">THE EXAM</p><h2 className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{allDone && !busy ? "답안 작성 완료" : `답안 작성 중 ${Math.max(1, activeIndex + 1)} / ${questions.length}`}</h2><p className="mt-2 text-xs text-muted">{completed}문항 저장됨</p></div>
+        <div aria-live="polite"><h2 className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">{allDone && !busy ? "답안 작성 완료" : `답안 작성 중 ${Math.max(1, activeIndex + 1)} / ${questions.length}`}</h2><p className="mt-2 text-xs text-muted">{completed}문항 저장됨</p></div>
         <ViewSettingsMenu value={settings} onChange={updateSettings} />
       </div>
       <ProgressBar value={completed} max={questions.length} />

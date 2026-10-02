@@ -33,7 +33,7 @@ export function JuniorSelect({
   return (
     <section aria-labelledby="junior-select-heading" className="junior-selection page-enter">
       <header className="junior-selection-heading">
-        <div><p className="editorial-label">MEET YOUR JUNIOR / 03 CHARACTERS</p><h1 id="junior-select-heading">{title}</h1></div>
+        <div><h1 id="junior-select-heading">{title}</h1></div>
         <p>{subtitle}</p>
       </header>
       <div className="junior-posters">
@@ -55,7 +55,7 @@ export function JuniorSelect({
               <div className="junior-poster-visual">
                 <span className="junior-poster-shape" aria-hidden="true" />
                 <h2>{meta.name}</h2>
-                <JuniorAvatar character={key} size={key === "KU_HARD" ? 240 : 290} pose="still" label={meta.name} />
+                <JuniorAvatar character={key} size={key === "KU_HARD" ? 240 : 290} pose="still" label={meta.name} className="junior-paper-hover" />
                 <span className="junior-poster-visual-caption">{meta.examLabel}</span>
               </div>
               <div className="junior-poster-copy">

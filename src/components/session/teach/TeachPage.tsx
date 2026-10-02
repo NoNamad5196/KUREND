@@ -92,6 +92,8 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const waitingQuestion = lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
   const lastQuestion = useMemo(() => [...messages].reverse().find((m) => m.role === "JUNIOR" && m.stage === "QUESTION"), [messages]);
   const teachingChoices = (lastMessage?.role === "JUNIOR" ? lastQuestion?.teachingChoices : undefined) ?? [];
+  // A brief listening/reply gesture; draft edits and streamed tokens keep the same take.
+  const juniorMotionKey = sending ? "listening" : lastMessage?.role === "JUNIOR" ? lastMessage.messageId : "idle";
 
   // Existing sessions can predate teaching choices. Preparing an already active
   // session enriches its unanswered question without resetting its history/exam.
@@ -381,19 +383,17 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
 
       <div className="study-scene">
         <div className="study-scene-copy">
-          <p className="editorial-label">LEARN BY TEACHING / 01</p>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-4xl">
             {meta ? `${meta.name}의 이해는,` : "후배의 이해는,"}<br />선배의 설명에서 시작돼요.
           </h2>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-muted">{meta?.teachingHint ?? "새내기의 질문에 선배의 말로 답해주세요."}</p>
+          <p className="study-teaching-hint mt-4 max-w-lg text-sm leading-6 text-muted">{meta?.teachingHint ?? "새내기의 질문에 선배의 말로 답해주세요."}</p>
           <p className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-primary">
             <span>{meta?.teachLabel ?? "직접 설명하기"}</span>
             <span className="font-mono tabular-nums">목표 {restoredCovered.length} / {session.objectives.length}</span>
           </p>
         </div>
         <div className="study-character">
-          <span aria-hidden className="study-character-word">HELLO,<br />SENIOR.</span>
-          <JuniorAvatar character={character} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter />
+          <JuniorAvatar key={`${character}:${juniorMotionKey}`} character={character} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter className={clsx((sending || lastMessage?.role === "JUNIOR") && "junior-paper-react")} />
         </div>
       </div>
 
@@ -401,7 +401,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
         {/* 한 화면에 이어지는 대화와 설명, 목표는 대화 아래 펼쳐본다. */}
         <section className="min-w-0 space-y-5" aria-label="대화">
           <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-            <h2 className="editorial-label">THE CONVERSATION</h2>
+            <h2 className="text-sm font-semibold">대화</h2>
             <span className="text-xs text-muted">{meta?.name ?? "새내기"}와 함께하는 수업</span>
           </div>
           <Card className="study-dialogue overflow-hidden p-0">
@@ -470,7 +470,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
 
         <div className="border-y border-line">
           <button type="button" className="flex w-full items-center justify-between gap-4 py-5 text-left transition-colors hover:text-primary" aria-expanded={panelOpen} aria-controls="study-objectives" onClick={() => setPanelOpen((value) => !value)}>
-            <span><span className="editorial-label mr-4">LESSON NOTES</span><span className="text-sm font-semibold">학습 목표와 들은 개념</span></span>
+            <span className="text-sm font-semibold">학습 목표와 들은 개념</span>
             <span aria-hidden className="text-2xl font-light">{panelOpen ? "−" : "+"}</span>
           </button>
           <aside id="study-objectives" className={clsx(panelOpen ? "block" : "hidden")} aria-label="학습 목표와 들은 개념">

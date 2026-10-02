@@ -13,7 +13,7 @@
 .wn-paper { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); box-shadow: none; }
 .wn-score { font-size: 2rem; font-weight: 550; letter-spacing: -.05em; color: var(--danger); }
 .wn-score small { font-size: .85rem; font-weight: 400; color: var(--muted); letter-spacing: 0; }
-.wn-question { margin: 1.5rem 0; font-size: clamp(1.6rem, 2.7vw, 2.45rem); font-weight: 600; line-height: 1.55; letter-spacing: -.045em; overflow-wrap: anywhere; }
+.wn-question { margin: 1.5rem 0; font-size: clamp(1.6rem, 2.7vw, 2.45rem); font-weight: 600; line-height: 1.55; letter-spacing: -.03em; overflow-wrap: anywhere; }
 .wn-answer { margin-top: 2rem; padding: 1.5rem; background: var(--surface); border-left: 2px solid var(--primary); }
 .wn-evidence { padding-left: 1.25rem; border-left: 1px solid var(--line); line-height: 1.9; }
 .wn-reflection { padding: 2rem 0; border: 0; border-top: 1px solid var(--ink); border-radius: 0; background: transparent; box-shadow: none; }

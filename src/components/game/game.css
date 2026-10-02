@@ -8,9 +8,9 @@
 
 /* Exam result */
 .ro-backdrop { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; padding: 24px; overflow-y: auto; background: rgba(32,38,31,.72); }
-.ro-card { position: relative; width: 100%; max-width: 480px; max-height: calc(100dvh - 48px); overflow-y: auto; border: 1px solid var(--line); border-radius: 2px; background: var(--surface, #f7f5ef); color: var(--ink); }
-.ro-card::before { content: "KUREND / SESSION RESULT"; display: block; margin: 24px 24px 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 500; letter-spacing: .16em; color: var(--muted); }
-.ro-title { font-family: var(--font-sans); font-weight: 800; letter-spacing: -.06em; line-height: 1; }
+.ro-card { position: relative; width: 100%; max-width: 480px; max-height: calc(100dvh - 48px); overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface, #f7f5ef); color: var(--ink); }
+.ro-card::before { content: "수업 결과"; display: block; margin: 24px 24px 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-family: var(--font-sans); font-size: 12px; font-weight: 500; color: var(--muted); }
+.ro-title { font-family: var(--font-sans); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
 .ro-clear .ro-title, .ro-perfect .ro-title { color: var(--primary); }
 .ro-failed .ro-title { color: var(--danger); }
 .ro-hearts { padding-top: 20px; border-top: 1px solid var(--line); }

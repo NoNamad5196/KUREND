@@ -8,7 +8,7 @@ import { JuniorOrMascot } from "@/components/game/JuniorOrMascot";
 import { Button, EmptyState, toast } from "@/components/session/ui";
 
 export function PageLoading({ text = "학습 기록을 불러오는 중이에요" }: { text?: string }) {
-  return <div className="page-enter flex min-h-[50vh] flex-col items-center justify-center gap-6" role="status"><p className="editorial-label text-muted">A MOMENT TO THINK</p><JuniorOrMascot identityPending size={144} /><p className="text-center text-sm leading-6 text-muted">{text}</p></div>;
+  return <div className="page-enter flex min-h-[50vh] flex-col items-center justify-center gap-6" role="status"><JuniorOrMascot identityPending size={144} /><p className="text-center text-sm leading-6 text-muted">{text}</p></div>;
 }
 export function PageError({ message, retry }: { message: string; retry: () => void }) {
   return <EmptyState title="잠시 멈췄어요" description={message} action={<Button variant="secondary" onClick={retry}>다시 시도</Button>} />;

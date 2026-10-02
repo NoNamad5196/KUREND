@@ -57,7 +57,7 @@ export function WrongNoteList() {
 
   return (
     <div className="wrong-notes-page page-enter">
-      <PageHeader eyebrow="LEARNING ARCHIVE / REVIEW" title="오답노트" description="새내기가 틀린 문항은 자동으로 모입니다. 왜 틀렸는지 먼저 생각해 보고, 다시 가르쳐 보세요." />
+      <PageHeader title="오답노트" description="새내기가 틀린 문항은 자동으로 모입니다. 왜 틀렸는지 먼저 생각해 보고, 다시 가르쳐 보세요." />
       {error && <Card role="alert" className="border-danger text-danger">{error}</Card>}
       {!notes && !error && <p className="py-20 text-center text-muted" role="status">오답노트를 불러오는 중…</p>}
       {notes && notes.length === 0 && (

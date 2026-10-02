@@ -32,7 +32,7 @@ export function StepperHeader({
         </Link>
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Chip tone={chipTone}>{chipLabel}</Chip>
-          <h1 className="min-w-0 basis-full break-words text-[clamp(1.65rem,4vw,2.8rem)] font-bold leading-tight tracking-[-0.045em] [text-wrap:balance]">{session.chapter.title}</h1>
+          <h1 className="min-w-0 basis-full break-words text-[clamp(1.65rem,4vw,2.8rem)] font-bold leading-tight tracking-[-0.03em] [text-wrap:balance]">{session.chapter.title}</h1>
         </div>
         {subtitle && <p className="mt-3 text-sm leading-6 text-muted">{subtitle}</p>}
         <Stepper steps={[...SESSION_STEPS]} current={step} className="mt-5 flex-wrap" />

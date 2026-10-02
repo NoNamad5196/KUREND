@@ -29,7 +29,6 @@ export function WrongNotesHub() {
     <header className="archive-section-heading">
       <span className="archive-index" aria-hidden="true">01</span>
       <div>
-        <p className="editorial-label mb-3">THINGS TO REVISIT</p>
         <div className="flex flex-wrap items-center gap-3">
           <h2 id="wrong-notes-heading">오답노트</h2>
           {notes && <Chip tone="green">{notes.length}개</Chip>}

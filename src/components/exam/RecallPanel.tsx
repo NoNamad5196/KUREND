@@ -8,7 +8,6 @@ export function RecallPanel({ sources, highlights, unlearned, className, title =
 }) {
   return (
     <Card className={clsx("min-w-0 border-0 border-t border-line bg-transparent py-6 shadow-none", className)}>
-      <p className="editorial-label mb-3 text-muted">RECALL NOTES</p>
       <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       <p className="mt-2 text-xs leading-5 text-muted">새내기가 어떤 설명을 기억했는지 함께 살펴보세요.</p>
       {unlearned && <div className="mt-4"><Chip tone="danger">못 들은 부분</Chip><p className="mt-2 text-sm text-muted">이 답에 필요한 내용을 설명에서 찾지 못했어요.</p></div>}

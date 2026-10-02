@@ -49,7 +49,6 @@ export function TeacherNoteSection({ materialId, chapters }: { materialId: strin
     <section className="mt-12 border-t border-line pt-6" aria-labelledby="teacher-note-section-heading">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="editorial-label mb-3">TEACHING NOTES</p>
           <h2 id="teacher-note-section-heading" className="text-2xl font-semibold tracking-tight sm:text-3xl">선배용 강의노트</h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">후배를 가르치기 전에 범위를 먼저 훑어보세요. 정답이 아니라 “무엇을 설명할지”만 담겨 있어요.</p>
         </div>

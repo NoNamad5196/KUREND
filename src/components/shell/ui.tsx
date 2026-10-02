@@ -19,8 +19,8 @@ export function Chip({ children, tone = "neutral", className }: { children: Reac
   }, className)}>{children}</span>;
 }
 
-export function PageHeader({ title, description, actions, eyebrow = "KUREND / MY CAMPUS" }: { title: string; description?: string; actions?: ReactNode; eyebrow?: string }) {
-  return <header className="k-page-header flex flex-wrap items-end justify-between gap-6"><div className="min-w-0"><p className="editorial-label mb-4 text-primary">{eyebrow}</p><h1 className="k-page-title">{title}</h1>{description && <p className="k-page-description mt-4 text-sm text-muted">{description}</p>}</div>{actions}</header>;
+export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: string; actions?: ReactNode; eyebrow?: string }) {
+  return <header className="k-page-header flex flex-wrap items-end justify-between gap-6"><div className="min-w-0">{eyebrow && <p className="editorial-label mb-4 text-primary">{eyebrow}</p>}<h1 className="k-page-title">{title}</h1>{description && <p className="k-page-description mt-4 text-sm text-muted">{description}</p>}</div>{actions}</header>;
 }
 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {

@@ -3,8 +3,8 @@ import "./globals.css";
 import { AppShell } from "@/components/shell/AppShell";
 
 export const metadata: Metadata = {
-  title: "KUREND",
-  description: "설명하다 보면, 어느새 내 지식. AI 후배에게 설명하며 배운 내용을 내 것으로 만드는 공부, KUREND.",
+  title: "새내기",
+  description: "AI 후배에게 배운 내용을 설명하고, 시험 결과로 내 설명을 돌아보는 학습 서비스.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

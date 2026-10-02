@@ -1,42 +1,35 @@
 .kl-page { width: min(1440px, 100%); min-height: 100svh; margin: 0 auto; padding: 28px 5vw 24px; }
 .kl-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
-.kl-wordmark { display: inline-flex; align-items: baseline; gap: 5px; color: var(--primary); font-size: 27px; font-weight: 900; letter-spacing: -.06em; }
+.kl-wordmark { display: inline-flex; align-items: baseline; gap: 8px; color: var(--primary); font-size: 27px; font-weight: 700; letter-spacing: -.03em; }
 .kl-wordmark > svg { width: 25px; height: 25px; align-self: center; }
-.kl-header > .editorial-label { text-align: right; }
-.kl-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .85fr); gap: 7%; align-items: center; padding: 54px 0 46px; }
-.kl-story > h1 { position: relative; z-index: 1; margin-top: 18px; font-size: clamp(42px, 5.25vw, 76px); font-weight: 850; line-height: 1.15; letter-spacing: -.075em; }
+.kl-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 6%; align-items: center; padding: 64px 0; }
+.kl-story { min-width: 0; }
+.kl-story > h1 { position: relative; z-index: 1; font-size: clamp(40px, 5vw, 72px); font-weight: 700; line-height: 1.25; letter-spacing: -.03em; }
 .kl-story > h1 > span { color: var(--primary); }
-.kl-intro { margin-top: 22px; font-size: 15px; line-height: 1.9; color: var(--muted); }
-.kl-art { position: relative; height: 328px; margin-top: 24px; isolation: isolate; }
-.kl-art-field { position: absolute; z-index: -1; inset: 55px 0 0 0; overflow: hidden; background: var(--primary); }
-.kl-art-field > span { position: absolute; top: 30px; left: 25px; font-size: clamp(39px, 4.4vw, 64px); line-height: .93; letter-spacing: -.065em; font-weight: 900; color: #d9ed92; opacity: .23; }
-.kl-art-note { position: absolute; z-index: 2; top: 32px; right: 2%; padding: 10px 15px; transform: rotate(5deg); background: #d9ed92; color: #244638; font-size: 12px; font-weight: 750; }
-.kl-art-caption { position: absolute; right: 18px; bottom: 12px; display: flex; gap: 25px; color: #d9ed92; font-size: 9px; letter-spacing: .13em; font-weight: 700; }
-.kl-access { padding-top: 8px; }
-.kl-access-heading { padding-bottom: 28px; }
-.kl-access-heading > h2 { margin: 15px 0 13px; font-size: clamp(24px, 2.6vw, 36px); font-weight: 800; letter-spacing: -.055em; }
-.kl-access-heading > p:last-child { font-size: 14px; line-height: 1.9; color: var(--muted); }
-.kl-google { display: flex; min-height: 56px; width: 100%; align-items: center; gap: 12px; border: 1px solid var(--ink); background: var(--surface); padding: 12px 16px; font-size: 14px; font-weight: 700; border-radius: 3px; transition: background .2s, transform .2s; }
+.kl-intro { margin-top: 24px; font-size: 16px; line-height: 1.8; color: var(--muted); }
+.kl-art { position: relative; min-width: 0; height: 400px; isolation: isolate; }
+.kl-art-field { position: absolute; z-index: -1; inset: 55px 0 0; overflow: hidden; background: var(--primary); }
+.kl-access { max-width: 420px; margin-top: 32px; }
+.kl-google { display: flex; min-height: 56px; width: 100%; align-items: center; gap: 12px; border: 1px solid var(--ink); background: var(--surface); padding: 12px 16px; font-size: 16px; font-weight: 600; border-radius: var(--radius-sm); transition: background .2s, transform .2s; }
+.kl-google > svg { flex-shrink: 0; }
 .kl-google:hover { background: var(--primary-soft); transform: translateY(-2px); }
 .kl-google:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-.kl-demo { display: flex; min-height: 52px; width: 100%; align-items: center; gap: 12px; margin-top: 10px; border: 1px dashed var(--line); background: transparent; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--ink); border-radius: 3px; transition: background .2s, border-color .2s; }
+.kl-demo { display: flex; min-height: 52px; width: 100%; align-items: center; gap: 12px; margin-top: 10px; border: 1px dashed var(--line); background: transparent; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--ink); border-radius: var(--radius-sm); transition: background .2s, border-color .2s; }
 .kl-demo:not(:disabled):hover { background: var(--accent-soft); border-color: var(--primary); }
 .kl-demo:disabled { opacity: .6; cursor: progress; }
 .kl-demo:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .kl-demo-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); font-size: 11px; font-weight: 800; }
-.kl-access-footnote { margin-top: 22px; font-size: 11px; line-height: 1.8; color: var(--muted); }
+.kl-access-footnote { margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--muted); }
 .kl-footer { border-top: 1px solid var(--line); padding-top: 22px; }
-.kl-footer > ol { display: flex; flex-wrap: wrap; column-gap: 25px; row-gap: 13px; padding-top: 17px; }
-.kl-footer li { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; }
-.kl-flow-index { color: var(--muted); font-size: 10px; font-weight: 500; }
+.kl-footer > ol { display: flex; flex-wrap: wrap; column-gap: 25px; row-gap: 13px; }
+.kl-footer li { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; }
+.kl-flow-index { color: var(--muted); font-size: 11px; font-weight: 500; }
 .kl-flow-arrow { margin-left: 14px; color: var(--muted); }
 @media (min-width: 1600px) { .kl-page { padding-inline: 64px; } }
-@media (max-width: 1000px) { .kl-layout { gap: 5%; } .kl-art { height: 280px; } .kl-story > h1 { font-size: clamp(38px, 5.2vw, 60px); } }
-@media (max-width: 760px) { .kl-page { padding: 21px 6vw; } .kl-header > .editorial-label { max-width: 160px; font-size: 8px; } .kl-layout { grid-template-columns: minmax(0, 1fr); gap: 39px; padding: 35px 0; } .kl-story > h1 { font-size: clamp(39px, 8.5vw, 62px); } .kl-intro { margin-top: 17px; font-size: 13px; } .kl-art { height: 265px; margin-top: 14px; } .kl-art-field { inset: 40px 0 0; } .kl-art-field > span { font-size: 54px; } .kl-art-note { top: 20px; right: 5%; } .kl-access { padding-top: 0; } .kl-access-heading > h2 { font-size: 31px; margin-top: 12px; } .kl-access-heading { padding-bottom: 22px; } .kl-footer > ol { gap: 12px 17px; } .kl-flow-arrow { display: none; } }
-@media (max-width: 400px) { .kl-art { height: 233px; } .kl-art-note { right: 0; padding: 7px 9px; font-size: 10px; } .kl-art-field > span { font-size: 43px; left: 14px; } .kl-google { padding-inline: 12px; gap: 9px; font-size: 13px; } .kl-google .whitespace-nowrap { white-space: normal; } }
+@media (max-width: 1000px) { .kl-layout { gap: 5%; } .kl-art { height: 320px; } }
+@media (max-width: 760px) { .kl-page { padding: 21px 6vw; } .kl-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 32px 0; } .kl-story > h1 { font-size: clamp(32px, 8.1vw, 56px); } .kl-intro { margin-top: 20px; font-size: 15px; } .kl-access { max-width: 100%; margin-top: 24px; } .kl-art { height: 265px; } .kl-art-field { inset: 40px 0 0; } .kl-footer > ol { gap: 12px 17px; } .kl-flow-arrow { display: none; } }
+@media (max-width: 400px) { .kl-art { height: 233px; } .kl-google { padding-inline: 12px; gap: 9px; font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { .kl-google, .kl-demo { transition: none; } }
-
-@media (max-width: 760px) { .kl-art-caption { display: none; } }
 
 /* The shared trio keeps the existing portrait sizes and normalizes visible centers. */
 .kl-characters { --trio-male-size: 300px; --trio-female-size: 280px; --trio-ku-size: 190px; position: absolute; bottom: 24px; }

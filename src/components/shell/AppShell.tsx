@@ -39,7 +39,7 @@ export function useCurrentUser() {
 }
 
 function AuthLoading() {
-  return <div className="auth-loading" role="status"><span className="brand-mark" aria-hidden="true">KUREND</span><span className="auth-loading-line" aria-hidden="true" /><span className="text-xs text-muted">로그인 상태를 확인하는 중…</span></div>;
+  return <div className="auth-loading" role="status"><span className="brand-mark" aria-hidden="true">새내기</span><span className="auth-loading-line" aria-hidden="true" /><span className="text-xs text-muted">로그인 상태를 확인하는 중…</span></div>;
 }
 
 function AuthenticatedShell({ children, pathname, onboardingMode }: { children: ReactNode; pathname: string; onboardingMode: string | null }) {
@@ -124,7 +124,7 @@ function AuthenticatedShell({ children, pathname, onboardingMode }: { children: 
   return <CurrentUser.Provider key={user.userId} value={user}><PreferencesEffect /><div className="min-h-screen">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-5 focus:top-3 focus:z-50 focus:bg-accent focus:p-3">본문으로 이동</a>
     <header className="site-header"><div className="site-header-inner">
-      <Link href="/" className="brand-mark" aria-label="KUREND 홈" onClick={() => setMenuOpen(false)}>KUREND<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></Link>
+      <Link href="/" className="brand-mark" aria-label="새내기 홈" onClick={() => setMenuOpen(false)}>새내기<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></Link>
       <nav id="site-navigation" className={clsx("site-nav", menuOpen && "is-open")} aria-label="주 메뉴">{links.map(({ href, label }) => { const active = href === "/" ? pathname === "/" : pathname.startsWith(href); return <Link key={href} href={href} onClick={() => setMenuOpen(false)} aria-current={active ? "page" : undefined}>{label}</Link>; })}</nav>
       <HeaderJunior run={run} onNavigate={() => setMenuOpen(false)} />
       <Link href="/mypage" className="site-profile" onClick={() => setMenuOpen(false)} aria-label={`${user.nickname} 마이페이지`} aria-current={pathname === "/mypage" || pathname === "/profile" ? "page" : undefined}>
@@ -134,7 +134,7 @@ function AuthenticatedShell({ children, pathname, onboardingMode }: { children: 
     </div></header>
     {menuOpen && <button className="site-menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
     <main id="main-content" className="site-main min-w-0">{authError && <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 border border-line bg-surface p-4 text-sm"><p>{authError} 연결이 복구되면 계속 이용할 수 있어요.</p><Button variant="secondary" onClick={() => setAuthAttempt((attempt) => attempt + 1)}>다시 시도</Button></div>}<div className="page-enter">{children}</div></main>
-    <footer className="site-footer"><p><strong>KUREND</strong>가르친 만큼, 함께 성장합니다.</p><span className="editorial-label">Teach. Learn. Grow together.</span></footer>
+    <footer className="site-footer"><p><strong>새내기</strong></p><Link href="/privacy.html">개인정보처리방침</Link></footer>
   </div></CurrentUser.Provider>;
 }
 

@@ -21,7 +21,7 @@ export function GraduationSummary({ summary, albumHref, nextHref }: { summary: S
   const meta = CHARACTER_META[summary.character];
   return (
     <Card className="graduation-summary w-full max-w-lg p-5 text-left sm:p-7">
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">KUREND / Graduation record</p>
+      <p className="mb-3 text-xs font-medium text-primary">새내기 · 졸업 기록</p>
       <p className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{withJosa(meta.name, "이/가")} 졸업했습니다!</p>
       <p className="mt-2 break-words text-xs leading-6 text-muted">{summary.courseName ? `${summary.courseName} · ` : ""}{summary.materialTitle}</p>
       <div className="mt-5 grid grid-cols-3 gap-x-4">

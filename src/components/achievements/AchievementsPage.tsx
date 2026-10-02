@@ -17,16 +17,16 @@ function Hero({ list, character }: { list: Achievement[]; character: JuniorChara
   const next = sortByCloseness(list)[0] ?? null;
   return (
     <>
-      <PageHeader eyebrow="MILESTONES / ACHIEVEMENTS" title="업적" description="시험·완주·졸업 기록으로만 열려요. 가르친 만큼 배지가 쌓입니다." />
+      <PageHeader title="업적" description="시험·완주·졸업 기록으로만 열려요. 가르친 만큼 배지가 쌓입니다." />
       <section className="mb-12 grid items-end gap-8 border-b border-ink pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]" aria-label="업적 진행">
         <div>
-          <p className="editorial-label text-muted">COLLECTED</p>
+          <p className="editorial-label text-muted">모은 업적</p>
           <p className="mt-3 text-6xl font-semibold tracking-tighter text-primary tabular-nums">{unlocked}<span className="ml-2 text-xl font-medium tracking-normal text-muted">/ {list.length}</span></p>
           <ProgressBar value={unlocked} goal={list.length} label="전체 업적 진행도" tone="accent" track="surface" className="mt-5" />
         </div>
         {next ? (
           <div className="min-w-0 border-l-2 border-primary pl-5">
-            <p className="editorial-label text-muted">NEXT MILESTONE</p>
+            <p className="editorial-label text-muted">다음 업적</p>
             <div className="mt-3 flex items-center gap-3">
               <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-2xl leading-none">{next.icon}</span>
               <div className="min-w-0 flex-1">
@@ -68,7 +68,6 @@ export function AchievementsPage() {
       {data.partial && <p role="status" className="-mt-8 mb-8 text-xs text-warn">일부 기록을 불러오지 못해 실제보다 적게 보일 수 있어요.</p>}
 
       <section aria-labelledby="ach-unlocked" className="mb-10">
-        <p className="editorial-label mb-2 text-muted">01 / COLLECTED</p>
         <h2 id="ach-unlocked" className="mb-5 text-2xl font-semibold tracking-tight">모은 업적 <span className="text-primary">{unlocked.length}</span></h2>
         {unlocked.length ? (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -85,7 +84,6 @@ export function AchievementsPage() {
       </section>
 
       <section aria-labelledby="ach-locked">
-        <p className="editorial-label mb-2 text-muted">02 / STILL AHEAD</p>
         <h2 id="ach-locked" className="text-2xl font-semibold tracking-tight">남은 업적 <span className="text-muted">{locked.length}</span></h2>
         <p className="mb-5 mt-1 text-sm text-muted">거의 다 온 순서예요.</p>
         {locked.length ? (

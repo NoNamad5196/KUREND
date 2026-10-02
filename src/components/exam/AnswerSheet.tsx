@@ -18,14 +18,13 @@ function displayAnswer(item: AnswerSheetItem): string {
   return item.choices?.length ? stripMarkdownBold(formatExamChoice(item.text)) : plainExamAnswer(item.text);
 }
 
-export function AnswerSheet({ studentName = "새내기", courseName, title = "2026학년도 KUREND 학력평가 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
+export function AnswerSheet({ studentName = "새내기", courseName, title = "새내기 시험 답안지", items, activeQid, instant = false, typingSpeedMs = 30, onTypingDone, className }: {
   studentName?: string; courseName: string; title?: string; items: AnswerSheetItem[]; activeQid?: string | null;
   instant?: boolean; typingSpeedMs?: number; onTypingDone?: (qid: string) => void; className?: string;
 }) {
   return (
     <section aria-label={`${studentName} 답안지`} className={clsx("min-w-0 rounded-sm border border-paper-rule bg-paper p-5 text-paper-ink sm:p-8 lg:p-10", className)}>
       <header className="border-b border-paper-rule pb-6">
-        <p className="editorial-label mb-3 text-muted">KUREND EXAM · 가르친 만큼, 기억한 만큼</p>
         <h2 className="text-balance text-lg font-semibold tracking-tight sm:text-xl">{title}</h2>
         <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
           <div><dt className="text-[11px] text-muted">성명</dt><dd className="mt-1.5 font-medium">{studentName}</dd></div>
@@ -37,7 +36,7 @@ export function AnswerSheet({ studentName = "새내기", courseName, title = "20
         {items.map((item) => (
           <article key={item.qid} className="py-8 sm:py-10" aria-label={`${item.order}번 문항`}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="editorial-label flex items-baseline gap-3 text-muted"><span className="text-3xl font-medium tracking-tighter text-ink tabular-nums">{String(item.order).padStart(2, "0")}</span><span>{item.points} POINTS</span></p>
+              <p className="editorial-label flex items-baseline gap-3 text-muted"><span className="text-3xl font-medium tracking-tighter text-ink tabular-nums">{String(item.order).padStart(2, "0")}</span><span>{item.points}점</span></p>
               {item.badge}
             </div>
             <h3 className="mb-7 break-words text-xl font-semibold leading-relaxed tracking-tight sm:text-2xl">{stripMarkdownBold(item.question)}</h3>

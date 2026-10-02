@@ -104,7 +104,6 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
     {result ? <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-14">
       <ReportCard studentName={juniorLabel(character)} courseName={session.material.courseName} {...result} gapCount={result.gaps.length} />
       <div className="min-w-0 space-y-6 lg:pt-2">
-        <p className="editorial-label text-muted">WHAT WE LEARNED</p>
         <div className="flex justify-center"><JuniorOrMascot character={character} identityPending={identityPending} state={result.finalVerdict === "STABLE" ? "cheer" : result.finalVerdict === "MOSTLY" ? "praise" : "encourage"} size={168} /></div>
         <SpeechBubble speaker={juniorLabel(character)} tail="top" tailAnchor="50%">{resultReaction}</SpeechBubble>
         {wrongNotes.length > 0 && <div className="border-y border-line py-5"><p className="text-sm font-semibold">틀린 문항 {wrongNotes.length}개가 오답노트에 저장됐어요</p><p className="mt-2 text-xs leading-6 text-muted">문항별로 학습한 설명과 실제 답안, 틀린 이유를 확인할 수 있어요.</p><Link href={`/wrong-notes/${encodeURIComponent(wrongNotes[0].wrongNoteId)}`} className="mt-3 inline-block text-sm font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition hover:decoration-primary">오답노트 쓰러 가기 →</Link></div>}
@@ -115,14 +114,13 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
         </div>
       </div>
     </div> : <div aria-live="polite" className="space-y-5">
-      <p className="editorial-label text-muted">READING THE ANSWERS</p>
       <h2 className="text-2xl font-semibold tracking-tight tabular-nums">채점 진행 중 {Object.keys(grades).length} / {questions.length}</h2>
       <ProgressBar value={Object.keys(grades).length} max={questions.length} />
       {session.status === "EVALUATING" && !data.error && <PageLoading text="채점이 진행 중이에요. 저장된 결과를 기다리고 있습니다." />}
     </div>}
     {(error || data.error) && <PageError message={error || data.error!} retry={() => { void reload(); if (data.error) data.retry(); }} />}
     <div ref={answerSheet} className="grid min-w-0 scroll-mt-28 items-start gap-8 border-t border-line pt-8 lg:grid-cols-[190px_minmax(0,1fr)] lg:gap-10">
-      <div className="lg:sticky lg:top-28"><p className="editorial-label mb-3 text-muted">QUESTION REVIEW</p><h2 className="text-xl font-semibold tracking-tight">문항별 채점</h2><ol className="mt-5 divide-y divide-line border-y border-line">
+      <div className="lg:sticky lg:top-28"><h2 className="text-xl font-semibold tracking-tight">문항별 채점</h2><ol className="mt-5 divide-y divide-line border-y border-line">
         {questions.map((question) => {
           const grade = result?.items.find((item) => item.qid === question.qid)?.grade ?? grades[question.qid];
           return <li key={question.qid} className="flex flex-wrap items-center justify-between gap-2 py-4 text-sm"><span>문제 {question.order}</span>{grade ? <span className="font-semibold tabular-nums">{grade.score} / {grade.maxScore}</span> : <Chip tone={grading === question.qid ? "primary" : "muted"}>{grading === question.qid ? "채점 중" : "대기"}</Chip>}</li>;
@@ -134,6 +132,6 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
         return { ...question, text: item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer ?? "", status: "done", unlearned: item?.sentences.some((sentence) => sentence.unlearned), badge: grade ? <GradeVerdictChip verdict={grade.verdict} /> : <Chip tone="muted">채점 전</Chip>, extra: <><GradeBox grade={grade ?? null} state={grade ? "done" : grading === question.qid ? "grading" : "pending"} />{(() => { const gap = (result?.gaps ?? gaps).find((entry) => entry.qid === question.qid); return gap ? <LearningErrorFeedback {...gap} answer={item?.answer ?? session.exam?.answers.find((answer) => answer.qid === question.qid)?.answer} /> : null; })()}{(() => { const note = wrongNotes.find((n) => n.qid === question.qid); return note ? <Link href={`/wrong-notes/${encodeURIComponent(note.wrongNoteId)}`} className="mt-2 inline-flex items-center gap-1 font-sans text-sm font-bold text-primary hover:underline">✎ 오답노트{note.userReason ? " 보기" : "에 이유 쓰기"} →</Link> : null; })()}</> };
       })} />
     </div>
-    {(result?.gaps ?? gaps).length > 0 && <section className="border-t border-line pt-7"><p className="editorial-label mb-3 text-muted">NEXT TO UNDERSTAND</p><h2 className="text-2xl font-semibold tracking-tight">놓친 곳 · {(result?.gaps ?? gaps).length}군데</h2><ol className="mt-6 divide-y divide-line">{(result?.gaps ?? gaps).map((gap, index) => <li key={gap.gapId} className="flex flex-wrap items-center gap-4 py-5 text-sm"><span className="text-xl font-medium tracking-tight text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 flex-1 break-words">{stripMarkdownBold(gap.title)}</span><Chip tone={gap.status === "REVIEWED" ? "ok" : "warn"}>{gap.status === "REVIEWED" ? "되짚기 완료" : "확인 필요"}</Chip></li>)}</ol></section>}
+    {(result?.gaps ?? gaps).length > 0 && <section className="border-t border-line pt-7"><h2 className="text-2xl font-semibold tracking-tight">놓친 곳 · {(result?.gaps ?? gaps).length}군데</h2><ol className="mt-6 divide-y divide-line">{(result?.gaps ?? gaps).map((gap, index) => <li key={gap.gapId} className="flex flex-wrap items-center gap-4 py-5 text-sm"><span className="text-xl font-medium tracking-tight text-muted tabular-nums">{String(index + 1).padStart(2, "0")}</span><span className="min-w-0 flex-1 break-words">{stripMarkdownBold(gap.title)}</span><Chip tone={gap.status === "REVIEWED" ? "ok" : "warn"}>{gap.status === "REVIEWED" ? "되짚기 완료" : "확인 필요"}</Chip></li>)}</ol></section>}
   </div>;
 }
