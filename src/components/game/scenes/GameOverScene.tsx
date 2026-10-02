@@ -18,10 +18,10 @@ export function GameOverScene({ character, onNext, nextLabel = "새 후배 만�
   const male = character === "MALE_EASY";
   const female = character === "FEMALE_NORMAL";
   return (
-    <CampusScene variant={female ? "dusk" : "day"} className="static-game-over" label={meta.gameOver.title}>
+    <CampusScene variant={female ? "dusk" : "day"} className="static-game-over" label="게임 오버">
       <header className="static-scene-heading">
-        <p className="static-scene-eyebrow">KUREND / {meta.name}</p>
-        <h1>{meta.gameOver.title}</h1>
+        <p className="static-scene-eyebrow">새내기 / {meta.name}</p>
+        <h1>게임 오버</h1>
         <div className="static-scene-story">
           {meta.gameOver.lines.map((line) => <p key={line}>{line}</p>)}
         </div>

@@ -52,7 +52,7 @@ function ReviewContent({ session, initialResult, reload }: { session: SessionDto
 
   return <div className="page-enter min-w-0 space-y-8 sm:space-y-10">
     <StepperHeader session={session} step={4} chipLabel="되짚기" subtitle="자료와 내 설명을 나란히 보고, 놓친 개념을 채워 보세요" />
-    <div className="flex flex-wrap items-end justify-between gap-5"><div aria-live="polite"><p className="editorial-label mb-3 text-muted">FILL IN THE GAPS</p><h2 className="text-3xl font-semibold tracking-tighter sm:text-4xl">놓친 곳 되짚기 · {result.gaps.length}곳</h2><p className="mt-3 text-sm text-muted">{remaining === 0 ? "모든 곳을 되짚었어요. 학습을 마칠 수 있어요." : `${result.gaps.length - remaining}곳 완료 · ${remaining}곳 남았어요`}</p></div><Button size="lg" disabled={remaining > 0} loading={busy && reviewingId === null} onClick={complete}>되짚기 마치기 →</Button></div>
+    <div className="flex flex-wrap items-end justify-between gap-5"><div aria-live="polite"><h2 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">놓친 곳 되짚기 · {result.gaps.length}곳</h2><p className="mt-3 text-sm text-muted">{remaining === 0 ? "모든 곳을 되짚었어요. 학습을 마칠 수 있어요." : `${result.gaps.length - remaining}곳 완료 · ${remaining}곳 남았어요`}</p></div><Button size="lg" disabled={remaining > 0} loading={busy && reviewingId === null} onClick={complete}>되짚기 마치기 →</Button></div>
     {result.gaps.length > 0 && <ProgressBar value={result.gaps.length - remaining} max={result.gaps.length} />}
     {error && <p role="alert" className="rounded-sm bg-danger-soft p-4 text-sm text-danger">{error} 해당 버튼으로 다시 시도해 주세요.</p>}
     <div className="grid min-w-0 items-start gap-10 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -106,7 +106,7 @@ function TutorPanel({ sessionId, gap, reload, onSaved }: { sessionId: string; ga
     });
   }
   return <Card className="min-w-0 p-5 sm:p-6 xl:sticky xl:top-28">
-    <p className="editorial-label mb-3 text-muted">A LITTLE GUIDANCE</p><h2 className="text-2xl font-semibold tracking-tight">AI 튜터</h2><p className="mt-3 break-words text-sm leading-6 text-muted">{stripMarkdownBold(gap.title)}</p>
+    <h2 className="text-2xl font-semibold tracking-tight">AI 튜터</h2><p className="mt-3 break-words text-sm leading-6 text-muted">{stripMarkdownBold(gap.title)}</p>
     <div className="mt-5 max-h-[28rem] space-y-4 overflow-y-auto overscroll-contain" aria-label="튜터 대화">
       {messages.map((message) => <div key={message.id} className="space-y-3 border-t border-line pt-4"><p className="break-words whitespace-pre-wrap border-l-2 border-primary pl-3 text-sm leading-6">{message.request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7">{stripMarkdownBold(message.response)}</p></SpeechBubble></div>)}
       {request && <div className="space-y-2"><p className="break-words whitespace-pre-wrap text-sm text-muted">{request}</p><SpeechBubble speaker="AI 튜터" tail="none"><p className="break-words whitespace-pre-wrap text-sm leading-7" aria-live="polite">{stripMarkdownBold(response, { streaming: busy }) || "자료를 바탕으로 설명을 준비하고 있어요…"}</p></SpeechBubble></div>}

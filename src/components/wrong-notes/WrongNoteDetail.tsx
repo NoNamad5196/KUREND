@@ -61,7 +61,7 @@ export function WrongNoteDetail({ id }: { id: string }) {
     <div className="wn-detail page-enter space-y-8">
       <div>
         <Link href="/wrong-notes" className="text-link text-sm font-semibold text-muted hover:text-primary">← 오답노트</Link>
-        <p className="editorial-label mb-4 mt-8">REVIEW / A CHANCE TO UNDERSTAND</p>
+        <p className="editorial-label mb-4 mt-8">오답 복습</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Chip tone={note.verdict === "WRONG" ? "red" : "yellow"}>{VERDICT_TEXT[note.verdict]}</Chip>
           <span className="text-sm text-muted">{note.courseName} · {note.materialTitle} · {note.chapterTitle}</span>
@@ -84,7 +84,7 @@ export function WrongNoteDetail({ id }: { id: string }) {
 
           {/* 선배가 먼저 쓰는 이유 */}
           <Card className="wn-reflection wn-rise [animation-delay:.08s]">
-            <p className="editorial-label mb-4">01 / YOUR REFLECTION</p>
+            <p className="editorial-label mb-4">01 / 내 생각</p>
             <h2 className="text-2xl font-semibold tracking-tight">왜 틀렸을까요?</h2>
             <p className="mt-1 text-sm text-muted">위 근거를 살펴보고, 내 설명에서 무엇이 빠졌거나 잘못됐는지 적어 보세요. 이유를 저장하면 내 생각과 분석을 비교할 수 있어요.</p>
             {unlocked ? (
@@ -124,7 +124,7 @@ export function WrongNoteDetail({ id }: { id: string }) {
             <div className="flex items-center gap-3">
               <Mascot state={unlocked ? (note.aiComparison?.startsWith("맞아요") ? "praise" : "thinking") : "idle"} size={64} />
               <div>
-                <p className="editorial-label mb-2">02 / INSIGHT</p><h2 className="text-xl font-semibold">AI 분석</h2>
+                <p className="editorial-label mb-2">02 / 분석 확인</p><h2 className="text-xl font-semibold">AI 분석</h2>
                 {!unlocked && <p className="text-xs text-muted">이유를 먼저 쓰면 열려요</p>}
               </div>
             </div>

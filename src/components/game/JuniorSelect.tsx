@@ -33,7 +33,7 @@ export function JuniorSelect({
   return (
     <section aria-labelledby="junior-select-heading" className="junior-selection page-enter">
       <header className="junior-selection-heading">
-        <div><p className="editorial-label">MEET YOUR JUNIOR / 03 CHARACTERS</p><h1 id="junior-select-heading">{title}</h1></div>
+        <div><h1 id="junior-select-heading">{title}</h1></div>
         <p>{subtitle}</p>
       </header>
       <div className="junior-posters">

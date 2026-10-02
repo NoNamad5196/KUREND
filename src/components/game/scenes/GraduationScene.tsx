@@ -20,8 +20,8 @@ export function GraduationScene({ character, summary, nextHref, albumHref }: {
   return (
     <CampusScene className="static-graduation" label="졸업식">
       <header className="static-scene-heading">
-        <p className="static-scene-eyebrow">KUREND / {meta.name}</p>
-        <h1>GRADUATION</h1>
+        <p className="static-scene-eyebrow">새내기 / {meta.name}</p>
+        <h1>졸업식</h1>
         <p className="static-graduation-message">{meta.graduation.lines.join(" ")}</p>
       </header>
       <div className="static-graduation-content">

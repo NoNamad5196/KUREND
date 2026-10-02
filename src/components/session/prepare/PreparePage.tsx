@@ -115,13 +115,12 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
         <section className="prepare-portrait kurend-rise" aria-label="이번 수업의 후배">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="editorial-label">YOUR STUDY PARTNER</p>
+              <p className="text-xs font-medium text-muted">함께 공부할 후배</p>
               <h2 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{run ? CHARACTER_META[run.character].name : "새내기"}</h2>
             </div>
             {run && <LifeHearts lives={run.lives} maxLives={run.maxLives} size={20} />}
           </div>
           <div className="prepare-art">
-            <span aria-hidden className="prepare-art-type">READY<br />TO LEARN.</span>
             {run ? <JuniorAvatar character={run.character} size={290} mood={ready ? "happy" : streamError ? "confused" : "think"} enter className={clsx("relative", ready && "kurend-pop")} /> : <JuniorOrMascot identityPending={identityPending} state={ready ? "cheer" : streamError ? "encourage" : "thinking"} size={250} className={clsx("relative", ready && "kurend-pop")} />}
           </div>
           {run ? (
@@ -129,8 +128,8 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
               {isFinal && <p className="text-sm font-semibold text-primary">졸업시험 · 자료 전체에서 출제</p>}
               <p className="text-sm leading-6">{CHARACTER_META[run.character].intro.join(" · ")}. 자료와 진도는 유지하면서 다른 후배와 새 대화를 시작할 수 있어요.</p>
               <div className="flex flex-wrap gap-x-7 gap-y-3">
-                <div><p className="editorial-label">EXAM</p><p className="mt-1 text-sm font-semibold">{isFinal ? "객관식+서술형" : run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}{game?.questionCount !== undefined && ` ${game.questionCount}문항`}</p></div>
-                <div><p className="editorial-label">PASS SCORE</p><p className="mt-1 text-sm font-semibold">합격 {run.passScore}점</p></div>
+                <div><p className="text-xs font-medium text-muted">시험 형식</p><p className="mt-1 text-sm font-semibold">{isFinal ? "객관식+서술형" : run.examFormat === "OBJECTIVE" ? "객관식" : "서술형"}{game?.questionCount !== undefined && ` ${game.questionCount}문항`}</p></div>
+                <div><p className="text-xs font-medium text-muted">합격 기준</p><p className="mt-1 text-sm font-semibold">합격 {run.passScore}점</p></div>
               </div>
               <p className="text-xs leading-5 text-muted">합격선 미만이면 LIFE −1, 100점이면 LIFE +1 (최대 {run.maxLives}).</p>
             </div>
@@ -144,7 +143,6 @@ export function PreparePage({ sessionId }: { sessionId: string }) {
         </section>
 
         <section className="min-w-0 py-3 sm:py-6" aria-label="수업 준비 상태">
-          <p className="editorial-label mb-6">BEFORE WE BEGIN / 01</p>
           {ready ? (
             <div className="space-y-7">
               <div className="kurend-pop">

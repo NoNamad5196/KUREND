@@ -51,13 +51,12 @@ export function MyPage() {
   }
 
   return <div className="archive-page page-enter">
-    <PageHeader eyebrow="MY COLLECTION / PERSONAL ARCHIVE" title="마이페이지" description="지금까지의 공부를 돌아보고, 필요한 곳부터 다시 가르쳐 보세요." />
+    <PageHeader title="마이페이지" description="지금까지의 공부를 돌아보고, 필요한 곳부터 다시 가르쳐 보세요." />
 
     <section className="archive-profile" aria-labelledby="archive-profile-heading">
       <div className="min-w-0">
-        <p className="editorial-label mb-3">A RECORD OF OUR DAYS</p>
         <h2 id="archive-profile-heading" className="archive-profile-name">{user?.nickname ?? home?.userName ?? "나의"}<br /><span>선배의 학습 기록</span></h2>
-        <p className="mt-4 max-w-sm text-sm leading-7 text-muted">설명하고, 되짚고, 후배와 함께 성장해요.<br />그동안 쌓아온 배움이 이곳에 남아 있어요.</p>
+        <p className="mt-4 max-w-sm text-sm leading-7 text-muted">학습 기록과 오답노트를 한곳에서 확인해요.</p>
       </div>
       {home ? <dl className="archive-stats">
         <div><dt>완료한 세션</dt><dd>{home.stats.completedSessions}<span>회</span></dd></div>
@@ -73,7 +72,6 @@ export function MyPage() {
         <header className="archive-section-heading">
           <span className="archive-index" aria-hidden="true">02</span>
           <div>
-            <p className="editorial-label mb-3">TEACHING NOTES</p>
             <h2 id="teacher-notes-heading">선배의 학습노트</h2>
             <p>자료와 목차별로 모인 강의노트에서 다시 설명할 내용을 찾아보세요.</p>
           </div>
@@ -91,7 +89,6 @@ export function MyPage() {
         <header className="archive-section-heading">
           <span className="archive-index" aria-hidden="true">03</span>
           <div>
-            <p className="editorial-label mb-3">MILESTONES</p>
             <h2 id="achievements-heading">업적</h2>
             <p>수업을 마치고, 합격하고, 꾸준히 가르칠수록 배지가 하나씩 열려요.</p>
           </div>
@@ -105,7 +102,6 @@ export function MyPage() {
         <header className="archive-section-heading">
           <span className="archive-index" aria-hidden="true">04</span>
           <div>
-            <p className="editorial-label mb-3">PREFERENCES</p>
             <h2 id="settings-heading">설정</h2>
             <p>애니메이션·타이핑 연출·시험 진행 방식을 내게 맞게 바꿔요.</p>
           </div>
@@ -116,7 +112,7 @@ export function MyPage() {
       <section className="archive-section archive-account" aria-labelledby="account-heading">
         <header className="archive-section-heading">
           <span className="archive-index" aria-hidden="true">05</span>
-          <div><p className="editorial-label mb-3">INFORMATION</p><h2 id="account-heading">이용 안내 · 계정</h2></div>
+          <div><h2 id="account-heading">이용 안내 · 계정</h2></div>
         </header>
         <div className="archive-section-body">
           <Link href="/onboarding?mode=replay" className="archive-account-link">

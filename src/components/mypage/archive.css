@@ -1,6 +1,6 @@
 .archive-page { overflow-wrap: anywhere; }
 .archive-profile { display: grid; grid-template-columns: 1fr 1.1fr; align-items: end; gap: 3rem; padding: 2rem 0 3.5rem; border-bottom: 1px solid var(--ink); }
-.archive-profile-name { overflow-wrap: anywhere; font-size: clamp(1.8rem, 3vw, 3rem); line-height: 1.3; letter-spacing: -.055em; font-weight: 650; }
+.archive-profile-name { overflow-wrap: anywhere; font-size: clamp(1.8rem, 3vw, 3rem); line-height: 1.3; letter-spacing: -.03em; font-weight: 650; }
 .archive-profile-name span { color: var(--muted); }
 .archive-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
 .archive-stats dt { color: var(--muted); font-size: .7rem; }
@@ -9,7 +9,7 @@
 .archive-section { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.35fr); gap: 3rem; padding: 3.5rem 0; border-bottom: 1px solid var(--line); }
 .archive-section-heading { display: flex; align-items: flex-start; gap: 1.5rem; min-width: 0; }
 .archive-index { font-size: .75rem; color: var(--muted); padding-top: .1rem; font-family: ui-monospace, monospace; }
-.archive-section-heading h2 { font-size: clamp(1.6rem, 2.2vw, 2.15rem); line-height: 1.2; letter-spacing: -.06em; font-weight: 650; }
+.archive-section-heading h2 { font-size: clamp(1.6rem, 2.2vw, 2.15rem); line-height: 1.3; letter-spacing: -.03em; font-weight: 650; }
 .archive-section-heading p:not(.editorial-label) { max-width: 21rem; margin-top: 1rem; font-size: .875rem; line-height: 1.9; color: var(--muted); word-break: keep-all; }
 .archive-section-body { min-width: 0; }
 .archive-note-list > li + li { border-top: 1px solid var(--line); }

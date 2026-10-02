@@ -1,5 +1,5 @@
 "use client";
-/** KUREND 로그인 화면. Google OAuth 진입과 콜백 오류 안내를 제공한다. */
+/** 새내기 로그인 화면. Google OAuth 진입과 콜백 오류 안내를 제공한다. */
 import { useEffect } from "react";
 import { JuniorTrio } from "@/components/game/JuniorTrio";
 import { Toaster, toast } from "@/components/session/ui";
@@ -34,40 +34,28 @@ export function LoginScreen() {
   return (
     <main className="kl-page page-enter">
       <header className="kl-header">
-        <span className="kl-wordmark">KUREND<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></span>
-        <span className="editorial-label">A CAMPUS FOR THE WAY YOU LEARN</span>
+        <span className="kl-wordmark">새내기<svg aria-hidden="true" viewBox="0 0 32 32" fill="none"><path d="M16 1v30M1 16h30M5.4 5.4l21.2 21.2M5.4 26.6 26.6 5.4" stroke="currentColor" strokeWidth="4" /></svg></span>
       </header>
       <div className="kl-layout">
         <section className="kl-story" aria-labelledby="login-title">
-          <p className="editorial-label">LEARN BY TEACHING · KUREND</p>
-          <h1 id="login-title">가르치는 순간,<br /><span>내 공부가 된다.</span></h1>
-          <p className="kl-intro">내가 선배가 되는 새로운 공부.<br />후배에게 설명하며, 배운 내용을 내 지식으로 만들어요.</p>
-          <div className="kl-art">
-            <div className="kl-art-field" aria-hidden="true"><span>YOUR<br />NEXT CHAPTER.</span></div>
-            <span className="kl-art-note">이제, 선배 차례예요.</span>
-            <JuniorTrio className="kl-characters" />
-            <span className="kl-art-caption">MEET YOUR JUNIORS <span aria-hidden="true">↗</span></span>
+          <h1 id="login-title">여기서는<br /><span>당신이 선배입니다.</span></h1>
+          <p className="kl-intro">공부한 내용을 후배에게 설명해 주세요.<br />후배는 당신이 가르친 내용만으로 시험을 봅니다.</p>
+          <div className="kl-access">
+            <a href="/api/auth/google" className="kl-google">
+              <GoogleMark />
+              <span>Google로 시작하기</span>
+              <span className="ml-auto text-muted" aria-hidden="true">→</span>
+            </a>
+            <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
           </div>
         </section>
-
-        <section className="kl-access" aria-labelledby="login-access-title">
-          <div className="kl-access-heading">
-            <p className="editorial-label">LET’S GET STARTED</p>
-            <h2 id="login-access-title">선배, 어서 오세요.</h2>
-            <p>공부한 내용을 AI 후배에게 직접 설명해요.<br />후배는 내가 가르친 내용만으로 시험을 봐요.</p>
-          </div>
-
-          <a href="/api/auth/google" className="kl-google">
-            <GoogleMark />
-            <span className="whitespace-nowrap">Google로 계속하기</span>
-            <span className="ml-auto text-muted" aria-hidden="true">→</span>
-          </a>
-          <p className="kl-access-footnote">Google 계정으로 로그인하면 내 자료와 학습 기록이 내 계정에 남습니다. <a href="/privacy.html" className="underline">개인정보 처리방침</a></p>
-        </section>
+        <div className="kl-art">
+          <div className="kl-art-field" aria-hidden="true" />
+          <JuniorTrio className="kl-characters" />
+        </div>
       </div>
       <footer className="kl-footer">
-        <span className="editorial-label">TEACH IT. MAKE IT YOURS.</span>
-        <ol aria-label="KUREND 학습 흐름">
+        <ol aria-label="새내기 학습 흐름">
           {["자료 올리기", "후배 선택", "직접 설명", "후배 시험", "오답 · 다시 가르치기"].map((step, index) => <li key={step}><span className="kl-flow-index">0{index + 1}</span>{step}{index < 4 && <span className="kl-flow-arrow" aria-hidden="true">↗</span>}</li>)}
         </ol>
       </footer>

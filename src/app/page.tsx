@@ -11,6 +11,8 @@ import { JuniorCard } from "@/components/game/JuniorCard";
 import { TodayTasks } from "@/components/home/TodayTasks";
 import { JuniorTrio } from "@/components/game/JuniorTrio";
 import { StaticBackdrop } from "@/components/game/StaticBackdrop";
+import { juniorLabel, withJosa } from "@/components/game/JuniorOrMascot";
+import { homeStudyState } from "@/lib/client/home-study-state";
 import "@/components/game/editorial.css";
 
 function dDayLabel(n: number | null) { if (n === null) return null; return n < 0 ? "시험 끝" : n === 0 ? "D-Day" : `D-${n}`; }
@@ -20,32 +22,33 @@ export default function HomePage() {
   const [home, setHome] = useState<HomeDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<RunDto | null | undefined>(undefined);
+  const [runError, setRunError] = useState<string | null>(null);
   const emptyHome = !!home && !home.courses.some((course) => course.materials.length > 0) && home.recentSessions.length === 0 && home.stats.completedSessions === 0;
+  const study = home ? homeStudyState(home, run) : null;
   useEffect(() => { api.get<HomeDto>("/home").then(setHome).catch((e) => setError(e instanceof Error ? e.message : "홈을 불러올 수 없습니다.")); }, []);
-  useEffect(() => { gameApi.getCurrentRun().then(setRun).catch(() => setRun(undefined)); }, []);
+  useEffect(() => { gameApi.getCurrentRun().then(setRun).catch(() => setRunError("후배 정보를 불러오지 못했어요.")); }, []);
   return <div className="editorial-home page-enter">
     {error && <Card role="alert" className="mb-5 border-danger text-danger">{error} <button className="ml-2 underline" onClick={() => window.location.reload()}>다시 시도</button></Card>}
     {!home && !error && <p className="py-20 text-center text-muted" role="status">자료를 불러오는 중…</p>}
     {home && <>
-      <section className="editorial-home-hero" aria-labelledby="home-heading">
+      {study?.kind === "loading" ? <section className="editorial-home-loading" aria-label="현재 학습">
+        {runError ? <p role="alert">{runError} <button className="ml-2 underline" onClick={() => window.location.reload()}>다시 시도</button></p> : <p role="status">현재 학습을 확인하고 있어요…</p>}
+      </section> : study && <section className="editorial-home-hero" aria-labelledby="home-heading">
         <div className="editorial-home-intro">
-          <p className="editorial-label"><span className="editorial-live-dot" aria-hidden="true" /> A LITTLE TEACHING, A LOT OF LEARNING</p>
-          <h1 id="home-heading">설명하다 보면,<br />어느새<br /><span>내 지식</span><span className="editorial-title-dot">.</span></h1>
-          <p className="editorial-home-description">{home.userName} 선배, 오늘 배운 내용을 후배에게 들려주세요.<br />알고 있던 것도, 헷갈리던 것도<br className="sm:hidden" /> 내 말로 정리해 봐요.</p>
-          <Link href="/new" className="editorial-home-cta">내 자료로 공부 시작 <span aria-hidden="true">↗</span></Link>
-          <div className="editorial-home-notation"><span>LEARN IT.<br />TEACH IT. OWN IT.</span><span aria-hidden="true">↓</span><span>설명하는 순간,<br />배움이 내 것이 되는 곳.</span></div>
+          <p className="editorial-home-greeting">{home.userName} 선배</p>
+          <h1 id="home-heading">{run ? study.kind === "next" || (study.kind === "resume" && study.resume.status === "EXPLAINING") ? `${withJosa(juniorLabel(run.character), "이/가")} 기다리고 있어요.` : `${withJosa(juniorLabel(run.character), "과/와")} ${study.kind === "resume" ? "수업을 이어가요." : "학습을 돌아봐요."}` : "새내기 하나 맡아볼래요?"}</h1>
+          <p className="editorial-home-description">{study.kind === "resume" ? "저장한 수업을 멈췄던 단계부터 이어갈 수 있어요." : study.kind === "next" ? "자료를 살펴본 뒤, 후배에게 내 말로 설명해 주세요." : study.kind === "final" ? "목차별 학습을 마쳤어요. 후배의 시험과 학습 기록을 확인해 보세요." : run ? "자료에서 다음에 공부할 목차를 확인해 주세요." : "공부한 내용을 AI 후배에게 설명해 주세요. 후배는 선배가 가르친 내용만으로 시험을 봐요."}</p>
+          {study.kind === "new" && <Link href={study.href} className="editorial-home-cta">후배 만나기 <span aria-hidden="true">→</span></Link>}
         </div>
-        {run !== undefined && !emptyHome ? <section aria-label="현재 후배" className="editorial-home-partner"><JuniorCard run={run} meetHref={home.courses[0]?.materials[0] ? `/materials/${home.courses[0].materials[0].materialId}/junior` : "/new"} /></section> : <div className="editorial-home-welcome" aria-label="함께 공부할 후배들">
+        {run && study.kind !== "new" ? <section aria-label="현재 후배" className="editorial-home-partner"><JuniorCard run={run} study={study} /></section> : <div className="editorial-home-welcome" aria-label="함께 공부할 후배들">
           <StaticBackdrop />
-          <p className="editorial-label">MEET. TEACH. UNDERSTAND.</p>
-          <span className="editorial-welcome-word" aria-hidden="true">HELLO,<br />SENIOR.</span>
           <JuniorTrio className="editorial-welcome-characters" />
-          <p className="editorial-welcome-caption">선배의 첫 수업을 기다리고 있어요.</p>
+          <p className="editorial-welcome-caption">컴돌이 · KU · 컴순이</p>
         </div>}
-      </section>
+      </section>}
       {!emptyHome && <TodayTasks home={home} run={run} />}
       <section aria-labelledby="courses-heading" className="editorial-course-section" id="study-library">
-        <div className="editorial-section-heading"><div><p className="editorial-label">01 / THE STUDY LIBRARY</p><h2 id="courses-heading">내 과목</h2></div><Link href="/new" className="text-link">새 자료 올리기 <span aria-hidden="true">↗</span></Link></div>
+        <div className="editorial-section-heading"><h2 id="courses-heading">내 과목</h2><Link href="/new" className="text-link">새 자료 올리기 <span aria-hidden="true">↗</span></Link></div>
         {home.courses.length ? <div className="editorial-courses">{home.courses.map((course) => <div key={course.courseName} className="editorial-course">
           <div className="editorial-course-label"><h3>{course.courseName}</h3>{dDayLabel(course.dDay) && <Chip tone={course.dDay !== null && course.dDay <= 7 && course.dDay >= 0 ? "yellow" : "neutral"}>{dDayLabel(course.dDay)}</Chip>}</div>
           <div className="editorial-materials">{course.materials.map((material, index) => { const progress = material.chapterCount ? Math.min(100, Math.round(material.taughtCount / material.chapterCount * 100)) : 0; return <article key={material.materialId} className="editorial-material">
@@ -57,10 +60,10 @@ export default function HomePage() {
         </div>)}</div> : <EmptyState title="아직 자료가 없습니다" description="공부할 자료를 올리고 후배와 함께 시작해 보세요." action={<Link href="/new" className="text-link">새 자료 올리기 →</Link>} />}
       </section>
       <div className="editorial-home-journal">
-        <section aria-labelledby="recent-heading"><div className="editorial-section-heading"><div><p className="editorial-label">02 / RECENT MOMENTS</p><h2 id="recent-heading">최근 세션</h2></div></div>
+        <section aria-labelledby="recent-heading"><div className="editorial-section-heading"><h2 id="recent-heading">최근 세션</h2></div>
           <div className="editorial-recent-list">{home.recentSessions.length ? home.recentSessions.slice(0, 5).map((session, index) => <Link key={session.sessionId} href={routeForSession(session)} className="editorial-recent"><span aria-hidden="true" className="editorial-recent-index">{String(index + 1).padStart(2, "0")}</span><div><p>{session.chapterTitle}</p><span>{session.materialTitle}</span></div><Chip tone={session.finalVerdict === "STABLE" ? "green" : session.finalVerdict ? "yellow" : "neutral"}>{verdictLabel(session.finalVerdict)}{session.score !== null ? ` · ${session.score}점` : ""}</Chip><span className="editorial-recent-arrow" aria-hidden="true">↗</span></Link>) : <p className="py-8 text-sm text-muted">아직 진행한 세션이 없습니다.</p>}</div>
         </section>
-        <section aria-labelledby="stats-heading" className="editorial-statistics"><p className="editorial-label">03 / SMALL STEPS, BIG CHANGE</p><h2 id="stats-heading">쌓여가는<br />선배의 기록.</h2><dl><div><dt>완료한 세션</dt><dd>{home.stats.completedSessions}<span>회</span></dd></div><div><dt>평균 점수</dt><dd>{home.stats.averageScore ?? "–"}<span>점</span></dd></div><div><dt>연속 학습</dt><dd>{home.stats.streakDays}<span>일</span></dd></div></dl></section>
+        <section aria-labelledby="stats-heading" className="editorial-statistics"><h2 id="stats-heading">학습 기록</h2><dl><div><dt>완료한 세션</dt><dd>{home.stats.completedSessions}<span>회</span></dd></div><div><dt>평균 점수</dt><dd>{home.stats.averageScore ?? "–"}<span>점</span></dd></div><div><dt>연속 학습</dt><dd>{home.stats.streakDays}<span>일</span></dd></div></dl></section>
       </div>
     </>}
   </div>;

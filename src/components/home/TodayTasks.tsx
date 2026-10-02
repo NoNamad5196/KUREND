@@ -28,8 +28,9 @@ function buildTasks(home: HomeDto, run: RunDto | null, notes: WrongNoteDto[]): T
   if (unwritten.length) tasks.push({ key: "notes", icon: "✎", title: `오답노트 ${unwritten.length}개가 기다려요`, detail: "왜 틀렸는지 내 생각을 먼저 적고 AI 분석과 비교해 보세요.", href: "/wrong-notes", cta: "이유 쓰기", tone: "default" });
   const soon = home.courses.filter((c) => c.dDay !== null && c.dDay >= 0 && c.dDay <= 7).sort((a, b) => (a.dDay ?? 99) - (b.dDay ?? 99))[0];
   if (soon) tasks.push({ key: "dday", icon: "📅", title: `${soon.courseName} 시험 ${soon.dDay === 0 ? "D-Day" : `D-${soon.dDay}`}`, detail: "남은 목차를 후배에게 가르치며 복습해요.", href: soon.materials[0] ? `/materials/${soon.materials[0].materialId}` : "/", cta: "자료 보기", tone: "accent" });
-  if (!run && home.courses.length) tasks.push({ key: "meet", icon: "🧑‍🎓", title: "가르칠 후배를 골라 주세요", detail: "컴돌이·컴순이·KU 중 한 명을 골라 졸업시켜 보세요.", href: `/materials/${home.courses[0].materials[0]?.materialId}/junior`, cta: "후배 고르기", tone: "primary" });
-  if (!home.courses.length) tasks.push({ key: "first", icon: "＋", title: "첫 자료를 올려 보세요", detail: "강의노트·PDF를 올리면 목차를 나눠 줘요.", href: "/new", cta: "자료 올리기", tone: "primary" });
+  const firstMaterial = home.courses.flatMap((course) => course.materials)[0];
+  if (!run && firstMaterial) tasks.push({ key: "meet", icon: "🧑‍🎓", title: "가르칠 후배를 골라 주세요", detail: "컴돌이·KU·컴순이 중 한 명에게 준비한 내용을 설명해 주세요.", href: `/materials/${firstMaterial.materialId}/junior`, cta: "후배 고르기", tone: "primary" });
+  if (!firstMaterial) tasks.push({ key: "first", icon: "＋", title: "첫 자료를 올려 보세요", detail: "강의노트·PDF를 올리면 목차를 나눠 줘요.", href: "/new", cta: "자료 올리기", tone: "primary" });
   return tasks.slice(0, 4);
 }
 
@@ -39,11 +40,11 @@ export function TodayTasks({ home, run }: { home: HomeDto; run: RunDto | null | 
   if (run === undefined) return null;
   const tasks = buildTasks(home, run, notes);
   if (!tasks.length) return null;
-  const line = run && run.next ? `선배, 오늘은 “${run.next.title}” 배우고 싶어요!` : run ? "선배, 오늘도 잘 부탁해요!" : "선배, 저희 중 누구를 가르쳐 주실 거예요?";
+  const line = run ? `${CHARACTER_META[run.character].name} · 목차 ${run.progress.total}개 중 ${run.progress.cleared}개 통과` : "자료를 준비했다면 후배를 골라 주세요.";
   return (
     <section aria-labelledby="today-heading" className="today-tasks">
       <div className="editorial-section-heading">
-        <div><p className="editorial-label">00 / TODAY</p><h2 id="today-heading">오늘 할 일</h2></div>
+        <div><h2 id="today-heading">오늘 할 일</h2></div>
         <p className="today-tasks-line"><span className="today-tasks-avatar" aria-hidden="true"><JuniorAvatar character={run?.character ?? "KU_HARD"} size={40} pose="still" mood="talk" /></span><span>{line}</span></p>
       </div>
       <ul className="today-tasks-list">
