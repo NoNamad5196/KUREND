@@ -7,7 +7,7 @@ import "./paper-ending.css";
 
 type Ending = "graduation" | "male" | "female" | "ku";
 type Phase = "waiting" | "playing" | "finished";
-const DURATION: Record<Ending, number> = { graduation: 3000, male: 3500, female: 3000, ku: 4000 };
+const DURATION: Record<Ending, number> = { graduation: 3000, male: 3500, female: 3900, ku: 4000 };
 
 /** Presentation only: never changes a run or waits to enable the next action. */
 export function PaperEnding({ kind, className, label, children }: {

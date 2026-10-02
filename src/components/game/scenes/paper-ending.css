@@ -19,15 +19,27 @@
 .paper-ending .paper-truck { position: relative; z-index: 2; transform-origin: 50% 90%; }
 .paper-ending--male { --walk-delay: 350ms; --walk-duration: 1200ms; --drive-delay: 1600ms; --drive-duration: 1800ms; }
 .paper-ending--ku { --tumble-delay: 700ms; --tumble-duration: 1400ms; --drive-delay: 2250ms; --drive-duration: 1750ms; }
-.paper-ending--female { --walk-delay: 400ms; --walk-duration: 2200ms; }
+/* 컴순이: 옆으로 몇 걸음 → 이쪽을 돌아봄 → 종이처럼 접혀 사라짐 → 낙엽이 흩어짐 */
+.paper-ending--female { --walk-delay: 500ms; --step-duration: 1000ms; --turn-delay: 1550ms; --vanish-delay: 2200ms; --vanish-duration: 640ms; --leaf-delay: 2450ms; }
 .paper-ending--playing .paper-exit-person { animation: paper-board var(--walk-duration) steps(10, end) var(--walk-delay) both; }
 .paper-ending--playing .paper-exit-person .paper-puppet { animation: paper-rock 800ms steps(1, end) var(--walk-delay) 3; }
 .paper-ending--playing .paper-facing-front { animation: paper-face-front 1ms step-end var(--walk-delay) forwards; }
 .paper-ending--playing .paper-facing-side { animation: paper-face-side 1ms step-end var(--walk-delay) forwards; }
 .paper-ending--playing .paper-truck { animation: paper-drive var(--drive-duration) steps(1, end) var(--drive-delay) both; }
-/* Let her walk all the way to the map edge, beyond the centered art column. */
-.paper-ending--female .paper-departure-stage { width: 100vw; max-width: none; }
-.paper-ending--female.paper-ending--playing .paper-exit-person { animation-name: paper-walk-away; animation-timing-function: steps(20, end); }
+.paper-female-stage { overflow: visible; }
+.paper-female-person { position: relative; }
+.paper-ending--female.paper-ending--playing .paper-exit-person { animation: paper-sidestep var(--step-duration) steps(1, end) var(--walk-delay) both; }
+.paper-ending--female.paper-ending--playing .paper-exit-person .paper-puppet {
+  animation: paper-rock 800ms steps(1, end) 0ms 1, paper-look 900ms steps(1, end) var(--turn-delay) 1, paper-vanish var(--vanish-duration) steps(1, end) var(--vanish-delay) forwards;
+}
+/* 걸을 때는 옆모습, 돌아볼 때부터는 앞모습으로 사라진다 */
+.paper-ending--female.paper-ending--playing .paper-facing-front { animation: paper-face-front 1ms step-end var(--walk-delay) forwards, paper-face-side 1ms step-end var(--turn-delay) forwards; }
+.paper-ending--female.paper-ending--playing .paper-facing-side { animation: paper-face-side 1ms step-end var(--walk-delay) forwards, paper-face-front 1ms step-end var(--turn-delay) forwards; }
+.paper-leaves { position: absolute; inset: 0; pointer-events: none; }
+.paper-leaves i { position: absolute; left: var(--leaf-x); top: var(--leaf-y); width: 11px; height: 8px; border-radius: 70% 0 70% 0; background: #d9733a; opacity: 0; }
+.paper-leaves i:nth-child(3n) { background: #e6b45e; }
+.paper-leaves i:nth-child(3n + 1) { background: #b94a2c; }
+.paper-ending--female.paper-ending--playing .paper-leaves i { animation: paper-leaf-scatter 1300ms steps(10, end) calc(var(--leaf-delay) + var(--leaf-wait)) forwards; }
 .paper-ending--finished .paper-exit-person,
 .paper-ending--finished .paper-truck { visibility: hidden; }
 
@@ -114,9 +126,30 @@
   93.75% { transform: translate(140%, 0) rotate(.3deg); }
   100% { transform: translate(155%, 0) rotate(0); }
 }
-@keyframes paper-walk-away {
-  from { transform: translateX(0); visibility: visible; }
-  to { transform: translateX(calc(50vw + 50% + 12px)); visibility: hidden; }
+@keyframes paper-sidestep {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(5%, -6px); }
+  40% { transform: translate(9%, 0); }
+  60% { transform: translate(14%, -6px); }
+  80% { transform: translate(18%, 0); }
+  100% { transform: translate(22%, 0); }
+}
+@keyframes paper-look {
+  0% { transform: rotate(0); }
+  30% { transform: rotate(-3deg); }
+  60% { transform: rotate(2deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes paper-vanish {
+  0% { transform: scaleX(1) rotate(0); opacity: 1; }
+  25% { transform: scaleX(.72) rotate(-2deg); opacity: 1; }
+  50% { transform: scaleX(.34) rotate(2deg); opacity: 1; }
+  75% { transform: scaleX(.1) rotate(-1deg); opacity: .9; }
+  100% { transform: scaleX(.02) rotate(0); opacity: 0; }
+}
+@keyframes paper-leaf-scatter {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--leaf-dx), var(--leaf-dy)) rotate(var(--leaf-turn)); opacity: 0; }
 }
 @keyframes paper-confetti-fall {
   0% { transform: translate(0, -20px) rotate(0); opacity: 1; }
@@ -124,7 +157,7 @@
 }
 
 /* Motion preference changes, skipping, and route unmounts need no background loop. */
-.paper-ending--reduced :is(.paper-graduate-cutout, .paper-puppet, .paper-facing, .paper-exit-person, .paper-truck, .paper-confetti i) { animation: none !important; }
+.paper-ending--reduced :is(.paper-graduate-cutout, .paper-puppet, .paper-facing, .paper-exit-person, .paper-truck, .paper-confetti i, .paper-leaves i) { animation: none !important; }
 .paper-ending--reduced .paper-exit-person,
 .paper-ending--reduced .paper-truck { visibility: visible; }
 .paper-ending--reduced :is(.paper-ku-convoy, .paper-ku-rider, .paper-ku-tumble) { animation: none !important; }
@@ -136,7 +169,8 @@
   .paper-ending .paper-facing,
   .paper-ending .paper-exit-person,
   .paper-ending .paper-truck,
-  .paper-ending .paper-confetti i { animation: none !important; }
+  .paper-ending .paper-confetti i,
+  .paper-ending .paper-leaves i { animation: none !important; }
   .paper-ending .paper-exit-person, .paper-ending .paper-truck { visibility: visible; }
   .paper-ending-controls { visibility: hidden; }
   .paper-ending :is(.paper-ku-convoy, .paper-ku-rider, .paper-ku-tumble) { animation: none !important; }
