@@ -14,6 +14,11 @@
 .kl-google > svg { flex-shrink: 0; }
 .kl-google:hover { background: var(--primary-soft); transform: translateY(-2px); }
 .kl-google:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.kl-demo { display: flex; min-height: 52px; width: 100%; align-items: center; gap: 12px; margin-top: 10px; border: 1px dashed var(--line); background: transparent; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--ink); border-radius: var(--radius-sm); transition: background .2s, border-color .2s; }
+.kl-demo:not(:disabled):hover { background: var(--accent-soft); border-color: var(--primary); }
+.kl-demo:disabled { opacity: .6; cursor: progress; }
+.kl-demo:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.kl-demo-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); font-size: 11px; font-weight: 800; }
 .kl-access-footnote { margin-top: 16px; font-size: 12px; line-height: 1.8; color: var(--muted); }
 .kl-footer { border-top: 1px solid var(--line); padding-top: 22px; }
 .kl-footer > ol { display: flex; flex-wrap: wrap; column-gap: 25px; row-gap: 13px; }
@@ -24,7 +29,7 @@
 @media (max-width: 1000px) { .kl-layout { gap: 5%; } .kl-art { height: 320px; } }
 @media (max-width: 760px) { .kl-page { padding: 21px 6vw; } .kl-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 32px 0; } .kl-story > h1 { font-size: clamp(32px, 8.1vw, 56px); } .kl-intro { margin-top: 20px; font-size: 15px; } .kl-access { max-width: 100%; margin-top: 24px; } .kl-art { height: 265px; } .kl-art-field { inset: 40px 0 0; } .kl-footer > ol { gap: 12px 17px; } .kl-flow-arrow { display: none; } }
 @media (max-width: 400px) { .kl-art { height: 233px; } .kl-google { padding-inline: 12px; gap: 9px; font-size: 15px; } }
-@media (prefers-reduced-motion: reduce) { .kl-google { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .kl-google, .kl-demo { transition: none; } }
 
 /* The shared trio keeps the existing portrait sizes and normalizes visible centers. */
 .kl-characters { --trio-male-size: 300px; --trio-female-size: 280px; --trio-ku-size: 190px; position: absolute; bottom: 24px; }

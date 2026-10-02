@@ -54,7 +54,8 @@ test("incorrect teaching survives real SQLite, answer generation, result and wro
       const live = createLiveLlm({
         async completeJSON(_system, input, schema) {
           const value = JSON.parse(input);
-          if (value.chapter) {
+          // 채점·놓친 곳 진단 호출(answer·rubricElements 가 있음). 답안 작성 호출에도 참고용 chapter 가 들어가므로 chapter 로는 구분하지 않는다.
+          if (value.rubricElements || typeof value.answer === "string") {
             const index = Number(value.question.qid.slice(1)) - 1;
             const gap = { title: topics[index], diagnosis: index === 0 ? "학습했던 준비 상태의 의미가 자료와 다릅니다." : "이 개념을 설명에서 다루지 않음.",
               evidenceQuote: index === 0 ? wrong : "", sourceExcerpt: facts[index], concepts: [topics[index]],
@@ -62,7 +63,7 @@ test("incorrect teaching survives real SQLite, answer generation, result and wro
             return schema.parse(value.rubricElements ? { qid: value.question.qid, score: 0, verdict: "WRONG", comment: "자료의 기준을 충족하지 못했습니다.", rubricChecks: [false, false], contradictsSource: index === 0, gap } : { gap });
           }
           answerCalls += 1;
-          assert.deepEqual(Object.keys(value).sort(), character === "MALE_EASY" ? ["choices", "heardConcepts", "question", "taught"] : ["heardConcepts", "question", "taught"]);
+          assert.deepEqual(Object.keys(value).sort(), character === "MALE_EASY" ? ["chapter", "choices", "heardConcepts", "question", "taught"] : ["chapter", "heardConcepts", "question", "taught"]);
           assert.equal(value.taught[0].content, wrong);
           const learned = value.question.includes("준비 상태");
           // The model deliberately offers the corrected definition and correct choice.

@@ -21,7 +21,7 @@ test("valid session continuity is distinct from expiry and unavailable account s
   t.mock.method(console, "warn", (...args: unknown[]) => { diagnostics.push(args); });
   let disconnect: (() => Promise<void>) | undefined;
   try {
-    await client.execute('CREATE TABLE "User" (id TEXT PRIMARY KEY, nickname TEXT NOT NULL, onboardingCompletedAt DATETIME)');
+    await client.execute('CREATE TABLE "User" (id TEXT PRIMARY KEY, nickname TEXT NOT NULL, createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, onboardingCompletedAt DATETIME)');
     await client.execute('INSERT INTO "User" (id, nickname) VALUES (\'usr_persisted\', \'Private nickname\')');
     const { db } = await import("@/lib/server/db");
     disconnect = () => db.$disconnect();
@@ -50,24 +50,28 @@ test("valid session continuity is distinct from expiry and unavailable account s
       assert.equal((await response.json()).userId, "usr_persisted");
     });
 
-    await t.test("a lost account with a valid cookie is 503, not a false expiry or a recreated account", async () => {
+    await t.test("a lost account with a valid signed cookie is restored in place (free-tier DB resets), never a false expiry", async () => {
+      // 무료 호스팅은 재시작·재배포마다 DB 파일이 지워진다. 서명이 확인된 로그인은 다시 로그인시키지 않고 계정 행만 되살린다.
       await client.execute('DELETE FROM "User"');
       const response = await endpoint(request(), context);
-      assert.equal(response.status, 503);
-      assert.equal((await response.json()).error.code, "AUTH_UNAVAILABLE");
-      assert.equal(response.headers.get("set-cookie"), null);
-      assert.equal((await client.execute('SELECT count(*) AS count FROM "User"')).rows[0].count, 0);
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).userId, "usr_persisted");
+      assert.equal(response.headers.get("set-cookie"), null, "restoring must not replace the cookie");
+      const rows = await client.execute('SELECT nickname, onboardingCompletedAt FROM "User" WHERE id = \'usr_persisted\'');
+      assert.equal(rows.rows.length, 1);
+      assert.equal(rows.rows[0].nickname, "선배", "표시 이름 쿠키가 없으면 기본 닉네임");
+      assert.ok(rows.rows[0].onboardingCompletedAt, "되살린 계정은 온보딩을 다시 강제하지 않는다");
 
       const { installLlmRouteBackend } = await import("@/lib/server/llm-backend");
       const { getRouteBackend } = await import("@/lib/llm/routes/backend");
       installLlmRouteBackend();
-      const failure: unknown = await (await getRouteBackend()).requireUser(request()).catch((error: unknown) => error);
-      assert.ok(failure instanceof Response);
-      assert.equal(failure.status, 503);
-      assert.equal((await failure.json()).error.code, "AUTH_UNAVAILABLE");
+      assert.equal((await (await getRouteBackend()).requireUser(request())).id, "usr_persisted");
 
-      await client.execute('INSERT INTO "User" (id, nickname) VALUES (\'usr_persisted\', \'Private nickname\')');
-      assert.equal((await endpoint(request(), context)).status, 200, "the unchanged cookie works after account storage recovers");
+      // 표시 이름 쿠키가 있으면 그 이름으로 되살린다
+      await client.execute('DELETE FROM "User"');
+      assert.equal((await endpoint(request(`${cookie}; tb_name=${encodeURIComponent("Private nickname")}`), context)).status, 200);
+      assert.equal((await client.execute('SELECT nickname FROM "User" WHERE id = \'usr_persisted\'')).rows[0].nickname, "Private nickname");
+      assert.equal((await endpoint(request(), context)).status, 200, "the unchanged cookie keeps working afterwards");
     });
 
     await t.test("missing signing configuration is a service failure; expiry and tampering remain 401", async () => {

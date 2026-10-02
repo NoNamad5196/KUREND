@@ -1,6 +1,6 @@
 // GET /api/auth/google/callback?code=&state= → 로그인 → 신규 가입만 온보딩, 기존 계정은 홈
 import { db } from "@/lib/server/db";
-import { readCookie, sessionCookieHeader } from "@/lib/server/auth";
+import { nameCookieHeader, readCookie, sessionCookieHeader } from "@/lib/server/auth";
 import { exchangeGoogleCode, googleNickname, googleOAuthConfig, googleUserId, OAUTH_STATE_COOKIE, requestOrigin } from "@/lib/server/google-oauth";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
     const destination = existingUser ? "/" : "/onboarding?mode=signup";
     const headers = new Headers({ location: `${origin}${destination}` });
     headers.append("set-cookie", sessionCookieHeader(id));
+    headers.append("set-cookie", nameCookieHeader(nickname));
     headers.append("set-cookie", `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
     return new Response(null, { status: 302, headers });
   } catch (error) {

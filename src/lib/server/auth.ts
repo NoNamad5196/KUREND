@@ -72,7 +72,21 @@ function authUnavailable(reason: "SIGNING_KEY_MISSING" | "ACCOUNT_NOT_FOUND"): A
   return new ApiError("AUTH_UNAVAILABLE", "로그인 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
 }
 
-/** Invalid/expired identity is 401; a valid signed identity with missing account data is a service failure. */
+/** 표시 이름 쿠키 — 세션이 아니다(권한 없음). 계정 행을 되살릴 때 닉네임으로만 쓴다. */
+export const NAME_COOKIE = "tb_name";
+const NICKNAME_MAX = 40;
+export function nameCookieHeader(nickname: string): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${NAME_COOKIE}=${encodeURIComponent(nickname.slice(0, NICKNAME_MAX))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}${secure}`;
+}
+
+const USER_SELECT = { id: true, nickname: true, onboardingCompletedAt: true } as const;
+
+/**
+ * Invalid/expired identity is 401. A valid signed identity whose account row is missing is restored:
+ * on free hosting the SQLite file is wiped on every restart/redeploy, and forcing a re-login (or an error)
+ * on every wake-up is exactly the "세션이 끊긴다" complaint. Prior study data is gone with the file either way.
+ */
 export async function requireUser(req: Request): Promise<AuthUser> {
   const identity = sessionIdentity(req);
   if (identity.userId === null) {
@@ -80,7 +94,18 @@ export async function requireUser(req: Request): Promise<AuthUser> {
     if (identity.reason !== "MISSING_COOKIE") console.warn("[auth] rejected", { reason: identity.reason });
     throw unauthorized(identity.reason === "EXPIRED_SESSION" ? "로그인이 만료되었습니다. 다시 로그인해 주세요." : "로그인이 필요합니다.");
   }
-  const user = await db.user.findUnique({ where: { id: identity.userId }, select: { id: true, nickname: true, onboardingCompletedAt: true } });
+  let user = await db.user.findUnique({ where: { id: identity.userId }, select: USER_SELECT });
+  if (!user && identity.signed) {
+    const nickname = (readCookie(req, NAME_COOKIE) ?? "").trim().slice(0, NICKNAME_MAX) || "선배";
+    user = await db.user.upsert({
+      where: { id: identity.userId },
+      create: { id: identity.userId, nickname, onboardingCompletedAt: new Date() },
+      update: {},
+      select: USER_SELECT,
+    }).catch(() => db.user.findUnique({ where: { id: identity.userId }, select: USER_SELECT })); // 동시 요청이 먼저 만든 경우
+    // 진단에는 원인만 남긴다(쿠키·키·사용자 ID·닉네임 제외).
+    if (user) console.warn("[auth] restored", { reason: "ACCOUNT_NOT_FOUND" });
+  }
   if (!user) {
     if (identity.signed) throw authUnavailable("ACCOUNT_NOT_FOUND");
     throw unauthorized("로그인 계정을 확인할 수 없습니다. 다시 로그인해 주세요.");

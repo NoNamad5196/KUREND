@@ -238,15 +238,16 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         const examFormat = session.game?.examFormat ?? "DESCRIPTIVE";
         const prepared = await llm.prepareSession({ chapter: session.chapter, level: session.juniorLevel,
           persona: session.game?.character, examFormat, questionCount, kind: session.game?.kind });
-        if (prepared.objectives.length !== questionCount || new Set(prepared.objectives.map((item) => item.id)).size !== questionCount
-          || prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount
-          || prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100
-          || prepared.questions.some((item, index) => !Number.isInteger(item.points) || item.points < 1
-            || prepared.objectives[index]?.id !== item.objectiveRef)
-          || !prepared.firstQuestion.trim()
-          || prepared.questions.some((item, index) => isObjectiveQuestion(examFormat, index, questionCount)
+        // 출제 결과의 마지막 안전망. 어떤 조건에 걸렸는지 로그로 남겨야 502 원인을 찾을 수 있다(내용은 남기지 않는다).
+        const rejected = prepared.objectives.length !== questionCount || new Set(prepared.objectives.map((item) => item.id)).size !== questionCount ? "objectives"
+          : prepared.questions.length !== questionCount || new Set(prepared.questions.map((item) => item.qid)).size !== questionCount ? "questions"
+          : prepared.questions.reduce((sum, item) => sum + item.points, 0) !== 100 ? "points"
+          : prepared.questions.some((item, index) => !Number.isInteger(item.points) || item.points < 1 || prepared.objectives[index]?.id !== item.objectiveRef) ? "objectiveRef"
+          : !prepared.firstQuestion.trim() ? "firstQuestion"
+          : prepared.questions.some((item, index) => isObjectiveQuestion(examFormat, index, questionCount)
             ? (item.choices?.length !== 4 || new Set(item.choices).size !== 4 || !/^정답 [①②③④];근거:/u.test(item.rubric))
-            : Boolean(item.choices))) modelFailure();
+            : Boolean(item.choices)) ? "choices/rubric" : null;
+        if (rejected) { console.warn("[prepare] 출제 결과 거절", { reason: rejected, questionCount, examFormat }); modelFailure(); }
         send("progress", { step: "QUESTIONS", message: "학습 목표에 맞는 시험 문제를 준비했어요.", elapsedMs: Date.now() - started });
         const firstQuestion = message("JUNIOR", "QUESTION", normalizePersonaAddress(prepared.firstQuestion, session.game?.character));
         if (session.game?.character === "MALE_EASY") {
@@ -348,7 +349,7 @@ export function createRouteHandlers({ backend, llm }: { backend: RouteBackend; l
         let finalAnswer: string | undefined;
         let sourcesSent = false;
         for await (const event of llm.writeExamAnswer({ question: question.question, taught, heardConcepts: session.heardConcepts,
-          choices: question.choices })) {
+          choices: question.choices, chapter: session.chapter })) {
           checkActive(request);
           if (finalAnswer !== undefined) modelFailure();
           if (event.type === "sources") {

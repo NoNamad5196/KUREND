@@ -55,15 +55,15 @@ test("live P3 doubt uses one call and never discloses source facts", async () =>
   assert.ok(!JSON.stringify(events).includes("감소한다"));
 });
 
-test("live P4 request contains only question, taught messages and heard concepts", async () => {
+test("live P4 request contains question, taught messages, heard concepts and the chapter as a wording reference, never the rubric", async () => {
   const model = createLiveLlm(provider((input) => {
-    assert.deepEqual(Object.keys(input).sort(), ["heardConcepts", "question", "taught"]);
+    assert.deepEqual(Object.keys(input).sort(), ["chapter", "heardConcepts", "question", "taught"]);
     assert.ok(!JSON.stringify(input).includes("DO_NOT_LEAK"));
     return { thought: "들은 설명을 떠올려 보자.", sentences: [{ quote: "가격이 오르면 수요량은 줄어.", ref: 2, level: "STRONG" }], unlearned: false };
   }));
   const input = {
     question: "수요 법칙을 설명하세요.", taught: [{ ref: 2, content: "가격이 오르면 수요량은 줄어." }], heardConcepts: ["수요량"],
-    chapter: { text: "DO_NOT_LEAK_SOURCE" }, rubric: "DO_NOT_LEAK_RUBRIC",
+    chapter: { title: "수요", points: ["수요량"], text: "다른 조건이 일정할 때 가격과 수요량은 반대로 움직인다." }, rubric: "DO_NOT_LEAK_RUBRIC",
   };
   const events = await collect(model.writeExamAnswer(input));
   assert.deepEqual(events.find((event) => event.type === "sources"), { type: "sources", sources: input.taught });

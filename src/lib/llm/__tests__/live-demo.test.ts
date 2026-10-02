@@ -145,6 +145,24 @@ test("exam citations cannot invent facts under an otherwise valid ref", async ()
   assert.ok(!JSON.stringify(events).includes("외부 사실"));
 });
 
+test("exam answers may borrow the chapter's wording for what the senior taught, but never grow beyond it", async () => {
+  const input = { question: "수요 법칙을 설명하시오.", taught: [{ ref: 7, content: correct }], heardConcepts: ["수요 법칙"], chapter };
+  const reply = (answer: string) => ({ thought: "들은 내용을 찾아볼게.", sentences: [{ quote: correct, ref: 7, level: "STRONG", answer }], unlearned: false });
+  // 선배의 말을 그대로 두고 자료의 용어(수요량)를 덧붙인 답안은 그대로 쓴다.
+  const borrowed = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양, 즉 수요량은 줄어든다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(borrowed))).writeExamAnswer(input))).at(-1), { type: "final", answer: borrowed });
+  const styled = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄어든다.";
+  // 선배의 말을 자료 표현으로 바꿔 쓴 답안(내용 일부가 빠짐)은 근거 원문으로 돌아간다 — 틀린 설명을 자료로 "고치는" 길도 막힌다.
+  const rewritten = "다른 조건이 일정할 때 가격이 오르면 수요량이 줄어든다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(rewritten))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
+  // 선배가 말하지 않은 사실(소득·유행·곡선 이동)을 자료에서 가져와 덧붙이면 버리고 근거 원문을 쓴다.
+  const overgrown = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄고, 소득이 늘거나 유행이 바뀌면 수요곡선 자체가 오른쪽으로 이동한다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(overgrown))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
+  // 부정을 끼워 넣어 뜻을 뒤집는 작은 편집도 거절한다.
+  const flipped = "다른 조건은 그대로 두고 가격이 오르면 사람들이 사려는 양은 줄지 않는다.";
+  assert.deepEqual((await collect(createLiveLlm(provider(() => reply(flipped))).writeExamAnswer(input))).at(-1), { type: "final", answer: styled });
+});
+
 test("unlearned answers stay canonical even with unrelated taught messages", async () => {
   const events = await collect(createLiveLlm(provider(() => ({
     thought: "그 부분은 못 들었어.", sentences: [{ quote: null, ref: null, level: "NONE" }], unlearned: true,

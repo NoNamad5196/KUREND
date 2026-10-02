@@ -68,6 +68,70 @@ function fallbackExamAnswer(question: string, messages: TaughtMsg[], choices?: s
   return { thought: "선배가 해 준 말을 떠올려 볼게.", choice, unlearned: false, sentences: best.map(({ ref, quote }) => ({ quote, ref, level: "FAINT" as const })) };
 }
 
+/* ── 출력 문체 ── */
+/** 반응은 호칭 없이 감탄으로: 앞뒤의 "선배님," "…, 선배님!"을 떼고 마크다운을 지운다 */
+/** 답안 문장이 시험 답안 문체(평서형 ~다/~음)로 끝나는지 */
+const isAnswerStyle = (text: string) => /(다|음|함|됨|임)\s*[.。]?\s*$/u.test(text.trim());
+function reactionText(text: string, character?: Parameters<typeof normalizePersonaAddress>[1]): string {
+  const cleaned = stripMarkdownBold(text)
+    .replace(/^선배님?\s*[,，!~.…]*\s*/u, "")
+    .replace(/\s*[,，]?\s*선배님?(?=\s*[.!?~…]*\s*$)/u, "")
+    .trim();
+  return normalizePersonaAddress(cleaned || personaFor(character)?.examples.reaction || "아하, 그렇구나.", character).slice(0, 40);
+}
+/** 답안 문장의 바이그램 중 허용 본문(근거 + 관련 자료 문장)에도 있는 비율 — 새 사실이 끼어들면 낮아진다 */
+function precision(answer: string, allowed: string): number {
+  const a = bigrams(answer); const q = bigrams(allowed);
+  if (!a.size) return 0;
+  let hit = 0;
+  for (const g of a) if (q.has(g)) hit += 1;
+  return hit / a.size;
+}
+/** 근거 인용의 바이그램 중 답안에 남아 있는 비율 — 선배의 말을 빼거나 바꾸면(틀린 설명을 자료로 고치는 것 포함) 낮아진다 */
+function recall(answer: string, quote: string): number {
+  const a = bigrams(answer); const q = bigrams(quote);
+  if (!q.size) return 1;
+  let hit = 0;
+  for (const g of q) if (a.has(g)) hit += 1;
+  return hit / q.size;
+}
+/**
+ * 답안이 빌려 쓸 수 있는 자료 문장: 선배의 근거(quote)와 같은 개념을 말하는 자료 문장만(겹침 상위 3개).
+ * 자료 전체를 허용하면 선배가 설명하지 않은 사실까지 답안에 들어오므로, 근거와 겹치는 문장으로 제한한다.
+ */
+function relatedSourceSentences(quote: string, chapter?: Parameters<typeof compactChapter>[0]): string[] {
+  if (!chapter) return [];
+  return chapter.text.split(/(?<=[.!?。])\s+|\n+/u).map((s) => stripMarkdownBold(s).trim()).filter((s) => s.length >= 8)
+    .map((sentence) => ({ sentence, score: overlap(quote, sentence) }))
+    .filter((item) => item.score >= 0.2)
+    .sort((a, b) => b.score - a.score).slice(0, 3).map((item) => item.sentence);
+}
+/**
+ * 시험 답안 문장: 모델이 다듬은 답안체 문장을 쓰되 "선배의 근거(quote)에 자료의 용어를 더한 것"까지만 허용한다.
+ *  - 선배가 말한 내용은 그대로 남아야 한다(recall ≥ 0.85) → 틀린 설명을 자료로 고치거나 일부를 빼면 근거 원문으로 되돌린다.
+ *  - 새로 들어온 어구는 근거와 같은 개념을 말하는 자료 문장에 있는 것이어야 하고(precision ≥ 0.75), 길이는 근거의 1.25배+15자까지.
+ *  - 부정·수치는 근거와 같아야 한다. 대화체·호칭이면 거절.
+ * 거절되면 근거 원문을 답안체로 다듬어 쓴다 — 어떤 경우에도 선배가 설명한 것보다 자세해질 수 없다.
+ */
+/** 뜻을 뒤집거나 깎는 작은 편집(부정 추가·삭제, 수치 변경)은 어구 겹침으로는 잡히지 않으므로 따로 막는다 */
+const NEGATION_MARKERS = ["않", "못 ", "못하", "없", "아니", "금지", "불가", "반대"];
+function keepsMeaningMarkers(answer: string, quote: string): boolean {
+  for (const marker of NEGATION_MARKERS) if (quote.includes(marker) !== answer.includes(marker)) return false;
+  const numbers = (text: string) => new Set(text.match(/\d+(?:[.,]\d+)?/gu) ?? []);
+  const quoteNumbers = numbers(quote); const answerNumbers = numbers(answer);
+  if ([...quoteNumbers].some((n) => !answerNumbers.has(n)) || [...answerNumbers].some((n) => !quoteNumbers.has(n))) return false;
+  return true;
+}
+function answerSentence(quote: string, answer?: string | null, chapter?: Parameters<typeof compactChapter>[0]): string {
+  const candidate = stripMarkdownBold(answer ?? "").replace(/\s+/g, " ").trim();
+  const allowed = [quote, ...relatedSourceSentences(quote, chapter)].join(" ");
+  const usable = candidate.length > 0 && candidate.length <= quote.length * 1.25 + 15
+    && !/선배|배웠|알려주|가르쳐 주/u.test(candidate) && isAnswerStyle(candidate)
+    && precision(candidate, allowed) >= 0.75 && recall(candidate, quote) >= 0.85 && keepsMeaningMarkers(candidate, quote);
+  // 모델 문장이든 근거 원문이든 답안지 문체(호칭·대화체 제거, ~다.)로 정리한다(answerFromQuote = plainExamAnswer).
+  return answerFromQuote(usable ? candidate : quote);
+}
+
 export type LiveProviderCalls = {
   completeJSON: typeof completeJSON;
   streamText: typeof streamText;
@@ -122,8 +186,9 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         chapter: compactChapter(chapter), level, examFormat: format, questionCount: count, kind: kind ?? "CHAPTER",
       }), prepareSessionSchemaFor(count, objectiveIndexes, compactChapter(chapter).text), {
         temperature: 0.2, stage: "prepare-session",
-        maxOutputTokens: Math.max(1_500, 600 + count * (objectiveIndexes.length ? 560 : 400)),
-        timeoutMs: Math.max(18_000, 8_000 + count * 4_000),
+        // 목표마다 자료 원문 인용(sourceQuote)이 붙으므로 넉넉히(졸업시험 10문항 ≈ 1만 토큰). 모자라면 JSON 이 잘려 502 가 난다.
+        maxOutputTokens: Math.max(2_000, 1_000 + count * (objectiveIndexes.length ? 900 : 700)),
+        timeoutMs: Math.max(20_000, 10_000 + count * 5_000),
       });
       const topic = objectiveTopic(prepared.objectives[0]);
       return { ...prepared, objectives: prepared.objectives.map(({ id, text }) => ({ id, text })),
@@ -216,12 +281,15 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
       };
     },
 
-    async *writeExamAnswer({ question, taught, heardConcepts, choices }) {
+    async *writeExamAnswer({ question, taught, heardConcepts, choices, chapter }) {
       const messages = taughtMessages(taught);
       const response = messages.length ? await calls.completeJSON(`${WRITE_EXAM_ANSWER_PROMPT}${choices ? OBJECTIVE_ANSWER_PROMPT : ""}`, JSON.stringify({
-        // This explicit allowlist is a knowledge boundary: never spread a session/chapter/rubric here.
+        // Knowledge boundary: taught decides what the junior knows. The chapter is only a wording reference
+        // (never the rubric or answer key), and the server rejects answers that grow beyond the cited basis.
         question, taught: messages, heardConcepts: uniqueStrings(heardConcepts), choices,
-      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 900 })
+        // 자료(chapter)는 용어·표현 참고용일 뿐 지식의 범위는 taught 가 정한다. rubric·정답은 절대 넘기지 않는다.
+        ...(chapter ? { chapter: compactChapter(chapter) } : {}),
+      }), examAnswerSchema(messages, choices), { temperature: 0, maxOutputTokens: 1_200 })
         .catch(() => fallbackExamAnswer(question, messages, choices)) : {
         thought: "아직 선배에게 들은 설명이 없어.",
         sentences: [{ quote: null, ref: null, level: "NONE" as const }],
@@ -246,7 +314,8 @@ export function createLiveLlm(calls: LiveProviderCalls = { completeJSON, streamT
         return;
       }
       const sentences = groundedSentences.map((sentence) => ({ ...sentence,
-        text: sentence.quote === null ? UNLEARNED_ANSWER : answerFromQuote(sentence.quote),
+        // 서술형: 선배 근거 + 그 근거에 해당하는 자료 문장 안에서 모델이 다듬은 답안을 쓰고, 범위를 넘으면 근거 원문
+        text: sentence.quote === null ? UNLEARNED_ANSWER : answerSentence(sentence.quote, "answer" in sentence ? sentence.answer : null, chapter),
       }));
       for (const sentence of sentences) {
         yield { type: "sentence", text: sentence.text, ref: sentence.ref,

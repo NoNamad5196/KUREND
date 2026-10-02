@@ -17,7 +17,7 @@ export function MaterialPreparation({ step, busy, error, onRetry }: {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  const content = <Card className="material-preparation-content py-10 text-center" aria-busy={busy}>
+  const content = <Card className="mx-auto my-8 w-full material-preparation-content py-10 text-center" aria-busy={busy}>
     <div className={`material-book ${busy ? "material-book-reading" : ""}`} aria-hidden="true">
       <span className="material-book-page" /><span className="material-book-page" /><span className="material-book-page" />
       <span className="material-book-star">✦</span>

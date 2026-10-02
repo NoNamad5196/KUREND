@@ -40,6 +40,21 @@ export function chaptersSchema(paragraphs: SourceParagraph[], minChapters: numbe
   });
 }
 
+const CHOICE_MARKS = "①②③④";
+/**
+ * 객관식 채점 기준을 "정답 ②;근거: …" 로 맞춘다. 모델이 "정답: ②, 근거 …", "② ; 근거:…", "정답 2;…" 처럼 써도
+ * 정답 번호만 찾으면 같은 형식으로 정리한다(채점 라우트가 이 접두사를 그대로 읽는다). 번호를 못 찾으면 그대로 두고 검증에서 거절한다.
+ */
+export function normalizeObjectiveRubric(rubric: string): string {
+  const text = stripMarkdownBold(rubric).trim();
+  const head = text.split(/[;；]/u)[0];
+  const digit = head.match(/정답\s*[:：]?\s*\(?([1-4])(?=[)번]|\s*[,，;；]|\s*$)/u)?.[1];
+  const mark = head.match(/[①②③④]/u)?.[0] ?? (digit ? CHOICE_MARKS[Number(digit) - 1] : undefined);
+  if (!mark) return text;
+  const rest = text.slice(head.length).replace(/^[;；]\s*/u, "").replace(/^근거\s*[:：]?\s*/u, "").trim() || head.replace(/정답\s*[:：]?\s*\(?[①②③④1-4][)번]?\s*[,，]?\s*/u, "").replace(/^근거\s*[:：]?\s*/u, "").trim();
+  return `정답 ${mark};근거: ${rest || "자료의 해당 사실"}`;
+}
+
 /**
  * Each question evaluates one distinct learning objective; old 3-item fixtures remain valid.
  */
@@ -51,7 +66,8 @@ export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[], 
       qid: z.string().regex(/^q([1-9]|1[0-9]|20)$/u), order: z.number().int().min(1).max(count),
       points: z.number().int(), question: nonempty.max(500).transform(formatExamQuestion).refine(isFormalExamQuestion, "문제는 호칭과 대화체 없는 정식 시험 문장으로 작성하세요."),
       objectiveRef: nonempty,
-      rubric: nonempty.refine((value) => {
+      // 객관식 rubric 은 요소 검사 전에 "정답 ②;근거: …" 로 정규화한다(정답 번호가 없는 서술형 rubric 은 그대로).
+      rubric: nonempty.transform((value) => normalizeObjectiveRubric(value)).refine((value) => {
         const items = value.split(";").filter((item) => item.trim());
         return items.length >= 2 && items.length <= 3;
       }, "채점 기준은 세미콜론으로 구분한 2~3개 요소여야 합니다."),
@@ -59,6 +75,11 @@ export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[], 
         .refine((value) => !META_CHOICE.test(value), "같은 개념의 구체적인 보기를 쓰세요. 메타 부정이나 모르겠다는 보기는 금지합니다."))
         .length(4).refine((items) => new Set(items.map((item) => item.replace(/^[①②③④]\s*/u, "").replace(/[\s.!?]/gu, ""))).size === 4, "보기는 서로 다른 4개여야 합니다.")
         .refine((items) => { const lengths = items.map((item) => item.replace(/^[①②③④]\s*/u, "").length); return Math.max(...lengths) <= Math.max(8, Math.min(...lengths)) * 2; }, "보기의 길이와 구체성을 비슷하게 맞추세요.").optional(),
+    }).transform((question) => {
+      if (!question.choices) return question;
+      // 보기는 ①~④ 로 시작해야 채점이 번호를 읽는다. 번호 없이 오면 순서대로 붙인다.
+      const choices = question.choices.map((choice, index) => /^[①②③④]/u.test(choice) ? choice : `${CHOICE_MARKS[index]} ${choice}`);
+      return { ...question, choices };
     })).length(count),
     firstQuestion: z.string().max(200).default(""),
   }).superRefine((result, ctx) => {
@@ -80,6 +101,8 @@ export function prepareSessionSchemaFor(count = 3, objectiveIndexes?: number[], 
       const mustChoose = objectiveIndexes.includes(index);
       if (mustChoose && !question.choices) ctx.addIssue({ code: "custom", path: ["questions", index, "choices"], message: `${index + 1}번은 객관식(보기 4개)이어야 합니다.` });
       if (!mustChoose && question.choices) ctx.addIssue({ code: "custom", path: ["questions", index, "choices"], message: `${index + 1}번은 서술형이어야 합니다(보기 없음).` });
+      if (mustChoose && question.choices && !/^정답 [①②③④];근거:/u.test(question.rubric)) ctx.addIssue({ code: "custom", path: ["questions", index, "rubric"], message: `${index + 1}번 객관식의 rubric 은 "정답 ②;근거: 자료의 사실" 형식이어야 합니다.` });
+      if (mustChoose && question.choices && !question.choices.some((choice) => choice.startsWith(question.rubric.match(/^정답 ([①②③④])/u)?.[1] ?? "\u0000"))) ctx.addIssue({ code: "custom", path: ["questions", index, "rubric"], message: `${index + 1}번의 정답 번호가 보기와 맞지 않습니다.` });
     });
   });
 }
@@ -138,6 +161,8 @@ export function examAnswerSchema(taught: TaughtMsg[], choices?: string[]) {
     }, z.enum(["①", "②", "③", "④"])).optional(),
     sentences: z.array(z.object({
       quote: nonempty.max(1_000).nullable(), ref: z.number().int().positive().nullable(),
+      // 모델이 자료의 용어로 다듬은 답안 문장. 서버가 근거(quote)·관련 자료 문장과 비교해 범위를 넘으면 버린다.
+      answer: z.string().max(600).nullish(),
       level: z.enum(["STRONG", "FAINT", "NONE"]),
     })).min(1).max(4),
     unlearned: z.boolean(),

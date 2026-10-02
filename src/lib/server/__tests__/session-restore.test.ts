@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createClient } from "@libsql/client";
 
-// A valid cookie cannot restore lost account/history data or turn a nickname cookie into an identity.
-test("lost accounts remain unavailable until storage is restored; cookies never recreate accounts", async (t) => {
+// 무료 호스팅에서 DB 파일이 초기화돼도, 서명이 확인된 로그인은 다시 로그인시키지 않고 계정 행만 되살린다.
+// (서명이 틀리거나 평문 ID 인 쿠키로는 계정을 만들 수 없다.)
+test("signed sessions survive a database reset; unsigned or forged ones do not", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "kurend-session-restore-"));
   const url = `file:${join(directory, "restore.db")}`;
   const keys = ["DATABASE_URL", "NODE_ENV", "SESSION_SECRET", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET"] as const;
@@ -25,25 +26,20 @@ test("lost accounts remain unavailable until storage is restored; cookies never 
     assert.equal(pushed.status, 0, pushed.stderr);
     const { db } = await import("@/lib/server/db");
     disconnect = () => db.$disconnect();
-    const { requireUser, sessionCookieHeader, SESSION_COOKIE } = await import("@/lib/server/auth");
+    const { requireUser, sessionCookieHeader, nameCookieHeader, SESSION_COOKIE } = await import("@/lib/server/auth");
     t.mock.method(console, "error", () => {});
     t.mock.method(console, "warn", () => {});
     const cookieOf = (header: string) => header.split(";")[0];
     const request = (cookie: string) => new Request("https://kurend.test/api/auth/me", { headers: { cookie } });
 
     const signed = cookieOf(sessionCookieHeader("usr_google_abc"));
-    const name = `tb_name=${encodeURIComponent("untrusted nickname")}`;
+    const name = cookieOf(nameCookieHeader("윤재 선배"));
     assert.equal(await db.user.count(), 0, "DB 가 막 초기화된 상태");
 
-    await assert.rejects(requireUser(request(`${signed}; ${name}`)), (error: { status?: number; code?: string }) => error.status === 503 && error.code === "AUTH_UNAVAILABLE");
-    assert.equal(await db.user.count(), 0, "a nickname cookie must not resurrect the account or invent completion history");
-
-    const completedAt = new Date("2026-01-02T03:04:05Z");
-    await db.user.create({ data: { id: "usr_google_abc", nickname: "복원된 선배", onboardingCompletedAt: completedAt } });
     const user = await requireUser(request(`${signed}; ${name}`));
     assert.equal(user.userId, "usr_google_abc");
-    assert.equal(user.nickname, "복원된 선배", "untrusted display cookies cannot overwrite stored identity");
-    assert.equal(user.onboardingCompletedAt?.getTime(), completedAt.getTime());
+    assert.equal(user.nickname, "윤재 선배");
+    assert.ok(user.onboardingCompletedAt, "되살린 계정은 온보딩을 다시 강제하지 않는다");
 
     // 두 번째 요청은 그대로 같은 계정
     assert.equal((await requireUser(request(signed))).userId, "usr_google_abc");
