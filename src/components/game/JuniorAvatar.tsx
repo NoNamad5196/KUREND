@@ -3,8 +3,9 @@ import { StaticCharacter } from "@/components/characters/StaticCharacter";
 import { getCharacterImage, type CharacterId, type CharacterSkin } from "@/lib/characters/assets";
 import type { JuniorCharacter } from "./types";
 import "./junior.css";
+import "./paper-motion.css";
 
-// Compatibility inputs remain accepted; the character itself is always static.
+// Mood/pose inputs remain static; whole-cutout paper motion is opt-in at call sites.
 export type JuniorMood = "idle" | "happy" | "confused" | "sad" | "think" | "talk" | "shake" | "graduate";
 export type JuniorView = "front" | "side" | "back";
 export type JuniorOutfit = "default" | "grad" | "soldiers" | "casual";

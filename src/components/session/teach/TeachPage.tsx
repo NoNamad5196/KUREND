@@ -92,6 +92,8 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
   const allObjectivesCovered = !!session?.objectives.length && restoredCovered.length === session.objectives.length;
   const waitingQuestion = male && lastMessage?.role === "JUNIOR" && lastMessage.stage === "QUESTION" ? lastMessage : null;
   const teachingChoices = waitingQuestion?.teachingChoices ?? [];
+  // A brief listening/reply gesture; draft edits and streamed tokens keep the same take.
+  const juniorMotionKey = sending ? "listening" : lastMessage?.role === "JUNIOR" ? lastMessage.messageId : "idle";
 
   // Existing sessions can predate teaching choices. Preparing an already active
   // session enriches its unanswered question without resetting its history/exam.
@@ -392,7 +394,7 @@ export function TeachPage({ sessionId }: { sessionId: string }) {
           </p>
         </div>
         <div className="study-character">
-          <JuniorAvatar character={character} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter />
+          <JuniorAvatar key={`${character}:${juniorMotionKey}`} character={character} size={205} mood={sending ? "think" : lastMessage?.role === "JUNIOR" && lastMessage.stage === "DOUBT" ? "confused" : "idle"} enter className={clsx((sending || lastMessage?.role === "JUNIOR") && "junior-paper-react")} />
         </div>
       </div>
 
