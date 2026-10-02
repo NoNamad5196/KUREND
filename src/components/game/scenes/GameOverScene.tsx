@@ -6,7 +6,8 @@ import { CHARACTER_META } from "../characters";
 import { JuniorAvatar } from "../JuniorAvatar";
 import type { JuniorCharacter } from "../types";
 import { PaperEnding } from "./PaperEnding";
-import { ArmyTruck, PickupTruck } from "./Trucks";
+import { ArmyTruck } from "./Trucks";
+import { KuTruckDeparture } from "./KuTruckDeparture";
 
 /** Whole PNGs rock and travel like paper puppets; the departure story stays intact. */
 export function GameOverScene({ character, onNext, nextLabel = "새 후배 만나기" }: {
@@ -26,7 +27,7 @@ export function GameOverScene({ character, onNext, nextLabel = "새 후배 만�
           {meta.gameOver.lines.map((line) => <p key={line}>{line}</p>)}
         </div>
       </header>
-      <div className={clsx("static-departure-art paper-departure-stage", !female && "static-departure-with-vehicle")}>
+      {!male && !female ? <KuTruckDeparture /> : <div className={clsx("static-departure-art paper-departure-stage", !female && "static-departure-with-vehicle")}>
         <div className="static-departure-person paper-exit-person">
           <div className="paper-puppet">
             <div className="paper-facing paper-facing-front">
@@ -37,8 +38,8 @@ export function GameOverScene({ character, onNext, nextLabel = "새 후배 만�
             </div>
           </div>
         </div>
-        {!female && (male ? <ArmyTruck className="paper-truck" /> : <PickupTruck className="paper-truck" />)}
-      </div>
+        {male && <ArmyTruck className="paper-truck" />}
+      </div>}
       <footer className="static-scene-next">
         <p>{meta.gameOver.after}</p>
         <Button size="lg" onClick={onNext}>{nextLabel} →</Button>
