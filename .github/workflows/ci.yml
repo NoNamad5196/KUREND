@@ -31,5 +31,5 @@ jobs:
       - run: corepack pnpm@10.33.0 typecheck
       - run: corepack pnpm@10.33.0 lint
       # 외부 AI 호출 없이 stub 모드로 실행
-      - run: corepack pnpm@10.33.0 exec tsx --test --test-concurrency=1 'src/lib/llm/__tests__/*.test.ts' 'src/lib/server/__tests__/*.test.ts'
+      - run: corepack pnpm@10.33.0 exec tsx --test --test-concurrency=1 'src/lib/llm/__tests__/*.test.ts' 'src/lib/server/__tests__/*.test.ts' 'src/lib/client/__tests__/*.test.ts' 'src/lib/client/__tests__/*.test.tsx' 'scripts/__tests__/*.test.mjs'
       - run: corepack pnpm@10.33.0 build
