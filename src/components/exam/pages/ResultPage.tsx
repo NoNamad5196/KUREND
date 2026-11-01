@@ -14,6 +14,7 @@ import { AnswerSheet } from "../AnswerSheet";
 import { ReportCard } from "../ReportCard";
 import { GradeBox, GradeVerdictChip } from "../verdict";
 import { PageError, PageLoading, stream, useResultData, useTask } from "./shared";
+import { isGradedStatus } from "./exam-state";
 import type { ApplyLifeResponse, RunDto, WrongNoteDto } from "@/contracts/game";
 import Link from "next/link";
 import { gameApi } from "@/lib/client/game-api";
@@ -90,6 +91,19 @@ function ResultContent({ session, reload }: { session: SessionDto; reload: () =>
     }, 0);
     return () => clearTimeout(timer);
   }, [session.status, session.sessionId, run, reloadGame]);
+
+  // 채점 직후 이탈·요청 실패로 LIFE 가 빠진 세션은 재진입 시 보충한다(서버가 세션당 1회만 적용).
+  const lifeRecovered = useRef(false);
+  const recoveryRunId = juniorRun?.runId;
+  useEffect(() => {
+    if (!recoveryRunId || lifeRecovered.current || !isGradedStatus(session.status)) return;
+    lifeRecovered.current = true;
+    gameApi.applyLife(recoveryRunId, session.sessionId).then((applied) => {
+      if (!applied.applied || !juniorRunRef.current) return;
+      setOverlay({ result: applied, run: juniorRunRef.current });
+      void reloadGame();
+    }).catch(() => { lifeRecovered.current = false; });
+  }, [recoveryRunId, session.status, session.sessionId, reloadGame]);
 
   function complete() {
     void run(async (signal) => {

@@ -11,6 +11,7 @@ import { objectiveTopic, modelAnswersFor, modelKeywordsFor, matchQuestionObjecti
 import { teachingHintModeFor } from "@/lib/server/demo-auth";
 import { normalizePersonaAddress, personaQuestion } from "@/lib/llm/personas";
 import { examChoiceIndex } from "@/lib/shared/exam-format";
+import { examTaughtMessages } from "@/lib/llm/turn-state";
 import type { ConceptMasteryDto } from "@/contracts/game";
 import type { Llm, TaughtMsg } from "@/lib/llm";
 import { createSse } from "@/lib/server/sse";
@@ -123,8 +124,7 @@ function message(role: MessageRecord["role"], stage: MessageRecord["stage"], con
 }
 
 function taughtMessages(session: SessionRecord): TaughtMsg[] {
-  return session.messages.filter((item) => item.role === "USER" && !item.excluded)
-    .map((item, index) => ({ ref: index + 1, content: item.content }));
+  return examTaughtMessages(session.messages);
 }
 
 function sentences(text: string): string[] {
