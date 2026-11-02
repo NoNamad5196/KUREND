@@ -185,6 +185,24 @@ test("answers omit excluded explanations, allow requested qid order, and reuse c
   assert.equal(q1.filter((event) => event.event === "exam.completed").length, 1);
 });
 
+test("answers never cite an explanation the junior doubted", async () => {
+  const backend = createStubBackend();
+  const initial = await session(backend, ids.examSession);
+  const firstUser = initial.messages.findIndex((message) => message.role === "USER");
+  const doubted = initial.messages[firstUser];
+  const doubt = { ...doubted, messageId: "msg_doubt_regression", role: "JUNIOR" as const, stage: "DOUBT" as const, content: "잠깐, 그 설명이 맞아?" };
+  await backend.commitSession(initial, { ...initial, messages: [...initial.messages.slice(0, firstUser + 1), doubt, ...initial.messages.slice(firstUser + 1)] });
+  let evidence: TaughtMsg[] = [];
+  const model: Llm = { ...stubLlm, async *writeExamAnswer(input) {
+    evidence = input.taught;
+    yield* stubLlm.writeExamAnswer(input);
+  } };
+  const answer = await events(await createRouteHandlers({ backend, llm: model }).answers(request({ qid: "q2" }), ids.examSession));
+  success(answer);
+  assert.ok(evidence.length > 0);
+  assert.ok(evidence.every((item) => item.content !== doubted.content && item.ref !== 1));
+});
+
 test("grading rollback preserves completed answers and retry saves actual grades/gaps", async () => {
   const backend = createStubBackend();
   const normal = createRouteHandlers({ backend, llm: stubLlm });

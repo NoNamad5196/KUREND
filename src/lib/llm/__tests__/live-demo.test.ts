@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createLiveLlm, type LiveProviderCalls } from "../live";
-import { acceptedExplanations } from "../turn-state";
+import { acceptedExplanations, examTaughtMessages } from "../turn-state";
 import { UNLEARNED_ANSWER } from "../text";
 import { plainExamAnswer } from "@/lib/shared/exam-answer-text";
 import type { Llm, TaughtMsg } from "../types";
@@ -74,6 +74,22 @@ test("doubted turns cannot count as earlier teaching, including mixed-stage hist
     { role: "JUNIOR", stage: "QUESTION", content: "다음 질문" },
   ];
   assert.deepEqual(acceptedExplanations(history), [{ ref: 5, content: correct }]);
+});
+
+test("exam evidence drops doubted and excluded explanations but keeps stored ref numbering", () => {
+  const messages = [
+    { role: "JUNIOR", stage: "QUESTION", content: "처음 질문" },
+    { role: "USER", stage: "ANSWER", content: "빼기한 설명", excluded: true },
+    { role: "JUNIOR", stage: "DOUBT", content: "빼기한 설명에 대한 되묻기" },
+    { role: "USER", stage: "ANSWER", content: "가격이 오르면 수요량도 늘어" },
+    { role: "JUNIOR", stage: "REACTION", content: "임시 반응" },
+    { role: "JUNIOR", stage: "DOUBT", content: "한 번 더 설명해 줘" },
+    { role: "USER", stage: "ANSWER", content: correct },
+    { role: "JUNIOR", stage: "QUESTION", content: "다음 질문" },
+  ];
+  assert.deepEqual(examTaughtMessages(messages), [{ ref: 2, content: correct }]);
+  assert.deepEqual(examTaughtMessages(messages.filter((message) => message.stage !== "DOUBT")),
+    [{ ref: 1, content: "가격이 오르면 수요량도 늘어" }, { ref: 2, content: correct }]);
 });
 
 test("cumulative coverage keeps earlier evidence and asks only the missing objective", async () => {

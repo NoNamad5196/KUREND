@@ -24,6 +24,24 @@ export function acceptedExplanations(history: Turn["history"]): TaughtMsg[] {
   return accepted;
 }
 
+/** Exam answers and grading use the same rule as the dialogue: a doubted turn is
+ * not teaching. Refs keep the existing numbering (non-excluded USER messages,
+ * doubted ones included) so answers stored before this rule stay valid. */
+export function examTaughtMessages(messages: { role: string; stage: string; content: string; excluded?: boolean }[]): TaughtMsg[] {
+  const taught: (TaughtMsg & { doubted: boolean })[] = [];
+  let lastUser: (TaughtMsg & { doubted: boolean }) | null = null;
+  for (const message of messages) {
+    if (message.role === "USER") {
+      lastUser = null;
+      if (!message.excluded) {
+        lastUser = { ref: taught.length + 1, content: message.content, doubted: false };
+        taught.push(lastUser);
+      }
+    } else if (message.stage === "DOUBT" && lastUser) lastUser.doubted = true;
+  }
+  return taught.filter((item) => !item.doubted).map(({ ref, content }) => ({ ref, content }));
+}
+
 /** Each prepared target receives its own question even when an explanation
  * teaches several concepts together. KU still repeats unmastered targets. */
 export function nextLearningObjective(input: Turn, coveredObjectives: string[]) {

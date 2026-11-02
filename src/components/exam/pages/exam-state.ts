@@ -6,6 +6,9 @@ export type AnswerPlayback = {
   highlights: Record<number, RecallLevel>; unlearned: boolean;
   thought: string; thoughtClosed: boolean; saved: boolean; cached: boolean;
 };
+export function isGradedStatus(status: string): boolean {
+  return status === "RESULT_READY" || status === "REVIEWING";
+}
 export function emptyPlayback(): AnswerPlayback {
   return { text: "", sources: [], highlights: {}, unlearned: false, thought: "", thoughtClosed: false, saved: false, cached: false };
 }
